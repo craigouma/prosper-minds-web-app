@@ -1,0 +1,34 @@
+---
+# cPanel Git Version Control deployment.
+#
+# These tasks run when you click "Deploy HEAD Commit" in cPanel's Git™ Version
+# Control UI — no SSH/terminal needed. They run AFTER cPanel checks out the
+# branch, from inside the repository's own clone directory.
+#
+# SETUP (one-time, in the cPanel UI):
+#   1. Files → Git Version Control → Create.
+#   2. Clone URL: this repository's GitHub URL.
+#   3. Repository Path: somewhere OUTSIDE any public document root, e.g.
+#      /home/<CPANEL_USERNAME>/repositories/prosper-minds-web-app
+#      Do NOT set this to public_html or the CPD document root directly — the
+#      clone includes the full git history and this file; it must never be
+#      web-served itself. The tasks below copy just the built site files out
+#      to the real document roots.
+#   4. Set the deployment branch to `main`. Never deploy `dev` directly.
+#
+# REPLACE <CPANEL_USERNAME> below with the actual cPanel account username, and
+# confirm <CPD_DOCUMENT_ROOT> against Domains → cpd.prosper-minds.com →
+# Document Root in cPanel (this assumes it's an addon domain with its own
+# home-level folder, matching the local project layout — confirm before
+# first deploy).
+#
+# Before every deploy: the environment variables in each site's .env.example
+# must already exist on the server (real env vars or a .env file placed
+# directly in each live document root) — see README.md. Deploying before they
+# exist takes both sites down.
+deployment:
+  tasks:
+    - export MAIN_DEPLOYPATH=/home/<CPANEL_USERNAME>/public_html/
+    - /bin/cp -R public_html/. $MAIN_DEPLOYPATH
+    - export CPD_DEPLOYPATH=/home/<CPANEL_USERNAME>/<CPD_DOCUMENT_ROOT>/
+    - /bin/cp -R cpd.prosper-minds.com/. $CPD_DEPLOYPATH
