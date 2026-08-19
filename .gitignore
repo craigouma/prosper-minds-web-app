@@ -3,3 +3,4 @@
 /*.md
 !/README.md
 local-dev/logs/
+/*.pdf
