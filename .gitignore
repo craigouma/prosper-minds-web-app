@@ -2,3 +2,4 @@
 *.sql
 /*.md
 !/README.md
+local-dev/logs/
