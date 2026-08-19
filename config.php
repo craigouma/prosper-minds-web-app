@@ -60,9 +60,22 @@ function sendEmail($to, $subject, $message) {
         return true;
     }
 
-    $mail = new PHPMailer(true);
+    $mail = null;
 
     try {
+        // Instantiated INSIDE the try on purpose. `new PHPMailer(true)` is what
+        // makes Composer's autoloader require vendor/phpmailer/.../PHPMailer.php
+        // for the first time. When that file was left truncated by an
+        // incomplete upload on the main site in August 2026, the require threw
+        // a ParseError — and because the equivalent line there also sat outside
+        // any try, it escaped as an uncaught fatal. On this site that would kill
+        // register.php before its header("Location: success.php") redirect, so a
+        // delegate whose row had already been inserted would see a blank fatal
+        // instead of the confirmation page.
+        //
+        // CPD's own vendor files are intact today; this is preventative.
+        $mail = new PHPMailer(true);
+
         // Server settings come from the environment — see .env.example
         $mail->isSMTP();
         $mail->Host       = SMTP_HOST;
@@ -91,10 +104,21 @@ function sendEmail($to, $subject, $message) {
 
         $mail->send();
         return true;
-    } catch (Exception $e) {
-        // Log error but don't fail registration
-        error_log("Email error: {$mail->ErrorInfo}");
-        return true; // Still return true to complete registration
+    } catch (Throwable $e) {
+        // Throwable, not Exception: a corrupted autoloaded vendor file raises
+        // ParseError, which extends Error, which catch (Exception) does NOT
+        // catch. That distinction is the whole point of this hardening.
+        //
+        // $mail can still be null here if the failure happened during
+        // construction, so fall back to the throwable's own message.
+        $errorInfo = ($mail instanceof PHPMailer && $mail->ErrorInfo !== '')
+            ? $mail->ErrorInfo
+            : $e->getMessage();
+        error_log("Email error sending to {$to}: {$errorInfo}");
+
+        // Still return true: a mail problem must never block a registration
+        // that has already been written to the database.
+        return true;
     }
 }
 
