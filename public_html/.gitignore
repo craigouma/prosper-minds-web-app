@@ -1,0 +1,6 @@
+deploy-config.json
+.DS_Store
+admin.zip
+error_log
+assets/invoices/*
+!assets/invoices/.gitkeep
