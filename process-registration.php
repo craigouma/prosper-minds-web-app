@@ -2,6 +2,7 @@
 session_start();
 
 require_once 'includes/config.php';
+require_once 'includes/csrf.php';
 require_once 'includes/invoice.php';
 require_once 'includes/mail-template-user.php';
 require_once 'includes/mail-template-admin.php';
@@ -10,6 +11,18 @@ header('Content-Type: application/json');
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     echo json_encode(['success' => false, 'message' => 'Invalid request method.']);
+    exit;
+}
+
+// Reject anything that did not come from a form this session rendered. Checked
+// before any input is read so a forged cross-site post cannot reach the
+// database or the mailer.
+if (!csrfValidate($_POST['csrf_token'] ?? null)) {
+    error_log('Registration rejected: missing or invalid CSRF token (ip=' . ($_SERVER['REMOTE_ADDR'] ?? 'unknown') . ')');
+    echo json_encode([
+        'success' => false,
+        'message' => 'Your session has expired. Please refresh this page and submit the form again.',
+    ]);
     exit;
 }
 
