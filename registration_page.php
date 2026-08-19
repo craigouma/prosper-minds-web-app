@@ -4,7 +4,7 @@ require_once 'csrf.php';
 
 // Before any output, so PHP can still send the session cookie that the CSRF
 // token is bound to.
-csrfEnsureSession();
+formCsrfEnsureSession();
 
 $event_id = isset($_GET['event_id']) ? intval($_GET['event_id']) : 0;
 $conn = getDBConnection();
@@ -109,7 +109,7 @@ if (!$event) {
             <?php endif; ?>
 
             <form id="registrationForm" class="registration-form" method="POST" action="register.php">
-                <?php echo csrfField(); ?>
+                <?php echo formCsrfField(); ?>
                 <input type="hidden" name="event_id" value="<?php echo $event['id']; ?>">
 
                 <div class="form-group">
