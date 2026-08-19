@@ -2,5 +2,15 @@ deploy-config.json
 .DS_Store
 admin.zip
 error_log
+
+# Runtime logs. storage/logs/email-delivery.log was tracked in the baseline
+# commit; it churns on every send and lists real recipient addresses.
+storage/logs/*.log
+
+# Real credentials live here; only .env.example is tracked.
+.env
+.env.*
+!.env.example
+
 assets/invoices/*
 !assets/invoices/.gitkeep

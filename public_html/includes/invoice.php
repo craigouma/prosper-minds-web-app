@@ -40,8 +40,16 @@ function parseEventPrice(string $priceText): array
     $currency = 'USD';
     $amount = 0.0;
 
-    if (preg_match('/([A-Z]{3})/i', $priceText, $currencyMatch)) {
-        $currency = strtoupper($currencyMatch[1]);
+    // Case-SENSITIVE, and bounded by non-letters. The old pattern was
+    // /([A-Z]{3})/i, which matched the first three letters of any word — so
+    // the current price text "From USD 599 Per Delegate" yielded "FRO", and
+    // every invoice since has printed "UNIT PRICE (FRO)" and "FRO 599.00".
+    // A real currency code is written in capitals, so requiring capitals both
+    // fixes this and still finds USD, KES, ZAR, EUR, GBP, AED and the rest.
+    // The lookarounds let it also match a code written tight against the
+    // amount, e.g. "USD599".
+    if (preg_match('/(?<![A-Za-z])([A-Z]{3})(?![A-Za-z])/', $priceText, $currencyMatch)) {
+        $currency = $currencyMatch[1];
     }
 
     if (preg_match('/(\d[\d,]*(?:\.\d{1,2})?)/', $priceText, $amountMatch)) {

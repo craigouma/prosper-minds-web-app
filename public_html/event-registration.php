@@ -1,5 +1,10 @@
 <?php
 require_once 'includes/config.php';
+require_once 'includes/csrf.php';
+
+// Before any output, so PHP can still send the session cookie that the CSRF
+// token is bound to.
+formCsrfEnsureSession();
 
 $id = isset($_GET['id']) ? (int)$_GET['id'] : 0;
 $stmt = $pdo->prepare("SELECT * FROM events WHERE id = ? AND is_active = 1");
@@ -111,6 +116,7 @@ if (!$event) {
             <div id="formMsg" class="alert"></div>
 
             <form id="standaloneRegForm">
+                <?php echo formCsrfField(); ?>
                 <input type="hidden" name="event_id" value="<?php echo (int) $event['id']; ?>">
                 <input type="hidden" name="event_name" value="<?php echo htmlspecialchars($event['title']); ?>">
                 
@@ -290,8 +296,12 @@ if (!$event) {
         const unitPriceText = <?php echo json_encode($event['price']); ?>;
         const unitAmountMatch = unitPriceText.match(/(\d[\d,]*(?:\.\d{1,2})?)/);
         const unitAmount = unitAmountMatch ? parseFloat(unitAmountMatch[1].replace(/,/g, '')) : 0;
-        const unitCurrencyMatch = unitPriceText.match(/([A-Z]{3})/i);
-        const unitCurrency = unitCurrencyMatch ? unitCurrencyMatch[1].toUpperCase() : 'USD';
+        // Case-SENSITIVE and bounded by non-letters, matching parseEventPrice()
+        // in includes/invoice.php. The old /([A-Z]{3})/i matched the first
+        // three letters of any word, so "From USD 599 Per Delegate" showed the
+        // live invoice total as "FRO 599.00".
+        const unitCurrencyMatch = unitPriceText.match(/(?:^|[^A-Za-z])([A-Z]{3})(?![A-Za-z])/);
+        const unitCurrency = unitCurrencyMatch ? unitCurrencyMatch[1] : 'USD';
 
         function renderInvoiceSummary() {
             const cards = attendeesContainer.querySelectorAll('.attendee-card');

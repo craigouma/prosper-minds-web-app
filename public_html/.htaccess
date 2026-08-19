@@ -1,5 +1,11 @@
 
 
+# Block direct web access to dotfiles (.env, .git*, ...). Credentials are read
+# from .env, which may sit inside this document root.
+<FilesMatch "^\.">
+  Require all denied
+</FilesMatch>
+
 # php -- BEGIN cPanel-generated handler, do not edit
 # Set the “ea-php82” package as the default “PHP” programming language.
 <IfModule mime_module>
