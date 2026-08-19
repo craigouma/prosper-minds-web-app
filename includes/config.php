@@ -105,6 +105,83 @@ function createConfiguredMailer(): PHPMailer {
     return $mail;
 }
 
+/**
+ * Create the failed_notifications table if it is missing.
+ *
+ * Follows the same "ensure schema on demand" convention already used by
+ * ensureRegistrationInvoiceSchema() in includes/invoice.php, so a deploy does
+ * not have to be coordinated with a manual phpMyAdmin step. The equivalent
+ * up/down migration is also scripted in database/migrations/ for anyone who
+ * would rather apply it explicitly.
+ */
+function ensureFailedNotificationSchema(PDO $pdo): void {
+    static $schemaChecked = false;
+
+    if ($schemaChecked) {
+        return;
+    }
+
+    $schemaChecked = true;
+
+    try {
+        $pdo->exec(
+            "CREATE TABLE IF NOT EXISTS failed_notifications (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                registration_id INT DEFAULT NULL,
+                recipient VARCHAR(255) NOT NULL,
+                subject VARCHAR(255) NOT NULL,
+                error_message TEXT DEFAULT NULL,
+                resolved TINYINT(1) NOT NULL DEFAULT 0,
+                created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                KEY idx_failed_notifications_registration (registration_id),
+                KEY idx_failed_notifications_resolved (resolved)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci"
+        );
+    } catch (PDOException $e) {
+        error_log('Could not create failed_notifications table: ' . $e->getMessage());
+    }
+}
+
+/**
+ * Record an email that could not be delivered, so it is visible to an admin
+ * and can be retried, instead of vanishing.
+ *
+ * This is called from failure paths and must never throw: it writes to the
+ * PHP error log unconditionally, and additionally to the failed_notifications
+ * table when the database is reachable.
+ */
+function recordFailedNotification(
+    ?PDO $pdo,
+    ?int $registrationId,
+    string $recipient,
+    string $subject,
+    string $error
+): void {
+    error_log(sprintf(
+        'UNSENT NOTIFICATION | registration_id=%s | to=%s | subject=%s | error=%s',
+        $registrationId !== null ? (string) $registrationId : 'n/a',
+        $recipient,
+        $subject,
+        $error
+    ));
+
+    logEmailDelivery('failed', $recipient, $subject, 'registration_id=' . ($registrationId ?? 'n/a') . ' ' . $error);
+
+    if (!$pdo instanceof PDO) {
+        return;
+    }
+
+    try {
+        ensureFailedNotificationSchema($pdo);
+        $pdo->prepare(
+            'INSERT INTO failed_notifications (registration_id, recipient, subject, error_message)
+             VALUES (?, ?, ?, ?)'
+        )->execute([$registrationId, $recipient, $subject, $error]);
+    } catch (Throwable $e) {
+        error_log('Could not record failed notification: ' . $e->getMessage());
+    }
+}
+
 function logEmailDelivery(string $status, string $to, string $subject, string $details = ''): void {
     $logDir = __DIR__ . '/../storage/logs';
     if (!is_dir($logDir)) {

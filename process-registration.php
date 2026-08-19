@@ -103,6 +103,10 @@ $fullEventName = $eventName . ' (' . $eventRecord['location'] . ' ' . $eventReco
 $attendeeCount = count($attendees);
 $totalAmount = $unitPriceAmount * $attendeeCount;
 
+// ── Phase 1: persist the registration ────────────────────────────────────────
+// Everything in this block must succeed for the delegate to be registered. If
+// any of it throws, nothing is saved and the delegate is correctly told the
+// registration failed.
 try {
     $pdo->beginTransaction();
 
@@ -175,7 +179,38 @@ try {
     }
 
     $pdo->commit();
+} catch (Throwable $e) {
+    if ($pdo->inTransaction()) {
+        $pdo->rollBack();
+    }
 
+    error_log("Registration error: " . $e->getMessage());
+    echo json_encode(['success' => false, 'message' => 'We could not complete the registration right now. Please try again shortly.']);
+    exit;
+}
+
+// ── Phase 2: notify (best effort) ────────────────────────────────────────────
+// Past this line the registration is COMMITTED and the invoice PDF exists on
+// disk. The delegate is registered, full stop.
+//
+// Sending the five notification emails is a separate, best-effort concern.
+// This block deliberately cannot change the answer above:
+//
+//   * Previously the response was `$a && $b && $c && $d && $e` over five email
+//     sends, so a single transient SMTP hiccup told a delegate whose place was
+//     confirmed that their registration had failed.
+//   * Worse, this code used to sit inside the same try as the INSERT, so when
+//     the corrupted vendor/phpmailer file threw a ParseError on 14-Aug-2026 the
+//     outer catch reported failure for 36 registrations that had in fact been
+//     saved, with invoices already generated.
+//
+// So: catch Throwable (not just Exception — a broken autoloaded vendor file
+// throws ParseError, an Error, which `catch (Exception)` does NOT catch),
+// record every undelivered message in failed_notifications for an admin to
+// retry, and still return success.
+$undeliveredCount = 0;
+
+try {
     $registrationData = [
         'first_name' => $firstName,
         'last_name' => $lastName,
@@ -218,7 +253,7 @@ try {
     $invoiceAttachment = [
         ['path' => $invoiceAbsolutePath, 'name' => $invoiceFilename],
     ];
-    $mailResults = sendEmailMessages([
+    $notifications = [
         [
             'to' => $email,
             'subject' => 'Your Invitation - ' . $eventRecord['title'],
@@ -249,39 +284,50 @@ try {
             'message' => $invoiceBody,
             'attachments' => $invoiceAttachment,
         ],
-    ]);
-    $invitationEmailSent = (bool) ($mailResults[0]['success'] ?? false);
-    $invoiceEmailSent = (bool) ($mailResults[1]['success'] ?? false);
-    $adminEmailSent = (bool) ($mailResults[2]['success'] ?? false);
-    $adminInvitationCopySent = (bool) ($mailResults[3]['success'] ?? false);
-    $adminInvoiceCopySent = (bool) ($mailResults[4]['success'] ?? false);
+    ];
 
-    if ($adminEmailSent && $invitationEmailSent && $invoiceEmailSent && $adminInvitationCopySent && $adminInvoiceCopySent) {
-        echo json_encode(['success' => true, 'message' => 'Registration successful! Your invitation and invoice have been emailed to you.']);
-    } else {
-        $mailIssue = 'Registration was saved, but one or more emails could not be sent.';
-        if (!$adminEmailSent) {
-            $mailIssue .= ' Admin notification failed.';
-        }
-        if (!$invitationEmailSent) {
-            $mailIssue .= ' Invitation email failed for ' . $email . '.';
-        }
-        if (!$invoiceEmailSent) {
-            $mailIssue .= ' Invoice email failed for ' . $email . '.';
-        }
-        if (!$adminInvitationCopySent) {
-            $mailIssue .= ' Admin invitation copy failed.';
-        }
-        if (!$adminInvoiceCopySent) {
-            $mailIssue .= ' Admin invoice copy failed.';
-        }
-        echo json_encode(['success' => false, 'message' => $mailIssue]);
-    }
-} catch (Throwable $e) {
-    if ($pdo->inTransaction()) {
-        $pdo->rollBack();
-    }
+    $mailResults = sendEmailMessages($notifications);
 
-    error_log("Registration error: " . $e->getMessage());
-    echo json_encode(['success' => false, 'message' => 'We could not complete the registration right now. Please try again shortly.']);
+    foreach ($notifications as $index => $notification) {
+        if (($mailResults[$index]['success'] ?? false) === true) {
+            continue;
+        }
+
+        $undeliveredCount++;
+        recordFailedNotification(
+            $pdo,
+            $registrationId,
+            (string) $notification['to'],
+            (string) $notification['subject'],
+            (string) ($mailResults[$index]['error'] ?? 'Unknown mail error')
+        );
+    }
+} catch (Throwable $mailError) {
+    // The mailer itself blew up (broken vendor file, misconfigured SMTP host,
+    // template fatal, ...) so no per-message results exist. Record one entry
+    // against the registration so the backlog is still visible to an admin.
+    $undeliveredCount = 5;
+    recordFailedNotification(
+        $pdo,
+        $registrationId,
+        $email,
+        'Registration notifications for ' . $invoiceNumber,
+        'Mail pipeline failed before sending: ' . $mailError->getMessage()
+    );
 }
+
+// The registration is saved either way. Say so.
+if ($undeliveredCount === 0) {
+    $message = 'Registration successful! Your invitation and invoice have been emailed to you.';
+} else {
+    $message = 'Registration successful! Your place is confirmed and your invoice '
+        . $invoiceNumber . ' has been generated. We had trouble emailing it to you — '
+        . 'our team has been notified and will send it to you shortly.';
+}
+
+echo json_encode([
+    'success' => true,
+    'message' => $message,
+    'registration_id' => $registrationId,
+    'invoice_number' => $invoiceNumber,
+]);
