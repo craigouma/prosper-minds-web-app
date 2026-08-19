@@ -9,11 +9,11 @@
  * Usage:
  *   - On the page that renders the form, BEFORE any output:
  *         require_once 'includes/csrf.php';
- *         csrfEnsureSession();
+ *         formCsrfEnsureSession();
  *     then inside the <form>:
- *         <?php echo csrfField(); ?>
+ *         <?php echo formCsrfField(); ?>
  *   - In the handler the form posts to:
- *         if (!csrfValidate($_POST['csrf_token'] ?? null)) { ...reject... }
+ *         if (!formCsrfValidate($_POST['csrf_token'] ?? null)) { ...reject... }
  */
 
 /**
@@ -22,7 +22,7 @@
  * Must be called before anything is written to the output buffer, otherwise
  * PHP cannot send the session cookie.
  */
-function csrfEnsureSession(): void
+function formCsrfEnsureSession(): void
 {
     if (session_status() === PHP_SESSION_NONE) {
         session_start();
@@ -32,24 +32,24 @@ function csrfEnsureSession(): void
 /**
  * Return the current session's CSRF token, creating one on first use.
  */
-function csrfToken(): string
+function formCsrfToken(): string
 {
-    csrfEnsureSession();
+    formCsrfEnsureSession();
 
-    if (empty($_SESSION['csrf_token']) || !is_string($_SESSION['csrf_token'])) {
-        $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
+    if (empty($_SESSION['form_csrf_token']) || !is_string($_SESSION['form_csrf_token'])) {
+        $_SESSION['form_csrf_token'] = bin2hex(random_bytes(32));
     }
 
-    return $_SESSION['csrf_token'];
+    return $_SESSION['form_csrf_token'];
 }
 
 /**
  * Hidden input carrying the token, ready to drop inside a <form>.
  */
-function csrfField(): string
+function formCsrfField(): string
 {
     return '<input type="hidden" name="csrf_token" value="'
-        . htmlspecialchars(csrfToken(), ENT_QUOTES, 'UTF-8')
+        . htmlspecialchars(formCsrfToken(), ENT_QUOTES, 'UTF-8')
         . '">';
 }
 
@@ -59,11 +59,11 @@ function csrfField(): string
  * Returns false when the token is missing, the wrong type, or no token has
  * been issued for this session yet — never "allow by default".
  */
-function csrfValidate(mixed $submittedToken): bool
+function formCsrfValidate(mixed $submittedToken): bool
 {
-    csrfEnsureSession();
+    formCsrfEnsureSession();
 
-    $expected = $_SESSION['csrf_token'] ?? '';
+    $expected = $_SESSION['form_csrf_token'] ?? '';
 
     if (!is_string($expected) || $expected === '' || !is_string($submittedToken) || $submittedToken === '') {
         return false;

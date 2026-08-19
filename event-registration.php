@@ -4,7 +4,7 @@ require_once 'includes/csrf.php';
 
 // Before any output, so PHP can still send the session cookie that the CSRF
 // token is bound to.
-csrfEnsureSession();
+formCsrfEnsureSession();
 
 $id = isset($_GET['id']) ? (int)$_GET['id'] : 0;
 $stmt = $pdo->prepare("SELECT * FROM events WHERE id = ? AND is_active = 1");
@@ -116,7 +116,7 @@ if (!$event) {
             <div id="formMsg" class="alert"></div>
 
             <form id="standaloneRegForm">
-                <?php echo csrfField(); ?>
+                <?php echo formCsrfField(); ?>
                 <input type="hidden" name="event_id" value="<?php echo (int) $event['id']; ?>">
                 <input type="hidden" name="event_name" value="<?php echo htmlspecialchars($event['title']); ?>">
                 
