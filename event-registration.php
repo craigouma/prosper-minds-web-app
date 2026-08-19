@@ -296,8 +296,12 @@ if (!$event) {
         const unitPriceText = <?php echo json_encode($event['price']); ?>;
         const unitAmountMatch = unitPriceText.match(/(\d[\d,]*(?:\.\d{1,2})?)/);
         const unitAmount = unitAmountMatch ? parseFloat(unitAmountMatch[1].replace(/,/g, '')) : 0;
-        const unitCurrencyMatch = unitPriceText.match(/([A-Z]{3})/i);
-        const unitCurrency = unitCurrencyMatch ? unitCurrencyMatch[1].toUpperCase() : 'USD';
+        // Case-SENSITIVE and bounded by non-letters, matching parseEventPrice()
+        // in includes/invoice.php. The old /([A-Z]{3})/i matched the first
+        // three letters of any word, so "From USD 599 Per Delegate" showed the
+        // live invoice total as "FRO 599.00".
+        const unitCurrencyMatch = unitPriceText.match(/(?:^|[^A-Za-z])([A-Z]{3})(?![A-Za-z])/);
+        const unitCurrency = unitCurrencyMatch ? unitCurrencyMatch[1] : 'USD';
 
         function renderInvoiceSummary() {
             const cards = attendeesContainer.querySelectorAll('.attendee-card');
