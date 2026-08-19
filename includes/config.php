@@ -1,0 +1,177 @@
+<?php
+require_once __DIR__ . '/../vendor/autoload.php';
+use PHPMailer\PHPMailer\PHPMailer;
+use PHPMailer\PHPMailer\Exception;
+
+// ── Database credentials ────────────────────────────────────────────────────
+// Loaded from db-credentials.php, which is excluded from the local->live sync
+// (see deploy-config.json) so local dev credentials never overwrite the live
+// server's credentials, and vice versa. Each environment keeps its own copy.
+require_once __DIR__ . '/db-credentials.php';
+
+try {
+    $pdo = new PDO(
+        "mysql:host=" . DB_HOST . ";port=" . DB_PORT . ";dbname=" . DB_NAME . ";charset=utf8mb4",
+        DB_USER, DB_PASS
+    );
+    $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+    $pdo->setAttribute(PDO::ATTR_DEFAULT_FETCH_MODE, PDO::FETCH_ASSOC);
+} catch (PDOException $e) {
+    die("Database connection failed. Please contact the administrator.");
+}
+
+// ── Site settings loaded from DB (falls back to defaults if table missing) ──
+$siteSettings = [];
+try {
+    $stmt = $pdo->query("SELECT setting_key, setting_value FROM site_settings");
+    foreach ($stmt->fetchAll() as $row) {
+        $siteSettings[$row['setting_key']] = $row['setting_value'];
+    }
+} catch (PDOException $e) {
+    // Table not yet created – first run
+}
+
+function getSetting(string $key, string $default = ''): string {
+    global $siteSettings;
+    return $siteSettings[$key] ?? $default;
+}
+
+// Convenience constants (admin templates reference these)
+if (!defined('ADMIN_EMAIL'))   define('ADMIN_EMAIL',   getSetting('admin_email',   'info@prosper-minds.com'));
+if (!defined('COMPANY_NAME'))  define('COMPANY_NAME',  getSetting('company_name',  'ProsperMinds'));
+if (!defined('COMPANY_COLOR')) define('COMPANY_COLOR', getSetting('company_color', '#00B140'));
+
+// ── Email via PHPMailer ─────────────────────────────────────────────────────
+function createConfiguredMailer(): PHPMailer {
+    $mail = new PHPMailer(true);
+    $mail->isSMTP();
+    $mail->Host      = getSetting('smtp_host', 'mail.prosper-minds.com');
+    $mail->SMTPAuth  = true;
+    $mail->Username  = getSetting('smtp_user', 'info@prosper-minds.com');
+    $mail->Password  = getSetting('smtp_pass', '');
+    $mail->Timeout   = 30;
+    $secure          = getSetting('smtp_secure', 'tls');
+    if ($secure === 'ssl') {
+        $mail->SMTPSecure = PHPMailer::ENCRYPTION_SMTPS;
+    } elseif ($secure === 'tls') {
+        $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
+    } else {
+        $mail->SMTPSecure = false;
+        $mail->SMTPAutoTLS = false;
+    }
+    $mail->Port = (int) getSetting('smtp_port', '587');
+
+    $fromEmail = getSetting('smtp_from_email', '') ?: getSetting('smtp_user', ADMIN_EMAIL);
+    if (!filter_var($fromEmail, FILTER_VALIDATE_EMAIL)) {
+        $fromEmail = ADMIN_EMAIL;
+    }
+
+    $mail->setFrom($fromEmail, COMPANY_NAME);
+    // Always add reply-to pointing to admin inbox
+    $mail->addReplyTo(ADMIN_EMAIL, COMPANY_NAME);
+    $mail->isHTML(true);
+    $mail->CharSet = 'UTF-8';
+    $mail->Encoding = 'base64';
+
+    // Deliverability headers – help avoid spam filters (Gmail, Outlook, etc.)
+    $mail->XMailer = 'ProsperMinds Mailer 1.0';
+    $mail->addCustomHeader('X-Mailer', 'ProsperMinds Mailer 1.0');
+    $mail->addCustomHeader('X-Priority', '3');                // Normal priority
+    $mail->addCustomHeader('Importance', 'Normal');
+    // Note: no "Precedence: bulk" header — that flags transactional mail as
+    // bulk/mass mail to Gmail/Outlook spam filters and hurts deliverability.
+
+    return $mail;
+}
+
+function logEmailDelivery(string $status, string $to, string $subject, string $details = ''): void {
+    $logDir = __DIR__ . '/../storage/logs';
+    if (!is_dir($logDir)) {
+        mkdir($logDir, 0755, true);
+    }
+
+    $line = sprintf(
+        "[%s] %s | to=%s | subject=%s | %s%s",
+        date('Y-m-d H:i:s'),
+        strtoupper($status),
+        $to,
+        $subject,
+        $details,
+        PHP_EOL
+    );
+
+    file_put_contents($logDir . '/email-delivery.log', $line, FILE_APPEND);
+}
+
+function sendEmail(string $to, string $subject, string $message, array $attachments = []): bool {
+    $results = sendEmailMessages([
+        [
+            'to' => $to,
+            'subject' => $subject,
+            'message' => $message,
+            'attachments' => $attachments,
+        ],
+    ]);
+
+    return $results[0]['success'] ?? false;
+}
+
+function sendEmailMessages(array $messages): array {
+    $results = [];
+    $messageCount = count($messages);
+
+    foreach ($messages as $index => $messageData) {
+        $to = (string) ($messageData['to'] ?? '');
+        $subject = (string) ($messageData['subject'] ?? '');
+        $message = (string) ($messageData['message'] ?? '');
+        $attachments = $messageData['attachments'] ?? [];
+
+        // A fresh connection per message (instead of one shared SMTPKeepAlive
+        // session for the whole batch) avoids mail servers/receivers treating
+        // several different recipients sent back-to-back on one session as a
+        // spam blast and silently dropping messages after the first.
+        $mail = null;
+
+        try {
+            $mail = createConfiguredMailer();
+            $mail->Subject = $subject;
+            $mail->Body = $message;
+            $mail->AltBody = trim(strip_tags(str_replace(['<br>', '<br/>', '<br />'], PHP_EOL, $message)));
+            $mail->addAddress($to);
+
+            // Unique Message-ID per email helps Gmail not treat it as duplicate/spam
+            $domain = parse_url('https://' . ($mail->Host ?? 'prosper-minds.com'), PHP_URL_HOST) ?? 'prosper-minds.com';
+            $mail->MessageID = '<' . time() . '.' . bin2hex(random_bytes(8)) . '@' . $domain . '>';
+
+            foreach ($attachments as $attachment) {
+                if (!empty($attachment['path']) && is_file($attachment['path'])) {
+                    $mail->addAttachment($attachment['path'], $attachment['name'] ?? basename($attachment['path']));
+                }
+            }
+
+            $mail->send();
+            logEmailDelivery('success', $to, $subject, 'attachments=' . count($attachments));
+            $results[$index] = ['success' => true, 'to' => $to];
+        } catch (Exception $e) {
+            $errorInfo = $mail instanceof PHPMailer ? $mail->ErrorInfo : $e->getMessage();
+            error_log("Email error to {$to}: {$errorInfo}");
+            logEmailDelivery('failed', $to, $subject, $errorInfo);
+            $results[$index] = ['success' => false, 'to' => $to, 'error' => $errorInfo];
+        } finally {
+            if ($mail instanceof PHPMailer) {
+                $mail->smtpClose();
+            }
+        }
+
+        if ($index < $messageCount - 1) {
+            usleep(750000);
+        }
+    }
+
+    ksort($results);
+    return array_values($results);
+}
+
+function sanitizeInput(string $data): string {
+    return htmlspecialchars(stripslashes(trim($data)));
+}
