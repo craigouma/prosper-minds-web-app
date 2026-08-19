@@ -1,0 +1,88 @@
+# ProsperMinds local development / test environment.
+#
+# Purpose: give a developer a throwaway, reproducible copy of both production
+# databases plus a mail-catcher, so registration and invoicing can be tested
+# end-to-end WITHOUT touching prosper-minds.com, cpd.prosper-minds.com, or the
+# real SMTP account.
+#
+# NOTHING here ever talks to production. The two SQL dumps at the repo root are
+# mounted read-only and are never modified.
+#
+#   docker compose up -d
+#   php -S 127.0.0.1:8080 -t public_html                # main site
+#   php -S 127.0.0.1:8081 -t cpd.prosper-minds.com      # CPD subdomain
+#   open http://127.0.0.1:8025                          # Mailpit (caught mail)
+#
+# Note: TLS is disabled on both DB containers (see --skip-ssl below), so the
+# bundled `mariadb` CLI must also be called with --skip-ssl, e.g.
+#   docker exec pm-db-main mariadb --skip-ssl -upm_local -ppm_local_pw \
+#     kidsmone_Prosperminds_website -e "SELECT COUNT(*) FROM event_registrations;"
+# PHP's PDO/mysqli do not require TLS and connect without any extra flag.
+#
+# See PHASE1-PROGRESS.md for the full walkthrough.
+
+services:
+  # ── Main site DB: kidsmone_Prosperminds_website ───────────────────────────
+  db-main:
+    image: mariadb:11
+    container_name: pm-db-main
+    restart: unless-stopped
+    # MariaDB 11.4+ auto-generates a self-signed TLS cert on first boot. On a
+    # fast machine the entrypoint's own client connects a fraction of a second
+    # before the cert's notBefore time and the whole init aborts with
+    # "TLS/SSL error: certificate is not yet valid", leaving an EMPTY database
+    # that still reports healthy. Nothing here needs TLS (loopback only), so
+    # turn it off and make first-boot deterministic.
+    command: ["--skip-ssl"]
+    environment:
+      MARIADB_ROOT_PASSWORD: local_root_pw
+      MARIADB_DATABASE: kidsmone_Prosperminds_website
+      MARIADB_USER: pm_local
+      MARIADB_PASSWORD: pm_local_pw
+    ports:
+      - "3307:3306"
+    volumes:
+      # Seed data, read-only. The dumps are the untouched production baseline.
+      - ./kidsmone_Prosperminds_website.sql:/docker-entrypoint-initdb.d/01-schema-and-data.sql:ro
+      - ./local-dev/main-local-overrides.sql:/docker-entrypoint-initdb.d/02-local-overrides.sql:ro
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  # ── CPD subdomain DB: kidsmone_cpd_events ─────────────────────────────────
+  db-cpd:
+    image: mariadb:11
+    container_name: pm-db-cpd
+    restart: unless-stopped
+    command: ["--skip-ssl"]   # see note on db-main
+    environment:
+      MARIADB_ROOT_PASSWORD: local_root_pw
+      MARIADB_DATABASE: kidsmone_cpd_events
+      MARIADB_USER: cpd_local
+      MARIADB_PASSWORD: cpd_local_pw
+    ports:
+      - "3308:3306"
+    volumes:
+      - ./kidsmone_cpd_events.sql:/docker-entrypoint-initdb.d/01-schema-and-data.sql:ro
+      - ./local-dev/cpd-local-overrides.sql:/docker-entrypoint-initdb.d/02-local-overrides.sql:ro
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  # ── Mail-catcher. ALL outbound mail from local testing lands here. ────────
+  # Nothing leaves the machine. Web UI on http://127.0.0.1:8025
+  mailpit:
+    image: axllent/mailpit:latest
+    container_name: pm-mailpit
+    restart: unless-stopped
+    environment:
+      MP_SMTP_AUTH_ACCEPT_ANY: "true"
+      MP_SMTP_AUTH_ALLOW_INSECURE: "true"
+      MP_MAX_MESSAGES: "5000"
+    ports:
+      - "1025:1025"   # SMTP
+      - "8025:8025"   # Web UI + REST API
