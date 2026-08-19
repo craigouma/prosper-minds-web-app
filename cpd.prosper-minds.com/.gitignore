@@ -1,3 +1,8 @@
 .DS_Store
 error_log
 prosperminds-cpd.zip
+
+# Real credentials live here; only .env.example is tracked.
+.env
+.env.*
+!.env.example
