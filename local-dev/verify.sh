@@ -431,5 +431,24 @@ check "funnel.php restored byte for byte" "yes" \
 rm -f /tmp/verify-funnel.bak "$FJAR" "$FBODY" "$AJAR"
 
 echo
+echo "=== 8i. form_started beacon, client side ==="
+# Deliberately last: it fetches the registration page, which logs another
+# page_view, and every count asserted above is exact.
+#
+# curl runs no JavaScript, so nothing above proves the listener actually fires.
+# check-beacon-js.js extracts the shipped IIFE out of the rendered page and runs
+# it against a DOM stub: fires once across four focus/input events, posts
+# event_type/event_id/csrf_token, and falls back to fetch keepalive both when
+# sendBeacon is absent and when it refuses the payload.
+if command -v node >/dev/null 2>&1; then
+  curl -s "$MAIN/event-registration.php?id=3" > /tmp/verify-beacon-page.html
+  check "beacon JS: fires once, right payload, both fallbacks" "0" \
+    "$(node local-dev/check-beacon-js.js /tmp/verify-beacon-page.html >/dev/null 2>&1; echo $?)"
+  rm -f /tmp/verify-beacon-page.html
+else
+  printf '  SKIP  %-58s %s\n' "beacon JS checks (node is not installed)" "-"
+fi
+
+echo
 printf '\n%s\npassed=%d failed=%d\n%s\n' "$(printf '=%.0s' {1..78})" "$pass" "$fail" "$(printf '=%.0s' {1..78})"
 exit $((fail > 0 ? 1 : 0))
