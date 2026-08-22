@@ -8,6 +8,11 @@
 *.sql
 !public_html/database/migrations/*.sql
 !cpd.prosper-minds.com/database/migrations/*.sql
+# Same problem for the local-dev seed overrides: docker-compose.yml mounts them
+# by name, and local-dev/verify.sh now depends on the local admin account one of
+# them creates, so a fresh clone could not bring the stack up without them.
+# They contain placeholder values only — no production credentials, no PII.
+!local-dev/*.sql
 
 /*.md
 !/README.md

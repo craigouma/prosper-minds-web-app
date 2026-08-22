@@ -354,8 +354,24 @@ include 'header.php';
             <?php if ($index > 0): ?>
                 <div style="display:flex;align-items:center;gap:8px;margin:0 0 10px 2px;font-size:12px;color:#94a3b8;">
                     <i class="fas fa-arrow-down"></i>
-                    <?php // One line, and always rendered: local-dev/verify.sh asserts against it. ?>
-                    <span data-dropoff="<?php echo htmlspecialchars($stage['key']); ?>" data-drop="<?php echo $stage['drop'] === null ? '' : number_format($stage['drop'], 1); ?>"><?php echo $stage['drop'] === null ? 'no drop-off to measure' : number_format($stage['drop'], 1) . '% drop-off'; ?></span>
+                    <?php
+                    // One line, and always rendered: local-dev/verify.sh asserts
+                    // against it. A NEGATIVE drop-off is a real and useful
+                    // reading, not a bug: submits can outnumber form-starts
+                    // because form_started is deduplicated per session per day
+                    // (and never fires at all for a client with JavaScript off),
+                    // while every submit is counted. Seeing it means the
+                    // form_started signal is under-reporting, so it is shown as
+                    // what it is rather than clamped to zero.
+                    if ($stage['drop'] === null) {
+                        $dropLabel = 'no drop-off to measure';
+                    } elseif ($stage['drop'] < 0) {
+                        $dropLabel = number_format(abs($stage['drop']), 1) . '% MORE than the previous stage';
+                    } else {
+                        $dropLabel = number_format($stage['drop'], 1) . '% drop-off';
+                    }
+                    ?>
+                    <span data-dropoff="<?php echo htmlspecialchars($stage['key']); ?>" data-drop="<?php echo $stage['drop'] === null ? '' : number_format($stage['drop'], 1); ?>"><?php echo htmlspecialchars($dropLabel); ?></span>
                 </div>
             <?php endif; ?>
             <?php // Attributes kept on one line: local-dev/verify.sh asserts against them. ?>
