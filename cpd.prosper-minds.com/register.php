@@ -1,8 +1,25 @@
 <?php
 require_once 'config.php';
+require_once 'csrf.php';
 
 // Check if form is submitted
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    // Reject anything that did not come from a form this session rendered.
+    // Checked before any input is read, so a forged cross-site post cannot
+    // reach the database or the mailer.
+    if (!formCsrfValidate($_POST['csrf_token'] ?? null)) {
+        error_log('CPD registration rejected: missing or invalid CSRF token (ip=' . ($_SERVER['REMOTE_ADDR'] ?? 'unknown') . ')');
+
+        $rejected_event_id = isset($_POST['event_id']) ? intval($_POST['event_id']) : 0;
+        $csrf_message = urlencode('Your session has expired. Please submit the form again.');
+        $back = $rejected_event_id > 0
+            ? "registration_page.php?event_id=$rejected_event_id&error=$csrf_message"
+            : "index.php?error=$csrf_message";
+
+        header("Location: $back");
+        exit;
+    }
+
     // Validate and sanitize inputs
     $event_id = isset($_POST['event_id']) ? intval($_POST['event_id']) : 0;
     $first_name = isset($_POST['first_name']) ? sanitizeInput($_POST['first_name']) : '';

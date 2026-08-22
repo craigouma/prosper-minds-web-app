@@ -4,9 +4,9 @@ use PHPMailer\PHPMailer\PHPMailer;
 use PHPMailer\PHPMailer\Exception;
 
 // ── Database credentials ────────────────────────────────────────────────────
-// Loaded from db-credentials.php, which is excluded from the local->live sync
-// (see deploy-config.json) so local dev credentials never overwrite the live
-// server's credentials, and vice versa. Each environment keeps its own copy.
+// db-credentials.php no longer holds literal credentials; it reads them from
+// the environment / a gitignored .env file. See .env.example and env.php.
+require_once __DIR__ . '/env.php';
 require_once __DIR__ . '/db-credentials.php';
 
 try {
@@ -36,6 +36,26 @@ function getSetting(string $key, string $default = ''): string {
     return $siteSettings[$key] ?? $default;
 }
 
+/**
+ * Resolve a mail setting: environment variable first, then the site_settings
+ * table, then the hardcoded default.
+ *
+ * Production behaviour is unchanged as long as none of these environment
+ * variables are set — the admin UI keeps managing SMTP through site_settings
+ * exactly as before. The override exists so a developer (or the invoice
+ * recovery script) can force all outbound mail to a local mail-catcher without
+ * editing the database, and so the SMTP password can eventually be moved out
+ * of the database into the server environment.
+ */
+function getMailSetting(string $envKey, string $settingKey, string $default = ''): string {
+    $fromEnv = pm_env($envKey);
+    if ($fromEnv !== null && $fromEnv !== '') {
+        return $fromEnv;
+    }
+
+    return getSetting($settingKey, $default);
+}
+
 // Convenience constants (admin templates reference these)
 if (!defined('ADMIN_EMAIL'))   define('ADMIN_EMAIL',   getSetting('admin_email',   'info@prosper-minds.com'));
 if (!defined('COMPANY_NAME'))  define('COMPANY_NAME',  getSetting('company_name',  'ProsperMinds'));
@@ -45,12 +65,12 @@ if (!defined('COMPANY_COLOR')) define('COMPANY_COLOR', getSetting('company_color
 function createConfiguredMailer(): PHPMailer {
     $mail = new PHPMailer(true);
     $mail->isSMTP();
-    $mail->Host      = getSetting('smtp_host', 'mail.prosper-minds.com');
+    $mail->Host      = getMailSetting('SMTP_HOST', 'smtp_host', 'mail.prosper-minds.com');
     $mail->SMTPAuth  = true;
-    $mail->Username  = getSetting('smtp_user', 'info@prosper-minds.com');
-    $mail->Password  = getSetting('smtp_pass', '');
+    $mail->Username  = getMailSetting('SMTP_USER', 'smtp_user', 'info@prosper-minds.com');
+    $mail->Password  = getMailSetting('SMTP_PASS', 'smtp_pass', '');
     $mail->Timeout   = 30;
-    $secure          = getSetting('smtp_secure', 'tls');
+    $secure          = getMailSetting('SMTP_SECURE', 'smtp_secure', 'tls');
     if ($secure === 'ssl') {
         $mail->SMTPSecure = PHPMailer::ENCRYPTION_SMTPS;
     } elseif ($secure === 'tls') {
@@ -59,9 +79,10 @@ function createConfiguredMailer(): PHPMailer {
         $mail->SMTPSecure = false;
         $mail->SMTPAutoTLS = false;
     }
-    $mail->Port = (int) getSetting('smtp_port', '587');
+    $mail->Port = (int) getMailSetting('SMTP_PORT', 'smtp_port', '587');
 
-    $fromEmail = getSetting('smtp_from_email', '') ?: getSetting('smtp_user', ADMIN_EMAIL);
+    $fromEmail = getMailSetting('SMTP_FROM_EMAIL', 'smtp_from_email', '')
+        ?: getMailSetting('SMTP_USER', 'smtp_user', ADMIN_EMAIL);
     if (!filter_var($fromEmail, FILTER_VALIDATE_EMAIL)) {
         $fromEmail = ADMIN_EMAIL;
     }
@@ -82,6 +103,83 @@ function createConfiguredMailer(): PHPMailer {
     // bulk/mass mail to Gmail/Outlook spam filters and hurts deliverability.
 
     return $mail;
+}
+
+/**
+ * Create the failed_notifications table if it is missing.
+ *
+ * Follows the same "ensure schema on demand" convention already used by
+ * ensureRegistrationInvoiceSchema() in includes/invoice.php, so a deploy does
+ * not have to be coordinated with a manual phpMyAdmin step. The equivalent
+ * up/down migration is also scripted in database/migrations/ for anyone who
+ * would rather apply it explicitly.
+ */
+function ensureFailedNotificationSchema(PDO $pdo): void {
+    static $schemaChecked = false;
+
+    if ($schemaChecked) {
+        return;
+    }
+
+    $schemaChecked = true;
+
+    try {
+        $pdo->exec(
+            "CREATE TABLE IF NOT EXISTS failed_notifications (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                registration_id INT DEFAULT NULL,
+                recipient VARCHAR(255) NOT NULL,
+                subject VARCHAR(255) NOT NULL,
+                error_message TEXT DEFAULT NULL,
+                resolved TINYINT(1) NOT NULL DEFAULT 0,
+                created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                KEY idx_failed_notifications_registration (registration_id),
+                KEY idx_failed_notifications_resolved (resolved)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci"
+        );
+    } catch (PDOException $e) {
+        error_log('Could not create failed_notifications table: ' . $e->getMessage());
+    }
+}
+
+/**
+ * Record an email that could not be delivered, so it is visible to an admin
+ * and can be retried, instead of vanishing.
+ *
+ * This is called from failure paths and must never throw: it writes to the
+ * PHP error log unconditionally, and additionally to the failed_notifications
+ * table when the database is reachable.
+ */
+function recordFailedNotification(
+    ?PDO $pdo,
+    ?int $registrationId,
+    string $recipient,
+    string $subject,
+    string $error
+): void {
+    error_log(sprintf(
+        'UNSENT NOTIFICATION | registration_id=%s | to=%s | subject=%s | error=%s',
+        $registrationId !== null ? (string) $registrationId : 'n/a',
+        $recipient,
+        $subject,
+        $error
+    ));
+
+    logEmailDelivery('failed', $recipient, $subject, 'registration_id=' . ($registrationId ?? 'n/a') . ' ' . $error);
+
+    if (!$pdo instanceof PDO) {
+        return;
+    }
+
+    try {
+        ensureFailedNotificationSchema($pdo);
+        $pdo->prepare(
+            'INSERT INTO failed_notifications (registration_id, recipient, subject, error_message)
+             VALUES (?, ?, ?, ?)'
+        )->execute([$registrationId, $recipient, $subject, $error]);
+    } catch (Throwable $e) {
+        error_log('Could not record failed notification: ' . $e->getMessage());
+    }
 }
 
 function logEmailDelivery(string $status, string $to, string $subject, string $details = ''): void {

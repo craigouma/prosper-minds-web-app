@@ -1,0 +1,4 @@
+# Maintenance scripts. Nothing in here should ever be reachable over HTTP —
+# the scripts also refuse to run outside the CLI SAPI, but block them at the
+# web server too rather than relying on one guard.
+Require all denied
