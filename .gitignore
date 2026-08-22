@@ -1,5 +1,14 @@
 .DS_Store
+
+# The two production dumps at the root contain registrant PII. The blanket
+# *.sql rule that keeps them out was also silently swallowing new database
+# migrations — the two 2026-08-19 failed_notifications files are only tracked
+# because they were committed in the old public_html repo before this rule
+# existed. Migrations are code and must ship with a deploy, so exempt them.
 *.sql
+!public_html/database/migrations/*.sql
+!cpd.prosper-minds.com/database/migrations/*.sql
+
 /*.md
 !/README.md
 local-dev/logs/
