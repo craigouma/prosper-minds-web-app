@@ -9,6 +9,9 @@ require_once 'includes/mail-template-admin.php';
 
 header('Content-Type: application/json');
 
+// Not routed through registrationFailed() below: this is before the CSRF check,
+// so it must not write to the database, and a GET to this URL is not a delegate
+// failing to register anyway.
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     echo json_encode(['success' => false, 'message' => 'Invalid request method.']);
     exit;
@@ -23,6 +26,52 @@ if (!formCsrfValidate($_POST['csrf_token'] ?? null)) {
         'success' => false,
         'message' => 'Your session has expired. Please refresh this page and submit the form again.',
     ]);
+    exit;
+}
+
+// ── Funnel analytics: bottom of the funnel ───────────────────────────────────
+// Deliberately AFTER the CSRF check and not before it. The check above exists
+// so "a forged cross-site post cannot reach the database or the mailer", and a
+// funnel row is a database write, so a rejected token produces no funnel rows
+// at all. The cost is that expired-session rejections are invisible in the
+// funnel; the alternative is letting any origin write rows, which is worse.
+$funnelSessionId = '';
+$funnelEventId   = (int) ($_POST['event_id'] ?? 0);
+
+try {
+    $funnelSessionId = funnelSessionId();
+    funnelTrackEvent($pdo, 'submit_attempt', [
+        'session_id' => $funnelSessionId,
+        'event_id'   => $funnelEventId,
+    ]);
+} catch (Throwable $funnelError) {
+    error_log('Funnel submit_attempt failed (ignored): ' . $funnelError->getMessage());
+}
+
+/**
+ * Reject this submission: record submit_fail, answer the caller, stop.
+ *
+ * Every early exit below routes through here so the failure branch is counted
+ * in one place and the JSON shape stays identical. Note what does NOT route
+ * through here: the notification block in Phase 2. An email that could not be
+ * sent is not a failed registration — it is a failed_notifications row — and
+ * counting it as submit_fail would rebuild, inside the analytics, the exact
+ * confusion that commit 2d05cc1 removed from the response.
+ */
+function registrationFailed(string $message): never
+{
+    global $pdo, $funnelSessionId, $funnelEventId;
+
+    try {
+        funnelTrackEvent($pdo, 'submit_fail', [
+            'session_id' => $funnelSessionId,
+            'event_id'   => $funnelEventId,
+        ]);
+    } catch (Throwable $funnelError) {
+        error_log('Funnel submit_fail failed (ignored): ' . $funnelError->getMessage());
+    }
+
+    echo json_encode(['success' => false, 'message' => $message]);
     exit;
 }
 
@@ -57,13 +106,11 @@ foreach ($attendeeFirstNames as $idx => $rawFirstName) {
     }
 
     if ($attendeeFirstName === '' || $attendeeLastName === '') {
-        echo json_encode(['success' => false, 'message' => 'Each attendee must have a first and last name.']);
-        exit;
+        registrationFailed('Each attendee must have a first and last name.');
     }
 
     if ($attendeeEmail !== '' && !filter_var($attendeeEmail, FILTER_VALIDATE_EMAIL)) {
-        echo json_encode(['success' => false, 'message' => 'One or more attendee email addresses are invalid.']);
-        exit;
+        registrationFailed('One or more attendee email addresses are invalid.');
     }
 
     $attendees[] = [
@@ -78,23 +125,19 @@ if (
     $firstName === '' || $lastName === '' || $phone === '' || $email === '' ||
     $organization === '' || $country === '' || $address === '' || $eventName === ''
 ) {
-    echo json_encode(['success' => false, 'message' => 'Please fill in all required fields.']);
-    exit;
+    registrationFailed('Please fill in all required fields.');
 }
 
 if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
-    echo json_encode(['success' => false, 'message' => 'Invalid email format.']);
-    exit;
+    registrationFailed('Invalid email format.');
 }
 
 if (!preg_match('/^[\d\+\-\s\(\)]{8,20}$/', $phone)) {
-    echo json_encode(['success' => false, 'message' => 'Invalid phone number format.']);
-    exit;
+    registrationFailed('Invalid phone number format.');
 }
 
 if (count($attendees) === 0) {
-    echo json_encode(['success' => false, 'message' => 'Please add at least one attendee.']);
-    exit;
+    registrationFailed('Please add at least one attendee.');
 }
 
 ensureRegistrationInvoiceSchema($pdo);
@@ -106,8 +149,7 @@ $evStmt->execute([$eventId > 0 ? $eventId : $eventName]);
 $eventRecord = $evStmt->fetch();
 
 if (!$eventRecord) {
-    echo json_encode(['success' => false, 'message' => 'Selected event is no longer available.']);
-    exit;
+    registrationFailed('Selected event is no longer available.');
 }
 
 $eventName = $eventRecord['title'];
@@ -198,8 +240,26 @@ try {
     }
 
     error_log("Registration error: " . $e->getMessage());
-    echo json_encode(['success' => false, 'message' => 'We could not complete the registration right now. Please try again shortly.']);
-    exit;
+    // After rollBack(), never before: funnelTrackEvent() refuses to run inside
+    // an open transaction, and a funnel row written inside this one would be
+    // rolled back with the registration anyway.
+    registrationFailed('We could not complete the registration right now. Please try again shortly.');
+}
+
+// ── Funnel analytics: the conversion ────────────────────────────────────────
+// This is the one funnel row that has to be trustworthy, so it uses exactly the
+// same "was it actually saved" determination the response does: reaching this
+// line means Phase 1 committed and the invoice PDF exists on disk. No separate
+// check, no client assertion — being here IS the proof, which is also why
+// submit_success cannot be written by the beacon endpoint.
+try {
+    funnelTrackEvent($pdo, 'submit_success', [
+        'session_id'      => $funnelSessionId,
+        'event_id'        => (int) $eventRecord['id'],
+        'registration_id' => $registrationId,
+    ]);
+} catch (Throwable $funnelError) {
+    error_log('Funnel submit_success failed (ignored): ' . $funnelError->getMessage());
 }
 
 // ── Phase 2: notify (best effort) ────────────────────────────────────────────

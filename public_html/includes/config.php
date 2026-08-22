@@ -273,3 +273,34 @@ function sendEmailMessages(array $messages): array {
 function sanitizeInput(string $data): string {
     return htmlspecialchars(stripslashes(trim($data)));
 }
+
+// ── Funnel analytics, loaded defensively ────────────────────────────────────
+// includes/funnel.php is a secondary concern: registration funnel counters for
+// the admin panel. It is loaded here, once, so every entry point gets the same
+// helpers — but a plain require would make a missing or truncated funnel.php a
+// fatal on every page of the site. That is not hypothetical: the August 2026
+// outage was one truncated file inside vendor/, and funnel.php is the newest
+// file in this deploy, so it is the likeliest one to arrive incomplete.
+//
+// So: check it exists, load it inside try/catch (a parse error in an included
+// file raises ParseError, an Error, which catch (Exception) would miss), and if
+// anything at all goes wrong, define no-op stand-ins with the same signatures.
+// Call sites then need no guard, and a broken analytics layer costs the site
+// nothing but its analytics.
+if (is_file(__DIR__ . '/funnel.php')) {
+    try {
+        require_once __DIR__ . '/funnel.php';
+    } catch (Throwable $funnelLoadError) {
+        error_log('Funnel analytics unavailable: ' . $funnelLoadError->getMessage());
+    }
+}
+
+if (!function_exists('funnelTrackEvent')) {
+    function ensureFunnelEventsSchema(PDO $pdo): void {}
+    function funnelTrackEvent(PDO $pdo, string $eventType, array $context = []): void {}
+    function funnelSessionId(): string { return ''; }
+    function funnelSessionIdIfSet(): ?string { return null; }
+    function funnelSanitiseReferrer(?string $referrer): ?string { return null; }
+    function funnelUtmFromQuery(array $query): array { return []; }
+    function funnelStageLoggedToday(PDO $pdo, string $sessionId, string $eventType, ?int $eventId): bool { return true; }
+}

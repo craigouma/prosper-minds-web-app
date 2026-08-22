@@ -21,6 +21,9 @@
             <a href="dashboard.php"     class="nav-item <?php echo ($activePage==='dashboard')     ? 'active' : ''; ?>">
                 <i class="fas fa-chart-pie"></i><span>Overview</span>
             </a>
+            <a href="analytics.php"     class="nav-item <?php echo ($activePage==='analytics')     ? 'active' : ''; ?>">
+                <i class="fas fa-funnel-dollar"></i><span>Analytics</span>
+            </a>
             <a href="registrations.php" class="nav-item <?php echo ($activePage==='registrations') ? 'active' : ''; ?>">
                 <i class="fas fa-users"></i><span>Registrations</span>
             </a>

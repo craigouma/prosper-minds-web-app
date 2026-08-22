@@ -15,6 +15,26 @@ if (!$event) {
     header("Location: index.php");
     exit;
 }
+
+// ── Funnel analytics: top of the funnel ─────────────────────────────────────
+// Secondary concern. funnelTrackEvent() already swallows everything internally
+// (see the safety contract in includes/funnel.php) and config.php falls back to
+// no-ops if funnel.php is missing entirely — this try/catch is the third layer,
+// so that nothing in the tracking path can stop the registration form from
+// rendering. A visitor who cannot register is a lost sale; a page view we
+// failed to count is a rounding error.
+//
+// Runs before any output because funnelSessionId() may need to send the
+// pm_funnel_sid cookie.
+try {
+    funnelTrackEvent($pdo, 'page_view', [
+        'event_id' => (int) $event['id'],
+        'referrer' => funnelSanitiseReferrer($_SERVER['HTTP_REFERER'] ?? null),
+        'utm'      => funnelUtmFromQuery($_GET),
+    ]);
+} catch (Throwable $funnelError) {
+    error_log('Funnel page_view failed (ignored): ' . $funnelError->getMessage());
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -30,7 +50,7 @@ if (!$event) {
         .reg-header {
             background: linear-gradient(135deg, var(--dark-green), var(--primary-green));
             color: white;
-            padding: 60px 20px;
+            padding: 140px 20px 60px;
             text-align: center;
         }
         .reg-container {
@@ -241,6 +261,50 @@ if (!$event) {
     </footer>
 
     <script>
+        // ── Funnel analytics: "form_started" ────────────────────────────────
+        // Fires once per page load, the first time the visitor touches any
+        // field, and tells us how many people who opened the page actually
+        // began filling it in. Fire-and-forget: sendBeacon() survives the page
+        // being navigated away from, which is exactly the case we care about
+        // (started the form, left without submitting). Every failure path is a
+        // no-op — this must never interfere with submitting the form.
+        (function () {
+            var form = document.getElementById('standaloneRegForm');
+            if (!form) { return; }
+
+            var sent = false;
+
+            function trackFormStarted() {
+                if (sent) { return; }
+                sent = true;
+                form.removeEventListener('focusin', trackFormStarted);
+                form.removeEventListener('input', trackFormStarted);
+
+                try {
+                    var payload = new FormData();
+                    payload.append('event_type', 'form_started');
+                    payload.append('event_id', '<?php echo (int) $event['id']; ?>');
+                    var token = form.querySelector('input[name="csrf_token"]');
+                    if (token) { payload.append('csrf_token', token.value); }
+
+                    if (navigator.sendBeacon && navigator.sendBeacon('track-funnel-event.php', payload)) {
+                        return;
+                    }
+
+                    // sendBeacon missing, or it refused (queue full / payload
+                    // limit). keepalive lets the request outlive the page.
+                    fetch('track-funnel-event.php', {
+                        method: 'POST',
+                        body: payload,
+                        keepalive: true
+                    }).catch(function () { /* analytics only */ });
+                } catch (e) { /* analytics only */ }
+            }
+
+            form.addEventListener('focusin', trackFormStarted);
+            form.addEventListener('input', trackFormStarted);
+        })();
+
         document.getElementById('standaloneRegForm').addEventListener('submit', function(e) {
             e.preventDefault();
             
