@@ -30,7 +30,7 @@ if (!$event) {
         .reg-header {
             background: linear-gradient(135deg, var(--dark-green), var(--primary-green));
             color: white;
-            padding: 60px 20px;
+            padding: 140px 20px 60px;
             text-align: center;
         }
         .reg-container {
