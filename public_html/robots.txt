@@ -1,0 +1,10 @@
+User-agent: *
+Disallow: /admin/
+Disallow: /includes/
+Disallow: /vendor/
+Disallow: /tools/
+Disallow: /storage/
+Disallow: /database/
+Disallow: /assets/invoices/
+
+Sitemap: https://prosper-minds.com/sitemap.xml

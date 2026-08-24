@@ -6,6 +6,14 @@
   Require all denied
 </FilesMatch>
 
+# Branded 404 page instead of the server default.
+ErrorDocument 404 /404.php
+
+# /sitemap.xml is generated dynamically from the events table so it never goes
+# stale; the file on disk is sitemap.php.
+RewriteEngine On
+RewriteRule ^sitemap\.xml$ sitemap.php [L]
+
 # php -- BEGIN cPanel-generated handler, do not edit
 # Set the “ea-php82” package as the default “PHP” programming language.
 <IfModule mime_module>

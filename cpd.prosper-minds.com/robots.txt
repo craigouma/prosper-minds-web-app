@@ -1,0 +1,4 @@
+User-agent: *
+Disallow: /vendor/
+Disallow: /cgi-bin/
+Disallow: /setup_database.sql
