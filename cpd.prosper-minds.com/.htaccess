@@ -6,6 +6,9 @@
   Require all denied
 </FilesMatch>
 
+# Branded 404 page instead of the server default.
+ErrorDocument 404 /404.php
+
 # php -- BEGIN cPanel-generated handler, do not edit
 # Set the “alt-php83” package as the default “PHP” programming language.
 <IfModule mime_module>

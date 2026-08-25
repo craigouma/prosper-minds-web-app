@@ -335,6 +335,30 @@ try {
                     msgBox.style.display = 'none';
                     successPanel.style.display = 'block';
                     window.scrollTo({ top: 0, behavior: 'smooth' });
+
+                    // Priority 2: fire the GA4 purchase event from this
+                    // server-confirmed response only -- data.total_amount and
+                    // data.currency_code come from the row that was just
+                    // committed (process-registration.php), never estimated
+                    // here. invoice_number as transaction_id so GA4 can't
+                    // double-count if this handler somehow ran twice.
+                    // gtag itself must never be able to affect the success
+                    // flow above -- guarded and isolated in its own try/catch.
+                    try {
+                        if (typeof gtag === 'function') {
+                            gtag('event', 'purchase', {
+                                transaction_id: data.invoice_number,
+                                value: parseFloat(data.total_amount),
+                                currency: data.currency_code,
+                                items: [{
+                                    item_name: formData.get('event_name'),
+                                    quantity: attendeesContainer.querySelectorAll('.attendee-card').length || 1
+                                }]
+                            });
+                        }
+                    } catch (gtagError) {
+                        console.error('GA4 purchase event failed (ignored):', gtagError);
+                    }
                 } else {
                     msgBox.className = 'alert alert-danger';
                     msgBox.innerHTML = '<i class="fas fa-exclamation-circle"></i> ' + data.message;
