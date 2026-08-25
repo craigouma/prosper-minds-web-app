@@ -403,4 +403,9 @@ echo json_encode([
     'message' => $message,
     'registration_id' => $registrationId,
     'invoice_number' => $invoiceNumber,
+    // For the client to fire a GA4 purchase event from a genuinely confirmed
+    // save (Priority 2) -- never estimated or re-derived client-side. Real
+    // value/currency from the same row that was just committed.
+    'total_amount' => $totalAmount,
+    'currency_code' => $currencyCode,
 ]);
