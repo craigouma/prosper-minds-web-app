@@ -351,7 +351,16 @@ try {
                                 value: parseFloat(data.total_amount),
                                 currency: data.currency_code,
                                 items: [{
+                                    // item_id and price are required for GA4's ecommerce
+                                    // schema to be fully valid, not just item_name/quantity.
+                                    // GA4's own reports ("Items purchased by Item name") and
+                                    // Google Ads' import validation both expect these -- a
+                                    // missing item_id/price is a plausible reason Ads showed
+                                    // "conversion has never received data" even after GA4
+                                    // itself correctly recorded the event as a Key event.
+                                    item_id: 'event-' + formData.get('event_id'),
                                     item_name: formData.get('event_name'),
+                                    price: parseFloat(data.unit_price_amount),
                                     quantity: attendeesContainer.querySelectorAll('.attendee-card').length || 1
                                 }]
                             });
