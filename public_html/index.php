@@ -47,10 +47,6 @@
                 <a href="#contact">Contact</a>
             </nav>
 
-            <a href="admin/login.php" class="btn-admin-login">
-                <i class="fas fa-lock"></i> Admin
-            </a>
-
             <div class="mobile-menu-btn">
                 <i class="fas fa-bars"></i>
             </div>
