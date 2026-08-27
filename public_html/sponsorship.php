@@ -333,7 +333,6 @@
                 <a href="sponsorship.php" style="color:var(--primary-green);font-weight:600;">Sponsorship</a>
                 <a href="index.php#contact">Contact</a>
             </nav>
-            <a href="admin/login.php" class="btn-admin-login"><i class="fas fa-lock"></i> Admin</a>
             <div class="mobile-menu-btn"><i class="fas fa-bars"></i></div>
         </div>
     </header>
