@@ -408,4 +408,5 @@ echo json_encode([
     // value/currency from the same row that was just committed.
     'total_amount' => $totalAmount,
     'currency_code' => $currencyCode,
+    'unit_price_amount' => $unitPriceAmount,
 ]);
