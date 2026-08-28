@@ -853,6 +853,83 @@ body.pm {
   object-fit: cover;
 }
 
+/* A tile: a full-bleed figure across the top edge, then a .pm-cell body that
+   fills whatever height the tallest tile in the row sets.
+
+   Added in Phase 2 rather than Phase 1 because the need only shows up once a
+   row holds real data. The prototype's event cards carry titles between four
+   and eleven words long, and without this the price and the Details link sit
+   at a different height on every card in the row, which reads as three
+   different components rather than one.
+
+   Reusable, not a one-off: the homepage event grid uses it now, and Phase 3's
+   events listing, banner library and the contact page's location panel all
+   need the same shape. It composes with either .pm-grid--ruled (where the grid
+   gap is the rule) or .pm-card (where the tile has its own border). */
+.pm-tile {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.pm-tile > .pm-cell {
+  flex: 1 1 auto;
+}
+
+/* A card holding a full-bleed first child. The padding moves off the card and
+   onto a .pm-cell inside it, so the figure reaches the border on three sides
+   the way the prototype's banner tiles do. */
+.pm-card--flush {
+  padding: 0;
+  gap: 0;
+  overflow: hidden;
+}
+
+/* A card used as a sidebar rather than as another item in the main column: the
+   services curriculum panel and the same panel on each of the three service
+   detail pages. The alternate surface is what separates it from the white page
+   without adding a border weight or a shadow. */
+.pm-card--panel {
+  background: var(--pm-surface-alt);
+  border-color: var(--pm-border-light);
+}
+
+/* Frame for a flat line-drawn figure at the top of a tile: the contact page's
+   location schematic today.
+
+   Drawn rather than embedded on purpose. A mapping provider's iframe is a
+   cross-border third-party request setting its own cookies, on a page whose
+   entire job is a form covered by the Kenya Data Protection Act 2019 and GDPR,
+   and the brief rules out stock imagery in the same breath. A schematic in the
+   brand palette costs one request less and needs no consent banner. */
+.pm-figure {
+  position: relative;
+  aspect-ratio: 16 / 11;
+  background: var(--pm-surface);
+  overflow: hidden;
+}
+
+.pm-figure > svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+/* The one label sitting on a figure. Green field, black text: the same 8.6:1
+   pairing as .pm-section--accent, never white on green. */
+.pm-figure__tag {
+  position: absolute;
+  left: 18px;
+  bottom: 18px;
+  background: var(--pm-green);
+  color: var(--pm-black);
+  padding: 9px 14px;
+  font-size: var(--pm-fs-eyebrow);
+  letter-spacing: var(--pm-ls-16);
+  text-transform: uppercase;
+}
+
 /* Pull quote. The opening quotation mark is the only place green is used as
    a character rather than a rule. */
 .pm-quote__mark {
