@@ -1,0 +1,1506 @@
+/* ===========================================================================
+   ProsperMinds design system — rebuild Phase 1 foundation
+   ===========================================================================
+
+   WHAT THIS IS
+   ------------
+   The shared visual layer for the rebuilt site. Every page built from Phase 2
+   onwards loads this file and nothing else. It is the CSS half of the
+   foundation described in REBUILD-PLAN.md section "Phase 1".
+
+   WHAT THIS IS NOT
+   ----------------
+   This does NOT replace assets/css/style.css. The live pages (index.php,
+   event.php, event-registration.php, sponsorship.php, service-*.php, 404.php)
+   are still served by style.css and are deliberately untouched in Phase 1 —
+   the site is live, taking real registrations and real money, and a foundation
+   commit must not be able to change what a delegate sees today. The two
+   stylesheets are never loaded on the same page.
+
+   SOURCE OF TRUTH
+   ---------------
+   prototype/Prosperminds Site.dc.html (the approved Claude Design prototype)
+   and prototype/uploads/WEBSITE-REDESIGN-PROMPT-dfed5000.md (the brief, with
+   Revisions 3 and 4). The prototype sizes type with container-query units
+   (cqw) against a fixed device frame; there is no build step here and no such
+   frame, so every cqw scale below is restated as a viewport-based clamp().
+   That is the one deliberate difference from the prototype file.
+
+   THE RULES THIS FILE ENFORCES (from the brief, section 2 and section 5)
+   ---------------------------------------------------------------------
+     * Three brand colours only: #00BF63 green, #000000 black, #FFFFFF white,
+       plus neutral greys for rules and secondary text. No other hue appears
+       anywhere in this file.
+     * Green is an ACCENT: rules, numerals, active states, primary buttons.
+       It is a large background field in exactly one place, .pm-section--accent,
+       which is the single closing CTA band per page.
+     * Maharlika is the only typeface, and only its Regular weight exists.
+       Hierarchy therefore comes from SIZE, LETTER-SPACING and COLOUR. Synthetic
+       bold is switched off explicitly (font-synthesis: none) so a browser
+       cannot smear the one real weight into a fake second one.
+     * border-radius is 2px, everywhere, or 0. There is no other radius.
+     * No shadows as decoration, no gradients, no glassmorphism, no emoji.
+       Separation is done with hairline rules, not elevation.
+
+   ORGANISATION
+   ------------
+     1.  Font face
+     2.  Design tokens (:root)
+     3.  Reset and baseline
+     4.  Layout: container, sections, the light/dark system
+     5.  Type scale
+     6.  Eyebrow labels (the small green-ruled caps used throughout)
+     7.  Buttons
+     8.  Hairline grids and cards
+     9.  Forms
+     10. Tables
+     11. Site header and navigation
+     12. Site footer
+     13. Utilities
+     14. Accessibility and reduced motion
+   =========================================================================== */
+
+
+/* ---------------------------------------------------------------------------
+   1. FONT FACE
+   ---------------------------------------------------------------------------
+   Self-hosted, not Google-Fonts-hosted: the brand licence covers the file we
+   already hold, the site serves EU and Kenyan public-sector delegates, and a
+   third-party font request is one more cross-border request to justify under
+   GDPR / Kenya DPA 2019 for no benefit.
+
+   Only the Regular weight exists. It is declared for weight 400 only; nothing
+   in this file asks for another weight, and font-synthesis is disabled in the
+   baseline so nothing can invent one.
+
+   Format is TrueType because that is the file the brand supplied
+   (prototype/fonts/Maharlika-Regular.ttf, copied byte for byte). A WOFF2
+   build would be roughly a third of the size and is worth doing later; it
+   needs a conversion tool this project does not currently have.
+--------------------------------------------------------------------------- */
+@font-face {
+  font-family: 'Maharlika';
+  src: url('../fonts/Maharlika-Regular.ttf') format('truetype');
+  font-weight: 400;
+  font-style: normal;
+  /* swap, not block: a government delegate on a slow connection should read
+     the page in a fallback serif rather than stare at invisible text. */
+  font-display: swap;
+}
+
+
+/* ---------------------------------------------------------------------------
+   2. DESIGN TOKENS
+   ---------------------------------------------------------------------------
+   Every value used anywhere below is named here. Nothing outside this block
+   should introduce a new literal colour.
+--------------------------------------------------------------------------- */
+:root {
+  /* -- Brand colours. These three are the entire brand palette. ----------- */
+  --pm-green: #00BF63;
+  --pm-black: #000000;
+  --pm-white: #FFFFFF;
+
+  /* -- Neutrals. Surfaces, rules and secondary text only. ----------------- */
+  --pm-surface: #f6f6f4;        /* warm off-white, alternating sections      */
+  --pm-surface-alt: #fafafa;    /* a shade lighter, for nested panels        */
+  --pm-border: #dcdcdc;         /* primary rule colour                       */
+  --pm-border-light: #e2e2e2;   /* hairline grids between cards              */
+  --pm-border-input: #cfcfcf;   /* form control borders on light surfaces    */
+  --pm-text-muted: #5a5a5a;     /* secondary body text                       */
+  --pm-text-tertiary: #5f5f5f;  /* captions, figure credits                  */
+  --pm-text-quaternary: #4a4a4a;/* long-form body copy on light surfaces     */
+
+  /* -- On-dark equivalents. Kept as tokens so the dark section system is
+        adjustable in one place rather than by hunting rgba() literals. ---- */
+  --pm-on-dark: rgba(255, 255, 255, 0.88);
+  --pm-on-dark-muted: rgba(255, 255, 255, 0.72);
+  --pm-on-dark-faint: rgba(255, 255, 255, 0.45);
+  --pm-on-dark-rule: rgba(255, 255, 255, 0.14);
+  --pm-on-dark-input: rgba(255, 255, 255, 0.32);
+
+  /* -- Typography -------------------------------------------------------- */
+  --pm-font: 'Maharlika', Georgia, 'Times New Roman', serif;
+
+  /* Type scale. Restated from the prototype's container-query clamps as
+     viewport clamps; see the header comment. */
+  --pm-fs-hero: clamp(34px, 6vw, 86px);
+  --pm-fs-h1: clamp(30px, 5vw, 64px);
+  --pm-fs-h2: clamp(28px, 4.2vw, 58px);
+  --pm-fs-h3: clamp(19px, 2.1vw, 26px);
+  --pm-fs-h4: clamp(17px, 1.7vw, 21px);
+  --pm-fs-body: clamp(15px, 1.5vw, 18px);
+  --pm-fs-body-sm: 15px;
+  --pm-fs-small: 14px;
+  --pm-fs-label: 12px;          /* small caps labels: 11-13px               */
+  --pm-fs-eyebrow: 11px;
+  --pm-fs-stat: clamp(30px, 4vw, 52px);
+
+  --pm-lh-display: 1.02;        /* very large type sets tight               */
+  --pm-lh-heading: 1.14;
+  --pm-lh-body: 1.65;
+
+  /* Letter-spacing. These six values are the complete set used in the
+     prototype; do not introduce a seventh. */
+  --pm-ls-14: 0.14em;
+  --pm-ls-16: 0.16em;
+  --pm-ls-18: 0.18em;
+  --pm-ls-20: 0.2em;
+  --pm-ls-22: 0.22em;
+  --pm-ls-24: 0.24em;
+  --pm-ls-display: -0.005em;    /* the only negative tracking, on hero type  */
+
+  /* -- Layout ------------------------------------------------------------ */
+  --pm-container: 1180px;       /* the one content width in the prototype   */
+  --pm-gutter: clamp(20px, 4vw, 56px);
+  --pm-section-y: clamp(52px, 7vw, 108px);
+  --pm-section-y-tight: clamp(36px, 4.5vw, 64px);
+
+  /* -- Shape. 2px is the only radius in the design. ---------------------- */
+  --pm-radius: 2px;
+  --pm-rule: 1px solid var(--pm-border);
+  --pm-rule-light: 1px solid var(--pm-border-light);
+  --pm-rule-heavy: 2px solid var(--pm-black);
+
+  /* -- Controls ---------------------------------------------------------- */
+  --pm-control-h: 52px;         /* inputs and inline buttons               */
+  --pm-tap-min: 44px;           /* minimum touch target                    */
+  --pm-btn-pad: 18px 30px;      /* primary button padding                  */
+  --pm-btn-pad-sm: 14px 22px;
+
+  /* -- Motion. Short and functional; nothing decorative animates. -------- */
+  --pm-transition: 140ms ease;
+}
+
+
+/* ---------------------------------------------------------------------------
+   3. RESET AND BASELINE
+--------------------------------------------------------------------------- */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+  scroll-behavior: smooth;
+}
+
+body.pm {
+  margin: 0;
+  background: var(--pm-white);
+  color: var(--pm-black);
+  font-family: var(--pm-font);
+  font-size: var(--pm-fs-body);
+  font-weight: 400;
+  line-height: var(--pm-lh-body);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  /* Only Maharlika Regular exists. Without this a browser will fake a bold
+     for <h1>, <strong> and <th> and the page stops being the brand typeface. */
+  font-synthesis: none;
+  font-synthesis-weight: none;
+  font-synthesis-style: none;
+}
+
+/* :where() again, for the same reason as the <a> and <button> resets: written
+   as `.pm p { margin: 0 }` this is (0,1,1) and silently beats the .pm-mt-*
+   spacing utilities, so `<p class="pm-lede pm-mt-lg">` would get no margin at
+   all and every heading would sit flush against its paragraph. */
+.pm :where(h1, h2, h3, h4, h5, h6, p, figure, blockquote, dl, dd, ul, ol) {
+  margin: 0;
+}
+
+.pm h1,
+.pm h2,
+.pm h3,
+.pm h4,
+.pm h5,
+.pm h6,
+.pm strong,
+.pm b,
+.pm th {
+  /* Regular is the only weight that exists. See body.pm above. */
+  font-weight: 400;
+}
+
+.pm :where(ul, ol) {
+  padding: 0;
+  list-style: none;
+}
+
+.pm img,
+.pm svg,
+.pm video {
+  max-width: 100%;
+  height: auto;
+  display: block;
+}
+
+/* The base <a> carries NO decoration.
+   This is deliberate and worth stating, because the obvious alternative bites:
+   giving `.pm a` a colour and a green underline makes a selector of specificity
+   (0,1,1), which then beats every single-class component selector — .pm-btn,
+   .pm-nav__link, .pm-brand — and quietly repaints anchor-based buttons and nav
+   links. Decoration is opted into instead, by the prose contexts below and by
+   the .pm-link class, so a component never has to fight the base rule. */
+.pm a {
+  text-decoration: none;
+}
+
+/* Links inside running copy: underlined in green, blackening on hover. */
+.pm-body a,
+.pm-lede a,
+.pm-caption a,
+.pm-quote__text a,
+.pm-table a,
+.pm-link {
+  color: inherit;
+  border-bottom: 1px solid var(--pm-green);
+  transition: color var(--pm-transition), border-color var(--pm-transition);
+}
+
+.pm-body a:hover,
+.pm-lede a:hover,
+.pm-caption a:hover,
+.pm-quote__text a:hover,
+.pm-table a:hover,
+.pm-link:hover,
+.pm-body a:focus-visible,
+.pm-lede a:focus-visible,
+.pm-caption a:focus-visible,
+.pm-quote__text a:focus-visible,
+.pm-table a:focus-visible,
+.pm-link:focus-visible {
+  color: var(--pm-black);
+  border-bottom-color: var(--pm-black);
+}
+
+/* :where() so this reset carries ZERO specificity beyond `.pm` itself. Written
+   as a plain `.pm button` selector it would be (0,1,1) and would beat .pm-btn's
+   own colour, repainting the primary button white wherever it sits inside a
+   dark section. Same trap as the base <a> rule above. */
+.pm :where(input, select, textarea, button) {
+  font-family: inherit;
+  font-size: inherit;
+  font-weight: 400;
+  color: inherit;
+}
+
+.pm ::selection {
+  background: var(--pm-green);
+  color: var(--pm-black);
+}
+
+.pm hr {
+  border: 0;
+  border-top: var(--pm-rule);
+  margin: 0;
+}
+
+/* Visible focus, on every interactive thing, in the brand colour. The audience
+   includes people using keyboards and screen readers in government offices
+   with locked-down browsers; this is not optional decoration. */
+.pm :focus-visible {
+  outline: 2px solid var(--pm-green);
+  outline-offset: 2px;
+}
+
+/* Screen-reader-only text. Used for form labels that are visually implied. */
+.pm-sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* Skip link. Hidden until focused, then a real green block at top left. */
+.pm-skip-link {
+  position: absolute;
+  left: -9999px;
+  top: 0;
+  z-index: 200;
+  background: var(--pm-green);
+  color: var(--pm-black);
+  padding: 14px 22px;
+  font-size: var(--pm-fs-label);
+  letter-spacing: var(--pm-ls-14);
+  text-transform: uppercase;
+  border: 0;
+  border-radius: var(--pm-radius);
+}
+
+.pm-skip-link:focus {
+  left: 8px;
+  top: 8px;
+}
+
+
+/* ---------------------------------------------------------------------------
+   4. LAYOUT: CONTAINER, SECTIONS, THE LIGHT/DARK SYSTEM
+   ---------------------------------------------------------------------------
+   The prototype's treatment notes state the rule this implements verbatim:
+
+     "Dark sections carry the brand voice: hero, proof, testimonials, closing
+      calls to action. Light sections carry information the delegate has to
+      read closely: agendas, pricing tables, forms, contact details. Green
+      appears only as rules, numerals, active states and primary buttons,
+      never as a large background field."
+
+   So there are four section tones and no more:
+     .pm-section              white, the default and the dominant surface
+     .pm-section--surface     the warm off-white, for alternating rhythm
+     .pm-section--dark        black, used sparingly as punctuation
+     .pm-section--accent      green, for the ONE closing CTA band on a page
+--------------------------------------------------------------------------- */
+.pm-container {
+  width: 100%;
+  max-width: var(--pm-container);
+  margin-inline: auto;
+}
+
+.pm-section {
+  background: var(--pm-white);
+  color: var(--pm-black);
+  padding: var(--pm-section-y) var(--pm-gutter);
+}
+
+.pm-section--tight {
+  padding-block: var(--pm-section-y-tight);
+}
+
+.pm-section--surface {
+  background: var(--pm-surface);
+}
+
+.pm-section--ruled {
+  border-top: var(--pm-rule-light);
+}
+
+/* -- Dark. Everything inside inverts, including form controls. ----------- */
+.pm-section--dark {
+  background: var(--pm-black);
+  color: var(--pm-white);
+}
+
+.pm-section--dark .pm-lede,
+.pm-section--dark .pm-body,
+.pm-section--dark .pm-caption {
+  color: var(--pm-on-dark-muted);
+}
+
+.pm-section--dark .pm-eyebrow {
+  color: var(--pm-green);
+  border-left-color: var(--pm-green);
+}
+
+.pm-section--dark .pm-rule,
+.pm-section--dark hr {
+  border-top-color: var(--pm-on-dark-rule);
+}
+
+/* -- Accent. The single green band. Black text on green, never white:
+      #FFFFFF on #00BF63 is 2.2:1 and fails WCAG AA. Black on green is 8.6:1. */
+.pm-section--accent {
+  background: var(--pm-green);
+  color: var(--pm-black);
+}
+
+.pm-section--accent .pm-lede,
+.pm-section--accent .pm-body {
+  color: rgba(0, 0, 0, 0.72);
+}
+
+/* A section header: eyebrow + heading on the left, an optional action on the
+   right, closed with the 2px black rule the prototype uses to open a grid. */
+.pm-section-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 20px;
+  padding-bottom: 26px;
+  border-bottom: var(--pm-rule-heavy);
+  margin-bottom: 0;
+}
+
+.pm-section-head__action {
+  margin-left: auto;
+}
+
+.pm-section--dark .pm-section-head {
+  border-bottom-color: var(--pm-white);
+}
+
+
+/* ---------------------------------------------------------------------------
+   5. TYPE SCALE
+   ---------------------------------------------------------------------------
+   Uppercase serif display type is the signature of this design. It is applied
+   by class, never by element, so a page can use an <h2> at sub-heading size
+   without lying about the document outline.
+--------------------------------------------------------------------------- */
+.pm-display {
+  font-size: var(--pm-fs-hero);
+  line-height: var(--pm-lh-display);
+  letter-spacing: var(--pm-ls-display);
+  text-transform: uppercase;
+  max-width: 15ch;
+}
+
+.pm-h1 {
+  font-size: var(--pm-fs-h1);
+  line-height: 1.04;
+  text-transform: uppercase;
+  max-width: 18ch;
+}
+
+.pm-h2 {
+  font-size: var(--pm-fs-h2);
+  line-height: 1.05;
+  text-transform: uppercase;
+}
+
+.pm-h3 {
+  font-size: var(--pm-fs-h3);
+  line-height: var(--pm-lh-heading);
+}
+
+.pm-h3--caps {
+  text-transform: uppercase;
+  line-height: 1.2;
+}
+
+.pm-h4 {
+  font-size: var(--pm-fs-h4);
+  line-height: 1.25;
+}
+
+/* Introductory paragraph under a heading. */
+.pm-lede {
+  font-size: var(--pm-fs-body);
+  line-height: var(--pm-lh-body);
+  color: var(--pm-text-quaternary);
+  max-width: 58ch;
+}
+
+.pm-body {
+  font-size: var(--pm-fs-body-sm);
+  line-height: var(--pm-lh-body);
+  color: var(--pm-text-muted);
+  max-width: 62ch;
+}
+
+.pm-caption {
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--pm-text-tertiary);
+}
+
+/* A large numeral. Black, never green — green numerals are used as ordinals
+   (01, 02, 03), not as headline figures. */
+.pm-stat__value {
+  font-size: var(--pm-fs-stat);
+  line-height: 1;
+  color: inherit;
+}
+
+.pm-stat__label {
+  margin-top: 10px;
+  font-size: var(--pm-fs-eyebrow);
+  letter-spacing: var(--pm-ls-16);
+  text-transform: uppercase;
+  color: var(--pm-text-muted);
+}
+
+.pm-section--dark .pm-stat__label {
+  color: var(--pm-on-dark-muted);
+}
+
+/* Ordinal marker on a numbered card: 01 / 02 / 03. */
+.pm-ordinal {
+  font-size: var(--pm-fs-label);
+  letter-spacing: var(--pm-ls-20);
+  color: var(--pm-green);
+}
+
+
+/* ---------------------------------------------------------------------------
+   6. EYEBROW LABELS
+   ---------------------------------------------------------------------------
+   The small uppercase letter-spaced label, usually preceded by a short green
+   rule. Used above almost every heading on the site and the most repeated
+   single element in the prototype. Two variants: a left green border (used
+   above section headings) and a detached green dash (used in heroes).
+--------------------------------------------------------------------------- */
+.pm-eyebrow {
+  display: block;
+  font-size: var(--pm-fs-eyebrow);
+  letter-spacing: var(--pm-ls-24);
+  text-transform: uppercase;
+  color: var(--pm-black);
+  border-left: 3px solid var(--pm-green);
+  padding-left: 11px;
+  margin-bottom: 14px;
+}
+
+.pm-eyebrow--dash {
+  display: flex;
+  /* flex-start, not center: on a phone the label wraps to two lines, and a
+     vertically centred rule then floats beside the middle of the block instead
+     of leading the first line. */
+  align-items: flex-start;
+  gap: 12px;
+  border-left: 0;
+  padding-left: 0;
+}
+
+.pm-eyebrow--dash::before {
+  content: "";
+  flex: 0 0 auto;
+  width: 44px;
+  height: 1px;
+  /* Half the label's line box, so the rule sits on the first line's midline. */
+  margin-top: 0.75em;
+  background: var(--pm-green);
+}
+
+.pm-section--dark .pm-eyebrow--dash,
+.pm-section--dark .pm-label {
+  color: var(--pm-green);
+}
+
+/* A plain small-caps label with no rule: column headings in the footer, field
+   labels, table headers. */
+.pm-label {
+  font-size: var(--pm-fs-eyebrow);
+  letter-spacing: var(--pm-ls-22);
+  text-transform: uppercase;
+  color: var(--pm-black);
+}
+
+.pm-label--wide {
+  letter-spacing: var(--pm-ls-18);
+}
+
+.pm-label--green {
+  color: var(--pm-green);
+}
+
+
+/* ---------------------------------------------------------------------------
+   7. BUTTONS
+   ---------------------------------------------------------------------------
+   Four kinds, and no others:
+     .pm-btn                  green fill, black text. The primary action.
+     .pm-btn--secondary       black hairline outline, transparent fill.
+     .pm-btn--invert          black fill, white text. On green or light bands.
+     .pm-btn--link            text with a 2px green underline. Tertiary.
+
+   Flat, letter-spaced, uppercase, 2px radius, no shadow, no gradient.
+--------------------------------------------------------------------------- */
+.pm-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: var(--pm-btn-pad);
+  min-height: 48px;
+  background: var(--pm-green);
+  color: var(--pm-black);
+  border: 1px solid var(--pm-green);
+  border-radius: var(--pm-radius);
+  font-size: 13px;
+  line-height: 1;
+  letter-spacing: var(--pm-ls-14);
+  text-transform: uppercase;
+  text-align: center;
+  cursor: pointer;
+  transition: background var(--pm-transition), color var(--pm-transition),
+              border-color var(--pm-transition);
+}
+
+.pm-btn:hover,
+.pm-btn:focus-visible {
+  background: var(--pm-black);
+  border-color: var(--pm-black);
+  color: var(--pm-white);
+}
+
+.pm-btn--secondary {
+  background: transparent;
+  color: var(--pm-black);
+  border-color: var(--pm-black);
+}
+
+.pm-btn--secondary:hover,
+.pm-btn--secondary:focus-visible {
+  background: var(--pm-black);
+  color: var(--pm-white);
+}
+
+.pm-btn--invert {
+  background: var(--pm-black);
+  color: var(--pm-white);
+  border-color: var(--pm-black);
+}
+
+.pm-btn--invert:hover,
+.pm-btn--invert:focus-visible {
+  background: transparent;
+  color: var(--pm-black);
+}
+
+.pm-btn--sm {
+  padding: var(--pm-btn-pad-sm);
+  min-height: var(--pm-tap-min);
+  font-size: var(--pm-fs-label);
+}
+
+.pm-btn--block {
+  width: 100%;
+}
+
+.pm-btn[disabled],
+.pm-btn[aria-disabled="true"] {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+/* Secondary buttons on a dark section invert their outline. */
+.pm-section--dark .pm-btn--secondary {
+  color: var(--pm-white);
+  border-color: var(--pm-white);
+}
+
+.pm-section--dark .pm-btn--secondary:hover,
+.pm-section--dark .pm-btn--secondary:focus-visible {
+  background: var(--pm-white);
+  color: var(--pm-black);
+}
+
+/* Tertiary: the "Details" / "Read more" affordance from the prototype's cards.
+   Not an <a> underline — a deliberate 2px green rule under uppercase caps. */
+.pm-btn--link {
+  display: inline-block;
+  padding: 8px 0;
+  min-height: 0;
+  background: none;
+  border: 0;
+  border-bottom: 2px solid var(--pm-green);
+  border-radius: 0;
+  color: var(--pm-black);
+  font-size: var(--pm-fs-label);
+  letter-spacing: var(--pm-ls-14);
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.pm-btn--link:hover,
+.pm-btn--link:focus-visible {
+  background: none;
+  color: var(--pm-black);
+  border-bottom-color: var(--pm-black);
+}
+
+.pm-section--dark .pm-btn--link {
+  color: var(--pm-white);
+}
+
+.pm-section--dark .pm-btn--link:hover,
+.pm-section--dark .pm-btn--link:focus-visible {
+  color: var(--pm-white);
+  border-bottom-color: var(--pm-white);
+}
+
+/* A row of buttons that wraps cleanly on a phone. */
+.pm-btn-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+}
+
+
+/* ---------------------------------------------------------------------------
+   8. HAIRLINE GRIDS AND CARDS
+   ---------------------------------------------------------------------------
+   The prototype does not use shadowed, rounded, floating cards. It uses a grid
+   whose background is the rule colour with a 1px gap, so the cells are
+   separated by a hairline that is the grid itself. That is what .pm-grid--ruled
+   does. It is the reason the layout reads as a printed table of contents
+   rather than a bento box of soft tiles.
+--------------------------------------------------------------------------- */
+.pm-grid {
+  display: grid;
+  gap: clamp(18px, 2vw, 28px);
+}
+
+/* Auto-fitting columns. --pm-col-min sets the point at which a column drops. */
+.pm-grid--auto {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, var(--pm-col-min, 280px)), 1fr));
+}
+
+.pm-grid--ruled {
+  gap: 1px;
+  background: var(--pm-border);
+}
+
+.pm-grid--ruled > * {
+  background: var(--pm-white);
+}
+
+.pm-section--surface .pm-grid--ruled > * {
+  background: var(--pm-white);
+}
+
+.pm-section--dark .pm-grid--ruled {
+  background: var(--pm-on-dark-rule);
+}
+
+.pm-section--dark .pm-grid--ruled > * {
+  background: var(--pm-black);
+}
+
+.pm-grid--2 { grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr)); }
+.pm-grid--3 { grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr)); }
+.pm-grid--4 { grid-template-columns: repeat(auto-fit, minmax(min(100%, 200px), 1fr)); }
+
+/* A cell inside a ruled grid. */
+.pm-cell {
+  padding: clamp(22px, 2.5vw, 34px);
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* A standalone bordered card (testimonials, enquiry panels). Border, not
+   shadow — flat surfaces only. */
+.pm-card {
+  background: var(--pm-white);
+  border: var(--pm-rule);
+  border-radius: var(--pm-radius);
+  padding: clamp(24px, 2.6vw, 34px);
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.pm-card__foot {
+  margin-top: auto;
+  padding-top: 18px;
+  border-top: var(--pm-rule);
+}
+
+/* A footer with something on each end: a price and a "Details" link, a label
+   and a date. The prototype's event card does exactly this. */
+.pm-card__foot--split,
+.pm-cell__meta {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+
+.pm-cell__meta {
+  align-items: baseline;
+}
+
+/* Pushes a card's action to the bottom edge regardless of how much copy sits
+   above it, so a row of cards has its buttons on one line. */
+.pm-cell__action {
+  margin-top: auto;
+  align-self: flex-start;
+}
+
+/* A band: heading on the left, one action on the right, wrapping on a phone.
+   Used for the single accent CTA per page. */
+.pm-band {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 28px;
+}
+
+.pm-section--dark .pm-card {
+  background: var(--pm-black);
+  border-color: var(--pm-on-dark-rule);
+}
+
+.pm-section--dark .pm-card__foot {
+  border-top-color: var(--pm-on-dark-rule);
+}
+
+/* The banner tile that anchors an event card. The brief is explicit that the
+   client's own designed event banners are the visual anchor and must not be
+   replaced with stock photography, so the tile is a fixed 16:9 slot with a
+   neutral placeholder behind it. */
+.pm-banner {
+  position: relative;
+  aspect-ratio: 16 / 9;
+  background: var(--pm-surface);
+  border-bottom: var(--pm-rule-light);
+  overflow: hidden;
+}
+
+.pm-banner > img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* Pull quote. The opening quotation mark is the only place green is used as
+   a character rather than a rule. */
+.pm-quote__mark {
+  color: var(--pm-green);
+  font-size: 30px;
+  line-height: 0.6;
+}
+
+.pm-quote__text {
+  font-size: 16px;
+  line-height: 1.68;
+  color: inherit;
+}
+
+
+/* ---------------------------------------------------------------------------
+   9. FORMS
+   ---------------------------------------------------------------------------
+   Every control is 52px tall, 2px radius, hairline border, and carries a real
+   <label>. Placeholder text is never a substitute for a label — the audience
+   includes screen-reader users and the brief calls for "forms with real
+   labels" explicitly.
+--------------------------------------------------------------------------- */
+.pm-field {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  min-width: 0;
+}
+
+.pm-field__label {
+  font-size: var(--pm-fs-label);
+  letter-spacing: var(--pm-ls-14);
+  text-transform: uppercase;
+  color: var(--pm-black);
+}
+
+.pm-field__hint {
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--pm-text-muted);
+}
+
+.pm-input,
+.pm-select,
+.pm-textarea {
+  width: 100%;
+  height: var(--pm-control-h);
+  padding: 0 15px;
+  background: var(--pm-white);
+  color: var(--pm-black);
+  border: 1px solid var(--pm-border-input);
+  border-radius: var(--pm-radius);
+  /* 16px minimum: anything smaller makes iOS Safari zoom the viewport on
+     focus, which on a phone reads as the form being broken. */
+  font-size: 16px;
+  transition: border-color var(--pm-transition);
+}
+
+.pm-textarea {
+  height: auto;
+  min-height: 132px;
+  padding: 14px 15px;
+  line-height: 1.55;
+  resize: vertical;
+}
+
+.pm-select {
+  padding: 0 12px;
+}
+
+.pm-input:hover,
+.pm-select:hover,
+.pm-textarea:hover {
+  border-color: var(--pm-black);
+}
+
+.pm-input::placeholder,
+.pm-textarea::placeholder {
+  color: var(--pm-text-tertiary);
+  opacity: 1;
+}
+
+.pm-input[aria-invalid="true"],
+.pm-textarea[aria-invalid="true"] {
+  border-color: var(--pm-black);
+  border-width: 2px;
+}
+
+/* Controls on a dark section. Transparent fill, faint white rule. */
+.pm-section--dark .pm-input,
+.pm-section--dark .pm-select,
+.pm-section--dark .pm-textarea,
+.pm-footer .pm-input {
+  background: var(--pm-black);
+  color: var(--pm-white);
+  border-color: var(--pm-on-dark-input);
+}
+
+.pm-section--dark .pm-field__label,
+.pm-footer .pm-field__label {
+  color: var(--pm-green);
+}
+
+.pm-section--dark .pm-input::placeholder,
+.pm-footer .pm-input::placeholder {
+  color: var(--pm-on-dark-faint);
+}
+
+/* A consent / checkbox row. The box is a real checkbox, sized up to a legible
+   target rather than replaced with a styled span, so it stays operable with a
+   keyboard and announces correctly. */
+.pm-check {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  font-size: var(--pm-fs-small);
+  line-height: 1.6;
+  color: var(--pm-text-muted);
+}
+
+.pm-check input[type="checkbox"] {
+  flex: 0 0 auto;
+  width: 20px;
+  height: 20px;
+  margin: 2px 0 0;
+  accent-color: var(--pm-green);
+}
+
+/* Inline form: a field plus a submit sitting on the same baseline. */
+.pm-form-inline {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: flex-end;
+}
+
+.pm-form-inline .pm-field {
+  flex: 1 1 200px;
+}
+
+.pm-form-inline .pm-btn {
+  flex: 0 0 auto;
+  height: var(--pm-control-h);
+  min-height: var(--pm-control-h);
+  padding: 0 26px;
+}
+
+/* Form-level feedback. Never a colour other than green/black — a red error
+   state would put a fourth hue on the page. Errors are marked by a black
+   rule and plain declarative wording instead. */
+.pm-notice {
+  padding: 14px 16px;
+  border-left: 3px solid var(--pm-green);
+  background: var(--pm-surface);
+  font-size: var(--pm-fs-small);
+  line-height: 1.6;
+  color: var(--pm-text-quaternary);
+  border-radius: var(--pm-radius);
+}
+
+.pm-notice--error {
+  border-left-color: var(--pm-black);
+}
+
+.pm-section--dark .pm-notice,
+.pm-footer .pm-notice {
+  background: transparent;
+  border-left-color: var(--pm-green);
+  color: var(--pm-on-dark-muted);
+}
+
+
+/* ---------------------------------------------------------------------------
+   10. TABLES
+   ---------------------------------------------------------------------------
+   Pricing tiers, agendas and sponsorship matrices. Rules only, no zebra fills,
+   no rounded corners. Wide tables scroll inside their own container rather
+   than making the page scroll sideways.
+--------------------------------------------------------------------------- */
+.pm-table-scroll {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.pm-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--pm-fs-body-sm);
+  line-height: 1.55;
+  text-align: left;
+}
+
+.pm-table th {
+  padding: 14px 16px 12px;
+  border-bottom: var(--pm-rule-heavy);
+  font-size: var(--pm-fs-eyebrow);
+  letter-spacing: var(--pm-ls-18);
+  text-transform: uppercase;
+  color: var(--pm-black);
+  white-space: nowrap;
+}
+
+.pm-table td {
+  padding: 16px;
+  border-bottom: var(--pm-rule-light);
+  color: var(--pm-text-quaternary);
+  vertical-align: top;
+}
+
+.pm-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.pm-table__num {
+  color: var(--pm-black);
+  white-space: nowrap;
+}
+
+.pm-section--dark .pm-table th {
+  color: var(--pm-white);
+  border-bottom-color: var(--pm-white);
+}
+
+.pm-section--dark .pm-table td {
+  color: var(--pm-on-dark-muted);
+  border-bottom-color: var(--pm-on-dark-rule);
+}
+
+
+/* ---------------------------------------------------------------------------
+   11. SITE HEADER AND NAVIGATION
+   ---------------------------------------------------------------------------
+   Markup lives in includes/layout/header.php. White background, one hairline
+   bottom rule, logo left, nav right, green primary action at the far right.
+
+   The mobile menu is a full-screen white panel, not a dropdown, matching the
+   prototype. It is driven by a `data-pm-nav-open` attribute on <html> set by
+   a small vanilla script; with JavaScript off the toggle button is hidden and
+   the nav list stays in normal flow, so the site is still navigable.
+--------------------------------------------------------------------------- */
+.pm-header {
+  position: sticky;
+  top: 0;
+  z-index: 60;
+  background: var(--pm-white);
+  padding-inline: var(--pm-gutter);
+}
+
+.pm-header__bar {
+  display: flex;
+  align-items: center;
+  gap: clamp(14px, 3vw, 48px);
+  min-height: 76px;
+  border-bottom: var(--pm-rule);
+}
+
+.pm-brand {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  border: 0;
+  flex: 0 0 auto;
+}
+
+.pm-brand:hover,
+.pm-brand:focus-visible {
+  border: 0;
+}
+
+.pm-brand__mark {
+  flex: 0 0 auto;
+}
+
+.pm-brand__word {
+  color: var(--pm-black);
+  font-size: clamp(15px, 1.5vw, 18px);
+  letter-spacing: var(--pm-ls-16);
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.pm-nav {
+  display: flex;
+  align-items: center;
+  gap: clamp(10px, 2.2vw, 32px);
+  margin-left: auto;
+  min-width: 0;
+}
+
+.pm-nav__link {
+  padding: 6px 0;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  color: var(--pm-text-muted);
+  font-size: 13px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  transition: color var(--pm-transition), border-color var(--pm-transition);
+}
+
+.pm-nav__link:hover,
+.pm-nav__link:focus-visible {
+  color: var(--pm-black);
+  border-bottom-color: var(--pm-border);
+}
+
+.pm-nav__link[aria-current="page"] {
+  color: var(--pm-black);
+  border-bottom-color: var(--pm-green);
+}
+
+.pm-nav__cta {
+  flex: 0 0 auto;
+  padding: 13px 20px;
+  min-height: var(--pm-tap-min);
+  font-size: var(--pm-fs-label);
+  letter-spacing: 0.1em;
+  white-space: nowrap;
+}
+
+/* The toggle exists only for small screens and only when JS is available. */
+.pm-nav-toggle {
+  display: none;
+  margin-left: auto;
+  padding: 12px 16px;
+  min-height: var(--pm-tap-min);
+  background: none;
+  color: var(--pm-black);
+  border: 1px solid var(--pm-black);
+  border-radius: var(--pm-radius);
+  font-size: var(--pm-fs-label);
+  letter-spacing: var(--pm-ls-14);
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+/* Brand lock-up plus close control, shown only inside the open mobile panel. */
+.pm-nav__panel-head {
+  display: none;
+  align-items: center;
+  gap: 11px;
+  min-height: 76px;
+  border-bottom: var(--pm-rule);
+}
+
+.pm-nav__close {
+  margin-left: auto;
+  width: 48px;
+  height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: 1px solid var(--pm-black);
+  border-radius: var(--pm-radius);
+  cursor: pointer;
+}
+
+.pm-nav__panel-contact {
+  display: none;
+}
+
+@media (max-width: 900px) {
+  /* Only offer the toggle once the script has confirmed it can run. */
+  html[data-pm-js="on"] .pm-nav-toggle {
+    display: inline-flex;
+  }
+
+  /* display:none, not visibility or opacity: the closed panel must be out of
+     the tab order and out of the accessibility tree, not merely invisible. */
+  html[data-pm-js="on"] .pm-nav {
+    display: none;
+  }
+
+  html[data-pm-js="on"][data-pm-nav-open="true"] .pm-nav {
+    position: fixed;
+    inset: 0;
+    z-index: 80;
+    display: flex;
+    margin: 0;
+    flex-direction: column;
+    align-items: stretch;
+    justify-content: flex-start;
+    gap: 0;
+    padding: 0 20px 28px;
+    background: var(--pm-white);
+    overflow-y: auto;
+  }
+
+  html[data-pm-js="on"] .pm-nav__panel-head {
+    display: flex;
+    order: -1;
+  }
+
+  html[data-pm-js="on"] .pm-nav__link {
+    padding: 20px 0;
+    min-height: 64px;
+    display: flex;
+    align-items: center;
+    border-bottom: var(--pm-rule);
+    color: var(--pm-black);
+    font-size: 24px;
+    line-height: 1.1;
+    letter-spacing: 0.04em;
+  }
+
+  html[data-pm-js="on"] .pm-nav__link[aria-current="page"] {
+    border-bottom-color: var(--pm-green);
+  }
+
+  html[data-pm-js="on"] .pm-nav__cta {
+    margin-top: 28px;
+    padding: 19px;
+    min-height: 52px;
+    font-size: 13px;
+    letter-spacing: var(--pm-ls-14);
+  }
+
+  html[data-pm-js="on"] .pm-nav__panel-contact {
+    display: block;
+    margin-top: auto;
+    padding-top: 32px;
+    color: var(--pm-text-quaternary);
+    font-size: var(--pm-fs-small);
+    line-height: 1.8;
+  }
+
+  /* Stop the page scrolling behind an open menu. */
+  html[data-pm-nav-open="true"],
+  html[data-pm-nav-open="true"] body {
+    overflow: hidden;
+  }
+}
+
+
+/* ---------------------------------------------------------------------------
+   12. SITE FOOTER
+   ---------------------------------------------------------------------------
+   Markup lives in includes/layout/footer.php. Black band: newsletter row on
+   top, then brand + three link/detail columns, then the copyright rule.
+--------------------------------------------------------------------------- */
+.pm-footer {
+  background: var(--pm-black);
+  color: var(--pm-white);
+  padding: clamp(46px, 6vw, 88px) var(--pm-gutter) clamp(28px, 3vw, 40px);
+}
+
+/* Footer links sit undecorated until hovered, so four columns of them do not
+   read as a wall of rules. */
+.pm-footer a {
+  color: var(--pm-on-dark-muted);
+  border-bottom: 1px solid transparent;
+  transition: color var(--pm-transition), border-color var(--pm-transition);
+}
+
+.pm-footer a:hover,
+.pm-footer a:focus-visible {
+  color: var(--pm-white);
+  border-bottom-color: var(--pm-green);
+}
+
+.pm-footer__newsletter {
+  display: flex;
+  flex-wrap: wrap;
+  gap: clamp(22px, 3vw, 56px);
+  align-items: flex-end;
+  padding-bottom: clamp(34px, 4vw, 52px);
+  margin-bottom: clamp(34px, 4vw, 52px);
+  border-bottom: var(--pm-rule);
+}
+
+.pm-footer__newsletter-copy {
+  flex: 1 1 300px;
+  min-width: 0;
+}
+
+.pm-footer__newsletter-copy p {
+  color: var(--pm-white);
+  font-size: clamp(18px, 2vw, 24px);
+  line-height: 1.25;
+  max-width: 32ch;
+}
+
+.pm-footer__newsletter form {
+  flex: 1 1 300px;
+  min-width: 0;
+}
+
+/* Result message under the newsletter field, on its own line. */
+.pm-form-inline .pm-notice {
+  flex: 1 1 100%;
+  margin: 0;
+}
+
+/* The footer's own copy of the brand lock-up: white wordmark, smaller. */
+.pm-footer .pm-brand {
+  margin-bottom: 18px;
+}
+
+.pm-footer .pm-brand__word {
+  color: var(--pm-white);
+  font-size: 14px;
+}
+
+.pm-footer__cols {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 200px), 1fr));
+  gap: clamp(28px, 4vw, 56px);
+}
+
+.pm-footer__col-head {
+  display: block;
+  color: var(--pm-green);
+  font-size: var(--pm-fs-eyebrow);
+  letter-spacing: var(--pm-ls-22);
+  text-transform: uppercase;
+  margin-bottom: 16px;
+}
+
+.pm-footer__links {
+  display: flex;
+  flex-direction: column;
+  gap: 11px;
+  align-items: flex-start;
+}
+
+.pm-footer__links a {
+  font-size: var(--pm-fs-small);
+}
+
+.pm-footer__detail {
+  color: var(--pm-on-dark-muted);
+  font-size: var(--pm-fs-small);
+  line-height: 1.8;
+}
+
+.pm-footer__tagline {
+  color: rgba(255, 255, 255, 0.6);
+  font-size: var(--pm-fs-small);
+  line-height: 1.7;
+  max-width: 32ch;
+}
+
+.pm-footer__bottom {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  align-items: center;
+  margin-top: clamp(34px, 4vw, 56px);
+  padding-top: 24px;
+  border-top: 1px solid var(--pm-on-dark-rule);
+  color: var(--pm-on-dark-faint);
+  font-size: 12.5px;
+}
+
+
+/* ---------------------------------------------------------------------------
+   13. UTILITIES
+   ---------------------------------------------------------------------------
+   A short, closed list. If a page needs a spacing value that is not here, it
+   belongs in a component class, not in a new utility.
+--------------------------------------------------------------------------- */
+.pm-stack     { display: flex; flex-direction: column; }
+.pm-stack--xs { gap: 8px; }
+.pm-stack--sm { gap: 14px; }
+.pm-stack--md { gap: 22px; }
+.pm-stack--lg { gap: clamp(28px, 3.5vw, 44px); }
+
+.pm-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: clamp(20px, 3vw, 48px);
+  align-items: flex-start;
+}
+
+.pm-row__main { flex: 1 1 320px; min-width: 0; }
+.pm-row__side { flex: 1 1 280px; min-width: 0; }
+
+.pm-mt-0  { margin-top: 0; }
+.pm-mt-sm { margin-top: 14px; }
+.pm-mt-md { margin-top: 22px; }
+.pm-mt-lg { margin-top: clamp(28px, 3.5vw, 44px); }
+
+.pm-measure     { max-width: 62ch; }
+.pm-measure--sm { max-width: 48ch; }
+
+.pm-rule { border-top: var(--pm-rule); }
+
+.pm-muted { color: var(--pm-text-muted); }
+.pm-green { color: var(--pm-green); }
+
+/* Background motif: the sanctioned neural-node SVG, positioned behind a hero.
+   The brief permits the brand's own node/shield motif and forbids generic
+   blurred blobs; this is the only decorative background in the system. */
+.pm-motif {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  opacity: 0.75;
+}
+
+.pm-relative { position: relative; }
+.pm-clip { overflow: hidden; }
+
+
+/* ---------------------------------------------------------------------------
+   14. ACCESSIBILITY AND REDUCED MOTION
+--------------------------------------------------------------------------- */
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  .pm *,
+  .pm *::before,
+  .pm *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* Windows high-contrast / forced-colours mode: let the OS palette through
+   rather than fighting it, but keep the layout rules visible. */
+@media (forced-colors: active) {
+  .pm-btn,
+  .pm-input,
+  .pm-select,
+  .pm-textarea,
+  .pm-card {
+    border: 1px solid;
+  }
+}
+
+@media print {
+  .pm-header,
+  .pm-nav-toggle,
+  .pm-footer__newsletter {
+    display: none;
+  }
+
+  .pm-section--dark,
+  .pm-footer {
+    background: var(--pm-white);
+    color: var(--pm-black);
+  }
+}
