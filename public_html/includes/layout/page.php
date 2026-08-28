@@ -107,6 +107,33 @@ if (!function_exists('pmActiveEvents')) {
     function pmEventsMatchingTags(array $events, array $tags): array { return $events; }
 }
 
+// ── Event card markup, loaded defensively ───────────────────────────────────
+// Loaded after events.php because the card calls pmEarlyBirdBadge(). Same
+// treatment and the same reason as the layers above: five Phase 2 pages print
+// an event grid, and a missing or truncated partial must cost those pages
+// their grid, not their page.
+if (is_file(__DIR__ . '/event-card.php')) {
+    try {
+        require_once __DIR__ . '/event-card.php';
+    } catch (Throwable $pmEventCardLoadError) {
+        error_log('Event card partial unavailable: ' . $pmEventCardLoadError->getMessage());
+    }
+}
+
+if (!function_exists('pmRenderEventGrid')) {
+    function pmEventDetailUrl(array $event): string { return '/event.php?id=' . (int) ($event['id'] ?? 0); }
+    function pmEventRegisterUrl(array $event): string { return '/event-registration.php?id=' . (int) ($event['id'] ?? 0); }
+    function pmEventImageUrl(array $event): string { return ''; }
+    function pmEventMonthLabel(array $event): string { return ''; }
+    function pmRenderEventCard(array $event, array $labels, string $variant, int $index, int $level): void {}
+    /** Falls back to the page's own empty message, which is a sentence rather
+     *  than a silent gap where a calendar should be. */
+    function pmRenderEventGrid(array $events, array $labels, string $emptyMessage, string $variant = 'full', int $level = 3): void
+    {
+        echo '<p class="pm-body pm-mt-lg">' . htmlspecialchars($emptyMessage, ENT_QUOTES, 'UTF-8') . "</p>\n";
+    }
+}
+
 // ── Newsletter, loaded defensively ──────────────────────────────────────────
 if (is_file(__DIR__ . '/../newsletter.php')) {
     try {
@@ -180,6 +207,76 @@ function pmNavItems(): array
         'sponsorship' => ['label' => 'Sponsorship', 'href' => '/sponsorship.php'],
         'contact'     => ['label' => 'Contact',     'href' => '/contact.php'],
     ];
+}
+
+/**
+ * The three service pillars, as the INLINE DEFAULT for page_content
+ * services.pillars.
+ *
+ * This is not the source of truth. The seeded json row is, and it is what a
+ * visitor normally sees; Phase 5's CMS edits that row. This array exists
+ * because the content layer's contract (includes/content.php, point 3) is that
+ * every call site passes a real default saying the same thing the seeded row
+ * says, so that a missing or unreachable page_content table produces the page
+ * rather than a blank section.
+ *
+ * It lives here rather than being repeated because THREE pages render the
+ * pillars: the homepage, the About page and the services overview. Three copies
+ * of a fallback is three chances for them to disagree about what the pillars
+ * are, which is the precise failure this whole content layer exists to avoid.
+ *
+ * Keep the `key` values in step with pmServiceHref() below.
+ *
+ * @return array<int, array<string, mixed>>
+ */
+function pmPillarsDefault(): array
+{
+    return [
+        [
+            'key'     => 'pfm',
+            'num'     => '01',
+            'name'    => 'PFM, IPSAS and IFRS Mastery',
+            'promise' => 'Build the technical foundation your finance teams need.',
+            'intro'   => 'Accrual accounting, disclosure and audit readiness for institutions that are judged on their financial statements.',
+        ],
+        [
+            'key'     => 'data',
+            'num'     => '02',
+            'name'    => 'Data Analytics and AI Automation',
+            'promise' => 'Transform reporting from burden to strategic advantage.',
+            'intro'   => 'Practical analytics and automation for finance functions that still spend most of the month closing the books.',
+        ],
+        [
+            'key'     => 'sustainability',
+            'num'     => '03',
+            'name'    => 'Sustainability Reporting',
+            'promise' => 'Meet global standards while strengthening transparency.',
+            'intro'   => 'Climate and sustainability disclosure for public institutions now being asked for it by lenders, auditors and citizens.',
+        ],
+    ];
+}
+
+/**
+ * The detail page for one of the three service pillars.
+ *
+ * The pillar data itself is content (page_content services.pillars, a json
+ * row), so the pillar list, its names and its copy are all editable. The URL
+ * a pillar maps to is NOT content: it is a route, and a CMS user who could
+ * retype it could point a pillar at a page that does not exist. So the mapping
+ * lives here, keyed by the stable `key` field in that json row.
+ *
+ * An unknown key returns the services overview rather than a broken link, so
+ * adding a fourth pillar in the CMS before its page exists degrades to a real
+ * page instead of a 404.
+ */
+function pmServiceHref(string $key): string
+{
+    return match ($key) {
+        'pfm'            => '/service-pfm.php',
+        'data'           => '/service-data.php',
+        'sustainability' => '/service-sustainability.php',
+        default          => '/services.php',
+    };
 }
 
 /**

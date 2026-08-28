@@ -33,10 +33,15 @@ DELETE FROM `page_content`
 
 -- Rows added to slugs migration 03 already owns, by exact key.
 DELETE FROM `page_content`
+ WHERE `page_slug` = 'global'
+   AND `section_key` IN (
+        'early_bird_lapsed_label', 'event_details_label', 'event_register_label'
+   );
+
+DELETE FROM `page_content`
  WHERE `page_slug` = 'home'
    AND `section_key` IN (
         'cta_eyebrow', 'cta_title_template', 'cta_title_lapsed', 'cta_body_lapsed',
-        'early_bird_lapsed_label', 'event_details_label', 'event_register_label',
         'events_empty', 'pillars_cta_label', 'record_cta_label'
    );
 

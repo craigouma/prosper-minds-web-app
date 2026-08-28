@@ -67,15 +67,28 @@
 --
 -- Reverse with: 2026-08-28-05-seed-page-content-phase2.down.sql
 
+-- ── Shared event-card labels ────────────────────────────────────────────────
+-- Under 'global', not 'home', because five Phase 2 pages print an event card
+-- through the same partial (includes/layout/event-card.php): the homepage, the
+-- services overview and the three service detail pages. Phase 3's events
+-- listing will be the sixth. One row per label means renaming the "Details"
+-- action in the CMS renames it everywhere it appears, which is what an editor
+-- would expect; a copy per page would guarantee they drift.
+--
+-- The per-page EMPTY messages below are deliberately NOT shared, because the
+-- honest sentence really does differ: the homepage says dates are being
+-- confirmed, a service page says no school covering that pillar is scheduled.
+INSERT IGNORE INTO `page_content` (`page_slug`, `section_key`, `content_type`, `content_value`, `sort_order`) VALUES
+('global', 'early_bird_lapsed_label', 'text', 'Standard rate', 80),
+('global', 'event_details_label',     'text', 'Details', 81),
+('global', 'event_register_label',    'text', 'Register', 82);
+
 -- ── Homepage: the computed closing band, and the labels the grid needs ──────
 INSERT IGNORE INTO `page_content` (`page_slug`, `section_key`, `content_type`, `content_value`, `sort_order`) VALUES
 ('home', 'cta_eyebrow',             'text', 'Registration', 195),
 ('home', 'cta_title_template',      'text', 'Save {pct} per cent on the {city} school until {date}', 196),
 ('home', 'cta_title_lapsed',        'text', 'Registration is open for the 2026 residential schools', 197),
 ('home', 'cta_body_lapsed',         'text', 'Standard delegate rates apply. Cohorts are capped, so a place is worth confirming early.', 198),
-('home', 'early_bird_lapsed_label', 'text', 'Standard rate', 220),
-('home', 'event_details_label',     'text', 'Details', 230),
-('home', 'event_register_label',    'text', 'Register', 240),
 ('home', 'events_empty',            'text', 'Dates for the next intake are being confirmed. Contact the programme office and we will tell you first.', 250),
 ('home', 'pillars_cta_label',       'text', 'Read more', 260),
 ('home', 'record_cta_label',        'text', 'About Prosperminds', 270);

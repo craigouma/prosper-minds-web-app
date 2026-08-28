@@ -930,6 +930,51 @@ body.pm {
   text-transform: uppercase;
 }
 
+/* A segmented switch: a row of sibling destinations sharing one rule, with the
+   current one marked by a green 2px segment above its label.
+
+   Added in Phase 2 for the three service detail pages, which are siblings a
+   delegate compares rather than a hierarchy they descend. The approved
+   prototype shows exactly this control at the top of its services screen; the
+   only difference here is that each segment is a real link to a real page
+   rather than a client-side tab, because these are separate URLs.
+
+   Reusable, not a one-off. Phase 3's events listing needs the identical
+   control for "Upcoming / Past", and it is the natural shape for any small,
+   closed set of peer views. It is deliberately NOT the nav link component:
+   .pm-nav__link marks the current page with a bottom rule inside the header,
+   and reusing it here would tie two unrelated things together.
+
+   Marked with aria-current="page" on the segment for the page you are on, the
+   same contract .pm-nav__link uses, so the state is announced and not merely
+   coloured. */
+.pm-switch {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 200px), 1fr));
+  gap: clamp(14px, 2vw, 28px);
+}
+
+.pm-switch__link {
+  display: block;
+  padding-top: 14px;
+  border-top: 2px solid var(--pm-border);
+  color: var(--pm-text-muted);
+  font-size: var(--pm-fs-body-sm);
+  line-height: 1.4;
+  transition: color var(--pm-transition), border-color var(--pm-transition);
+}
+
+.pm-switch__link:hover,
+.pm-switch__link:focus-visible {
+  color: var(--pm-black);
+  border-top-color: var(--pm-black);
+}
+
+.pm-switch__link[aria-current="page"] {
+  color: var(--pm-black);
+  border-top-color: var(--pm-green);
+}
+
 /* Pull quote. The opening quotation mark is the only place green is used as
    a character rather than a rule. */
 .pm-quote__mark {
