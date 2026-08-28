@@ -60,12 +60,13 @@ $pmBodyClass = trim('pm ' . (string) ($pmPage['body_class'] ?? ''));
     <meta name="twitter:image" content="<?php echo pmEsc($pmOgImage); ?>">
 
     <meta name="theme-color" content="#000000">
-    <!-- Square shield mark. The full logo is 713x183 and is unreadable squashed
-         into a favicon square, so it is not used here. SVG first for browsers
-         that take it; the PNG stays as the fallback for those that do not. -->
-    <link rel="icon" href="/assets/images/favicon.svg" type="image/svg+xml">
-    <link rel="icon" href="/assets/images/fisrt-logo.png" type="image/png">
-    <link rel="apple-touch-icon" href="/assets/images/favicon.svg">
+    <!-- Favicons cropped from the real logo file (the shield and neural head,
+         without the wordmark), not redrawn. The full lock-up is 713x183 and is
+         unreadable squashed into a square, which is the only reason a separate
+         asset exists at all. -->
+    <link rel="icon" href="/assets/images/favicon-32.png" sizes="32x32" type="image/png">
+    <link rel="icon" href="/assets/images/favicon-512.png" sizes="512x512" type="image/png">
+    <link rel="apple-touch-icon" href="/assets/images/favicon-180.png">
 
     <!-- Maharlika is self-hosted and is the only typeface. Preloaded because it
          is used for every character on the page including the first heading;

@@ -36,13 +36,12 @@ $pmNavActive = (string) ($pmPage['nav'] ?? '');
   <div class="pm-header__bar pm-container">
 
     <a class="pm-brand" href="/index.php">
-      <svg class="pm-brand__mark" width="24" height="28" viewBox="0 0 26 30" role="img" aria-label="Prosperminds">
-        <path d="M13 1.6 24.4 5.6v9.6c0 7-4.9 11.6-11.4 13.1C6.5 26.8 1.6 22.2 1.6 15.2V5.6L13 1.6Z" fill="none" stroke="#00BF63" stroke-width="1.5"></path>
-        <circle cx="13" cy="12.2" r="4.1" fill="none" stroke="#000" stroke-width="1.1"></circle>
-        <path d="M13 16.3v4.2M8.9 12.2H4.6M21.4 12.2h-4.3M10.1 9.1 7.4 6.6M15.9 9.1l2.7-2.5" stroke="#000" stroke-width="1.1" stroke-linecap="round"></path>
-        <circle cx="13" cy="12.2" r="1.2" fill="#00BF63"></circle>
-      </svg>
-      <span class="pm-brand__word">Prosperminds</span>
+      <!-- The real logo file, the same one the site has always used. It is the
+           brand's own artwork, so nothing here redraws or approximates it: the
+           brand guide forbids altering the mark, and an invented lookalike is a
+           worse violation than a scaling one. -->
+      <img class="pm-brand__logo" src="/assets/images/fisrt-logo.png"
+           alt="Prosperminds" width="713" height="183">
     </a>
 
     <button
@@ -59,13 +58,8 @@ $pmNavActive = (string) ($pmPage['nav'] ?? '');
             // header bar. Repeats the lock-up so the panel is still identifiably
             // the Prosperminds site, exactly as the prototype's panel does. ?>
       <div class="pm-nav__panel-head">
-        <svg class="pm-brand__mark" width="24" height="28" viewBox="0 0 26 30" aria-hidden="true">
-          <path d="M13 1.6 24.4 5.6v9.6c0 7-4.9 11.6-11.4 13.1C6.5 26.8 1.6 22.2 1.6 15.2V5.6L13 1.6Z" fill="none" stroke="#00BF63" stroke-width="1.5"></path>
-          <circle cx="13" cy="12.2" r="4.1" fill="none" stroke="#000" stroke-width="1.1"></circle>
-          <path d="M13 16.3v4.2M8.9 12.2H4.6M21.4 12.2h-4.3M10.1 9.1 7.4 6.6M15.9 9.1l2.7-2.5" stroke="#000" stroke-width="1.1" stroke-linecap="round"></path>
-          <circle cx="13" cy="12.2" r="1.2" fill="#00BF63"></circle>
-        </svg>
-        <span class="pm-brand__word">Prosperminds</span>
+        <img class="pm-brand__logo" src="/assets/images/fisrt-logo.png"
+             alt="Prosperminds" width="713" height="183">
         <button type="button" class="pm-nav__close" id="pm-nav-close" aria-label="Close menu">
           <svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true">
             <path d="M2 2 16 16M16 2 2 16" stroke="#000" stroke-width="1.6" stroke-linecap="round"></path>

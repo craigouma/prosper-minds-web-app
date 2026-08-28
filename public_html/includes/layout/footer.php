@@ -111,13 +111,11 @@ $pmNewsletterFailed = $pmNewsletterStatus !== '' && $pmNewsletterStatus !== 'ok'
 
       <div>
         <div class="pm-brand">
-          <svg class="pm-brand__mark" width="22" height="26" viewBox="0 0 26 30" role="img" aria-label="Prosperminds">
-            <path d="M13 1.6 24.4 5.6v9.6c0 7-4.9 11.6-11.4 13.1C6.5 26.8 1.6 22.2 1.6 15.2V5.6L13 1.6Z" fill="none" stroke="#00BF63" stroke-width="1.5"></path>
-            <circle cx="13" cy="12.2" r="4.1" fill="none" stroke="#fff" stroke-width="1.1"></circle>
-            <path d="M13 16.3v4.2M8.9 12.2H4.6M21.4 12.2h-4.3" stroke="#fff" stroke-width="1.1" stroke-linecap="round"></path>
-            <circle cx="13" cy="12.2" r="1.2" fill="#00BF63"></circle>
-          </svg>
-          <span class="pm-brand__word">Prosperminds</span>
+          <!-- Same real logo file as the header. It already carries an alpha
+               channel, and the wordmark and shield are both green, so it reads
+               correctly on this black surface without a separate dark variant. -->
+          <img class="pm-brand__logo" src="/assets/images/fisrt-logo.png"
+               alt="Prosperminds" width="713" height="183">
         </div>
         <p class="pm-footer__tagline"><?php echo pmContentSafe($pdo, 'global', 'tagline',
               'Protecting and growing the mind to achieve prosperity.'); ?></p>
