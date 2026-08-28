@@ -143,6 +143,13 @@ pmPageBegin([
       protect the data and to use it only on our instructions.
     </p>
     <p>
+      The map on our contact page is served by OpenFreeMap, an open map provider
+      we chose specifically because it needs no account and does not track
+      visitors. Loading the map sends your IP address to that provider, as any
+      map does. If you would rather not load it, the full address is written out
+      as text on the same page and the map is not needed to read it.
+    </p>
+    <p>
       We may also disclose information where the law requires it, for example in
       response to a valid legal order.
     </p>
