@@ -20,6 +20,7 @@ $staticPages = [
     ['loc' => '/service-data.php', 'changefreq' => 'monthly', 'priority' => '0.7'],
     ['loc' => '/service-sustainability.php', 'changefreq' => 'monthly', 'priority' => '0.7'],
     ['loc' => '/sponsorship.php', 'changefreq' => 'monthly', 'priority' => '0.6'],
+    ['loc' => '/privacy-policy.php', 'changefreq' => 'yearly', 'priority' => '0.3'],
 ];
 
 $events = [];

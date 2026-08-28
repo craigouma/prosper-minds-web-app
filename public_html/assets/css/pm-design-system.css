@@ -1403,11 +1403,47 @@ body.pm {
   flex-wrap: wrap;
   gap: 16px;
   align-items: center;
+  justify-content: space-between;
   margin-top: clamp(34px, 4vw, 56px);
   padding-top: 24px;
   border-top: 1px solid var(--pm-on-dark-rule);
   color: var(--pm-on-dark-faint);
   font-size: 12.5px;
+}
+
+.pm-footer__bottom a {
+  color: var(--pm-on-dark-faint);
+  text-decoration: none;
+  border-bottom: 1px solid transparent;
+}
+
+.pm-footer__bottom a:hover,
+.pm-footer__bottom a:focus-visible {
+  color: var(--pm-white);
+  border-bottom-color: var(--pm-green);
+}
+
+/* Consent line under the newsletter field. Deliberately legible rather than
+   fine print: consent is the lawful basis for this list, so the wording has to
+   be readable at the point of giving it, not hidden at 9px. */
+.pm-form-inline__consent {
+  flex-basis: 100%;
+  margin: 4px 0 0;
+  max-width: 52ch;
+  font-size: 12.5px;
+  line-height: 1.6;
+  color: var(--pm-on-dark-faint);
+}
+
+.pm-form-inline__consent a {
+  color: var(--pm-on-dark-muted);
+  border-bottom: 1px solid var(--pm-green);
+  text-decoration: none;
+}
+
+.pm-form-inline__consent a:hover,
+.pm-form-inline__consent a:focus-visible {
+  color: var(--pm-white);
 }
 
 
@@ -1437,6 +1473,43 @@ body.pm {
 .pm-mt-sm { margin-top: 14px; }
 .pm-mt-md { margin-top: 22px; }
 .pm-mt-lg { margin-top: clamp(28px, 3.5vw, 44px); }
+/* One step above lg, for separating major headings inside a long text page
+   (privacy policy, terms, an event agenda) where lg is not enough to read as
+   a real section break. */
+.pm-mt-xl { margin-top: clamp(44px, 5vw, 72px); }
+
+/* ---------------------------------------------------------------------------
+   Lists in body copy
+   Long-form pages (policy, agendas, package benefits) need a list that matches
+   the body rhythm instead of the browser default. The marker is a green rule
+   rather than a bullet glyph, consistent with the eyebrow rule elsewhere.
+   --------------------------------------------------------------------------- */
+.pm-list {
+  margin: 22px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.pm-list > li {
+  position: relative;
+  padding-left: 26px;
+  margin-bottom: 12px;
+  font-size: var(--pm-text-body, clamp(15px, 1.5vw, 18px));
+  line-height: 1.75;
+  color: var(--pm-text-muted);
+}
+
+.pm-list > li::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0.72em;
+  width: 12px;
+  height: 2px;
+  background: var(--pm-green);
+}
+
+.pm-list > li:last-child { margin-bottom: 0; }
 
 .pm-measure     { max-width: 62ch; }
 .pm-measure--sm { max-width: 48ch; }

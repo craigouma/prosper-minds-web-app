@@ -89,6 +89,16 @@ $pmNewsletterFailed = $pmNewsletterStatus !== '' && $pmNewsletterStatus !== 'ok'
 
         <button class="pm-btn" type="submit">Subscribe</button>
 
+        <!-- Consent wording sits with the field, not buried in the policy. The
+             newsletter's lawful basis is consent (Kenya DPA 2019 / GDPR), so the
+             visitor has to be told what they are agreeing to, and how to stop,
+             at the point of giving it. -->
+        <p class="pm-form-inline__consent">
+          We will use your address only to send course dates and early bird
+          deadlines. You can unsubscribe from any email. See our
+          <a href="/privacy-policy.php">privacy policy</a>.
+        </p>
+
 <?php if ($pmNewsletterNotice !== ''): ?>
         <p class="pm-notice<?php echo $pmNewsletterFailed ? ' pm-notice--error' : ''; ?>" role="status">
           <?php echo pmEsc($pmNewsletterNotice); ?>
@@ -141,6 +151,7 @@ $pmNewsletterFailed = $pmNewsletterStatus !== '' && $pmNewsletterStatus !== 'ok'
 
     <div class="pm-footer__bottom">
       <span>&copy; <?php echo date('Y'); ?> Prosperminds. All rights reserved.</span>
+      <a href="/privacy-policy.php">Privacy policy</a>
     </div>
 
   </div>
