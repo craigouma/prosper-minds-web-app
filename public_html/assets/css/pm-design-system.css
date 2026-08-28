@@ -230,9 +230,14 @@ body.pm {
   list-style: none;
 }
 
-.pm img,
-.pm svg,
-.pm video {
+/* :where() again, and for the fourth time the same trap. Written plainly as
+   `.pm img { height: auto }` this is (0,1,1) and beats every single-class
+   component that needs to SET a height: .pm-brand__logo, whose whole job is to
+   scale the 713x183 logo file down to the header bar, came out at its intrinsic
+   713px and pushed the navigation off the right of every page. The reset still
+   does its job (an image with no sizing rule of its own stays inside its
+   container and keeps its ratio); it just no longer outranks the components. */
+.pm :where(img, svg, video) {
   max-width: 100%;
   height: auto;
   display: block;
