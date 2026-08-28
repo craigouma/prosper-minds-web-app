@@ -449,6 +449,337 @@ else
   printf '  SKIP  %-58s %s\n' "beacon JS checks (node is not installed)" "-"
 fi
 
+# ════════════════════════════════════════════════════════════════════════════
+# 9. Rebuild Phase 1 foundation — design system, layout partials, content layer
+#
+# Everything below is ADDITIVE. Phase 1 of the rebuild does not convert or
+# restyle a single existing page: index.php, event.php, event-registration.php,
+# sponsorship.php, service-*.php, 404.php and assets/css/style.css are all
+# untouched, which is why every assertion in sections 2 to 8 above must still
+# pass unchanged. If one of them fails after a Phase 1 change, the change was
+# not additive.
+#
+# The page under test is public_html/_phase1-preview.php — a deliberately
+# temporary specimen page that composes head + header + footer and reads the
+# content layer. It is not part of the site and is deleted before launch.
+# ════════════════════════════════════════════════════════════════════════════
+PC_UP=public_html/database/migrations/2026-08-28-01-create-page-content.up.sql
+PC_DOWN=public_html/database/migrations/2026-08-28-01-create-page-content.down.sql
+NS_UP=public_html/database/migrations/2026-08-28-02-create-newsletter-subscribers.up.sql
+NS_DOWN=public_html/database/migrations/2026-08-28-02-create-newsletter-subscribers.down.sql
+SEED_UP=public_html/database/migrations/2026-08-28-03-seed-page-content.up.sql
+SEED_DOWN=public_html/database/migrations/2026-08-28-03-seed-page-content.down.sql
+
+PREVIEW="$MAIN/_phase1-preview.php"
+
+# Pull one value out of the rendered preview page. Same one-liner approach as
+# funnel_shown() above: data-pm-check is a real attribute on the page and each
+# one renders on a single line specifically so this stays a sed expression
+# rather than an HTML parser.
+pm_check()  { printf '%s' "$1" | sed -n "s/.*data-pm-check=\"$2\">\([^<]*\)<.*/\1/p" | head -1; }
+pc_rows()   { fq "SELECT COUNT(*) FROM page_content"; }
+subs_rows() { fq "SELECT COUNT(*) FROM newsletter_subscribers WHERE email='$1'"; }
+
+echo
+echo "=== 9a. page_content / newsletter_subscribers migration files ==="
+for m in "$PC_UP" "$PC_DOWN" "$NS_UP" "$NS_DOWN" "$SEED_UP" "$SEED_DOWN"; do
+  check "$(basename "$m") tracked in git" "yes" \
+    "$(git ls-files --error-unmatch "$m" >/dev/null 2>&1 && echo yes || echo no)"
+done
+
+# Apply the pairs by hand against the real MariaDB, exactly as section 8a does
+# for funnel_events. This is what proves the files are valid SQL rather than
+# plausible-looking text, and it leaves both tables absent so on-demand creation
+# can be tested for real in 9b.
+fq "DROP TABLE IF EXISTS page_content" >/dev/null
+fq "DROP TABLE IF EXISTS newsletter_subscribers" >/dev/null
+check "page_content up migration applies cleanly" "0" \
+  "$("${DB_MAIN_FILE[@]}" < "$PC_UP" >/dev/null 2>&1; echo $?)"
+check "page_content table exists" "1" "$(table_exists page_content)"
+check "(page_slug, section_key) is a unique index" "1" \
+  "$(fq "SELECT COUNT(DISTINCT index_name) FROM information_schema.statistics
+          WHERE table_schema=DATABASE() AND table_name='page_content'
+            AND non_unique=0 AND index_name='uq_page_content_slug_key'")"
+check "newsletter up migration applies cleanly" "0" \
+  "$("${DB_MAIN_FILE[@]}" < "$NS_UP" >/dev/null 2>&1; echo $?)"
+check "newsletter_subscribers table exists" "1" "$(table_exists newsletter_subscribers)"
+check "email is a unique index" "1" \
+  "$(fq "SELECT COUNT(DISTINCT index_name) FROM information_schema.statistics
+          WHERE table_schema=DATABASE() AND table_name='newsletter_subscribers'
+            AND non_unique=0 AND index_name='uq_newsletter_subscribers_email'")"
+# Data minimisation, the same position taken for funnel_events in 8b: a mailing
+# list needs the address and nothing else.
+check "no IP or user-agent column on newsletter_subscribers" "0" \
+  "$(fq "SELECT COUNT(*) FROM information_schema.columns
+          WHERE table_schema=DATABASE() AND table_name='newsletter_subscribers'
+            AND column_name IN ('ip','ip_address','remote_addr','user_agent')")"
+
+check "seed migration applies cleanly" "0" \
+  "$("${DB_MAIN_FILE[@]}" < "$SEED_UP" >/dev/null 2>&1; echo $?)"
+# 77 rows: global 7, home 21, events 9, about 13, services 8, contact 9,
+# sponsorship 7, notfound 3. Counted from the file, not read back out of SQL.
+check "seed inserts 77 rows" "77" "$(pc_rows)"
+check "seed re-applies without duplicating" "0" \
+  "$("${DB_MAIN_FILE[@]}" < "$SEED_UP" >/dev/null 2>&1; echo $?)"
+check "still 77 rows after a second seed" "77" "$(pc_rows)"
+
+# INSERT IGNORE, not upsert: once the Phase 5 CMS exists these rows are what
+# staff edit, and a seed that clobbers their work on the next deploy is a trap.
+fq "UPDATE page_content SET content_value='EDITED BY A HUMAN' WHERE page_slug='home' AND section_key='hero_title'" >/dev/null
+"${DB_MAIN_FILE[@]}" < "$SEED_UP" >/dev/null 2>&1
+check "re-seeding does not overwrite an edited row" "EDITED BY A HUMAN" \
+  "$(fq "SELECT content_value FROM page_content WHERE page_slug='home' AND section_key='hero_title'")"
+
+check "seed down migration applies cleanly" "0" \
+  "$("${DB_MAIN_FILE[@]}" < "$SEED_DOWN" >/dev/null 2>&1; echo $?)"
+check "no seeded rows left" "0" "$(pc_rows)"
+check "page_content down migration applies cleanly" "0" \
+  "$("${DB_MAIN_FILE[@]}" < "$PC_DOWN" >/dev/null 2>&1; echo $?)"
+check "page_content gone after down migration" "0" "$(table_exists page_content)"
+check "newsletter down migration applies cleanly" "0" \
+  "$("${DB_MAIN_FILE[@]}" < "$NS_DOWN" >/dev/null 2>&1; echo $?)"
+check "newsletter_subscribers gone after down migration" "0" "$(table_exists newsletter_subscribers)"
+
+echo
+echo "=== 9b. Both tables created on demand ==="
+# Neither table exists at this point — the down migrations just dropped them. A
+# visitor arriving now must both get their page AND cause the table to be
+# created, with no manual migration step anywhere. Same contract as 8b.
+NJAR="$(mktemp)"; NBODY="$(mktemp)"
+NCODE="$(curl -s -c "$NJAR" -o "$NBODY" -w '%{http_code}' "$PREVIEW")"
+check "preview page renders with no page_content table" "200" "$NCODE"
+check "page_content created on demand"                 "1"   "$(table_exists page_content)"
+check "created empty, so every key falls back"         "0"   "$(pc_rows)"
+check "page still showed its inline defaults" "FALLBACK-DEFAULT-USED" "$(pm_check "$(cat "$NBODY")" seeded)"
+
+NTOK="$(sed -n 's/.*name="csrf_token" value="\([a-f0-9]*\)".*/\1/p' "$NBODY" | head -1)"
+check "footer newsletter form carries a CSRF token" "yes" \
+  "$(printf '%s' "$NTOK" | grep -Eq '^[a-f0-9]{64}$' && echo yes || echo no)"
+
+# newsletter <email> [extra curl args...] -> the JSON body
+newsletter() {
+  local email="$1"; shift
+  curl -s -b "$NJAR" -H 'Accept: application/json' -X POST "$MAIN/newsletter-subscribe.php" \
+    -F "csrf_token=$NTOK" -F "email=$email" -F "return_to=/_phase1-preview.php" "$@"
+}
+OUT="$(newsletter first@example.test)"
+check "first subscribe succeeds"                 "true" "$(json_success "$OUT")"
+check "newsletter_subscribers created on demand" "1"    "$(table_exists newsletter_subscribers)"
+
+# Put the real copy back for the sections that follow.
+"${DB_MAIN_FILE[@]}" < "$SEED_UP" >/dev/null 2>&1
+check "seed applies to the on-demand table" "77" "$(pc_rows)"
+
+echo
+echo "=== 9c. pmContent(): seeded value, and the default for a missing key ==="
+PBODY="$(curl -s "$PREVIEW")"
+check "preview page renders"          "200" "$(curl -s -o /dev/null -w '%{http_code}' "$PREVIEW")"
+check "no PHP error in the page"      "0"   "$(printf '%s' "$PBODY" | grep -ciE 'fatal error|parse error|warning:|uncaught')"
+check "seeded key renders from the DB" "Strong systems start with strong people" "$(pm_check "$PBODY" seeded)"
+check "missing key renders its default" "default-was-returned" "$(pm_check "$PBODY" default)"
+check "whole page fetched in one go"    "21" "$(pm_check "$PBODY" count)"
+
+check "pmContent returns the seeded value" "Strong systems start with strong people" \
+  "$(cd public_html && php -r 'require "includes/layout/page.php"; echo pmContent($pdo, "home", "hero_title", "MISS");' 2>/dev/null)"
+check "pmContent returns the default for a missing key" "the-default" \
+  "$(cd public_html && php -r 'require "includes/layout/page.php"; echo pmContent($pdo, "home", "no_such_key", "the-default");' 2>/dev/null)"
+check "pmContentAll returns the whole page" "21" \
+  "$(cd public_html && php -r 'require "includes/layout/page.php"; echo count(pmContentAll($pdo, "home"));' 2>/dev/null)"
+# 'text' rows are escaped on output, 'html' rows are passed through. That
+# distinction is the entire reason content_type exists as a column.
+check "a text row is escaped on output" "Co-Author Africa&#039;s Public Finance Future" \
+  "$(cd public_html && php -r 'require "includes/layout/page.php"; echo pmContentSafe($pdo, "sponsorship", "hero_title", "x");' 2>/dev/null)"
+check "an html row is passed through" "Twiga Towers, Moi Avenue<br>Nairobi, Kenya<br>Mon to Fri, 8am to 5pm" \
+  "$(cd public_html && php -r 'require "includes/layout/page.php"; echo pmContentSafe($pdo, "global", "address_html", "x");' 2>/dev/null)"
+check "a json row decodes to a list" "4" \
+  "$(cd public_html && php -r 'require "includes/layout/page.php"; echo count(pmContentJson($pdo, "home", "stats", []));' 2>/dev/null)"
+# One query per PAGE, not per key. A page asks for dozens of keys; issuing a
+# query for each would put the content layer on the critical path of every
+# render. Warm the schema check first, then count real statements: the SHOW
+# that reads the counter is itself counted, hence the -1.
+check "40 lookups cost exactly one query" "1" \
+  "$(cd public_html && php -r '
+require "includes/layout/page.php";
+pmContentAll($pdo, "about");
+$q = function () use ($pdo) { return (int) $pdo->query("SHOW SESSION STATUS LIKE \"Questions\"")->fetch()["Value"]; };
+$before = $q();
+for ($i = 0; $i < 40; $i++) { pmContent($pdo, "home", "hero_title", "x"); }
+echo $q() - $before - 1;
+' 2>/dev/null)"
+
+echo
+echo "=== 9d. Newsletter endpoint ==="
+# The live footer's newsletter field has no action and no method and has
+# silently discarded every address ever typed into it (PROJECT.md section 5,
+# Priority 3). This is the endpoint that closes that for the rebuilt pages.
+OUT="$(newsletter delegate@example.test)"
+check "valid submit accepted"        "true" "$(json_success "$OUT")"
+check "exactly one row stored"       "1"    "$(subs_rows delegate@example.test)"
+OUT="$(newsletter delegate@example.test)"
+check "repeat submit still succeeds" "true" "$(json_success "$OUT")"
+check "repeat submit stored no second row" "1" "$(subs_rows delegate@example.test)"
+# Case and surrounding whitespace must not create a second subscriber.
+OUT="$(newsletter '  DELEGATE@Example.TEST  ')"
+check "mixed-case repeat still one row" "1" "$(subs_rows delegate@example.test)"
+
+BEFORE="$(fq "SELECT COUNT(*) FROM newsletter_subscribers")"
+OUT="$(newsletter forged@example.test -F "csrf_token=$(printf 'a%.0s' {1..64})")"
+check "forged token rejected"        "false" "$(json_success "$OUT")"
+OUT="$(curl -s -H 'Accept: application/json' -X POST "$MAIN/newsletter-subscribe.php" -F "email=notoken@example.test")"
+check "missing token rejected"       "false" "$(json_success "$OUT")"
+check "rejected posts stored nothing" "$BEFORE" "$(fq "SELECT COUNT(*) FROM newsletter_subscribers")"
+
+OUT="$(newsletter not-an-email)"
+check "invalid address rejected"     "false" "$(json_success "$OUT")"
+check "invalid address stored nothing" "$BEFORE" "$(fq "SELECT COUNT(*) FROM newsletter_subscribers")"
+
+# The honeypot answers success and stores nothing: telling a bot it was caught
+# only teaches it.
+OUT="$(newsletter bot@example.test -F "company=Acme")"
+check "honeypot answers success"     "true" "$(json_success "$OUT")"
+check "honeypot stored nothing"      "0"    "$(subs_rows bot@example.test)"
+
+OUT="$(curl -s -H 'Accept: application/json' "$MAIN/newsletter-subscribe.php")"
+check "GET is refused"               "false" "$(json_success "$OUT")"
+
+# Without an Accept header the endpoint redirects, so the form works with
+# JavaScript off. The redirect target is validated: this endpoint is public and
+# unauthenticated, and an unchecked return_to would make it an open redirect.
+check "redirects back to the page" "/_phase1-preview.php?newsletter=ok#newsletter" \
+  "$(curl -s -b "$NJAR" -o /dev/null -D - -X POST "$MAIN/newsletter-subscribe.php" \
+      -F "csrf_token=$NTOK" -F "email=redirect@example.test" -F "return_to=/_phase1-preview.php" \
+      | sed -n 's/^[Ll]ocation: *//p' | tr -d '\r')"
+check "refuses an off-site return_to" "/?newsletter=ok#newsletter" \
+  "$(curl -s -b "$NJAR" -o /dev/null -D - -X POST "$MAIN/newsletter-subscribe.php" \
+      -F "csrf_token=$NTOK" -F "email=redirect@example.test" -F "return_to=//evil.example/x" \
+      | sed -n 's/^[Ll]ocation: *//p' | tr -d '\r')"
+
+echo
+echo "=== 9e. Design system assets, and the preview page's shared chrome ==="
+check "pm-design-system.css is served"   "200" "$(curl -s -o /dev/null -w '%{http_code}' "$MAIN/assets/css/pm-design-system.css")"
+check "served as text/css"               "text/css" \
+  "$(curl -s -o /dev/null -w '%{content_type}' "$MAIN/assets/css/pm-design-system.css" | cut -d';' -f1)"
+check "carries the brand tokens"         "yes" \
+  "$(curl -s "$MAIN/assets/css/pm-design-system.css" | grep -q -- '--pm-green: #00BF63' && echo yes || echo no)"
+# The brand is green/black/white plus neutral greys. Any other hue in the
+# stylesheet is a bug: no purple, no blue, no red error states.
+check "no hue outside the palette" "0" \
+  "$(curl -s "$MAIN/assets/css/pm-design-system.css" \
+      | grep -oiE '#[0-9a-f]{3,8}\b' | tr 'A-F' 'a-f' | sort -u \
+      | grep -vcE '^#(00bf63|000000|ffffff|f6f6f4|fafafa|dcdcdc|e2e2e2|cfcfcf|5a5a5a|5f5f5f|4a4a4a)$')"
+check "Maharlika is served"              "200" "$(curl -s -o /dev/null -w '%{http_code}' "$MAIN/assets/fonts/Maharlika-Regular.ttf")"
+check "served as a font type"            "yes" \
+  "$(curl -s -o /dev/null -w '%{content_type}' "$MAIN/assets/fonts/Maharlika-Regular.ttf" | grep -qi 'font' && echo yes || echo no)"
+check "font is the brand file, byte for byte" "yes" \
+  "$(cmp -s <(curl -s "$MAIN/assets/fonts/Maharlika-Regular.ttf") "prototype/fonts/Maharlika-Regular.ttf" && echo yes || echo no)"
+check "layout script is served"          "200" "$(curl -s -o /dev/null -w '%{http_code}' "$MAIN/assets/js/pm-layout.js")"
+
+PBODY="$(curl -s "$PREVIEW")"
+check "preview loads the design system, not style.css" "yes" \
+  "$(printf '%s' "$PBODY" | grep -q 'pm-design-system.css' && ! printf '%s' "$PBODY" | grep -q 'assets/css/style.css' && echo yes || echo no)"
+check "shared header rendered"      "yes" "$(printf '%s' "$PBODY" | grep -q 'class="pm-header"' && echo yes || echo no)"
+check "mobile menu toggle present"  "yes" "$(printf '%s' "$PBODY" | grep -q 'id="pm-nav-toggle"' && echo yes || echo no)"
+check "shared footer rendered"      "yes" "$(printf '%s' "$PBODY" | grep -q 'class="pm-footer"' && echo yes || echo no)"
+check "GA4 and Ads tag on the page"  "2"  \
+  "$(printf '%s' "$PBODY" | grep -cE "gtag\('config', '(G-H030354F23|AW-18352784550)'\)")"
+check "admin login is not in the nav" "0" "$(printf '%s' "$PBODY" | grep -c 'admin/login.php')"
+# The preview page is scaffolding and must not be indexed or advertised.
+check "preview page is noindex"        "yes" "$(printf '%s' "$PBODY" | grep -q 'name="robots" content="noindex' && echo yes || echo no)"
+check "preview page disallowed in robots.txt" "yes" \
+  "$(curl -s "$MAIN/robots.txt" | grep -q '_phase1-preview.php' && echo yes || echo no)"
+# sitemap.php, not /sitemap.xml: the rewrite that maps one to the other lives in
+# .htaccess, which the PHP built-in server does not read.
+check "preview page absent from the sitemap"  "0" \
+  "$(curl -s "$MAIN/sitemap.php" | grep -c '_phase1-preview')"
+
+echo
+echo "=== 9f. CRITICAL: a broken content layer must never break a page ==="
+# The single most important assertion in this phase, and the same shape as 8g:
+# break the secondary concern for real, then prove the primary outcome — that
+# the page renders — is untouched. The lesson is the August 2026 one restated
+# for a third time (registration email, then analytics, now page copy): a
+# secondary concern must never decide a primary answer.
+#
+# DROP is not a sufficient break. ensurePageContentSchema() would recreate the
+# table and every SELECT would succeed against an empty one, which tests
+# nothing about error handling. So the real table is set aside and replaced by
+# one whose schema the SELECT cannot satisfy — what a half-applied migration
+# actually looks like.
+fq "RENAME TABLE page_content TO page_content_saved" >/dev/null
+fq "CREATE TABLE page_content (id INT AUTO_INCREMENT PRIMARY KEY, wrong_column INT DEFAULT NULL)" >/dev/null
+
+PBODY="$(curl -s "$PREVIEW")"
+check "broken table: page still renders" "200" "$(curl -s -o /dev/null -w '%{http_code}' "$PREVIEW")"
+check "broken table: default copy shown" "FALLBACK-DEFAULT-USED" "$(pm_check "$PBODY" seeded)"
+check "broken table: no error on the page" "0" \
+  "$(printf '%s' "$PBODY" | grep -ciE 'fatal error|parse error|warning:|uncaught|sqlstate')"
+check "broken table: header and footer still render" "yes" \
+  "$(printf '%s' "$PBODY" | grep -q 'class="pm-footer"' && echo yes || echo no)"
+
+fq "DROP TABLE page_content" >/dev/null
+fq "RENAME TABLE page_content_saved TO page_content" >/dev/null
+check "real page_content restored"        "1"  "$(table_exists page_content)"
+check "restored table still holds its rows" "77" "$(pc_rows)"
+
+# Now the file itself. The August outage was one file arriving incomplete;
+# includes/content.php is among the newest files in this deploy, so it is one of
+# the likeliest to arrive that way. includes/layout/page.php loads it inside
+# try/catch and substitutes no-op stand-ins.
+CF=public_html/includes/content.php
+cp "$CF" /tmp/verify-content.bak
+
+mv "$CF" /tmp/verify-content.moved
+# The PHP built-in server caches compiled files and only revalidates every
+# opcache.revalidate_freq seconds (2 by default). Without this pause the next
+# request can be served from the pre-corruption bytecode and the test proves
+# nothing. Same reason it appears again below.
+sleep 3
+MCODE="$(curl -s -o /tmp/verify-content-page.html -w '%{http_code}' "$PREVIEW")"
+PBODY="$(cat /tmp/verify-content-page.html)"
+mv /tmp/verify-content.moved "$CF"
+check "missing content.php: page renders" "200" "$MCODE"
+check "missing content.php: default copy shown" "FALLBACK-DEFAULT-USED" "$(pm_check "$PBODY" seeded)"
+check "missing content.php: footer still renders" "yes" \
+  "$(printf '%s' "$PBODY" | grep -q 'class="pm-footer"' && echo yes || echo no)"
+
+# Truncated mid-file, the way vendor/phpmailer/PHPMailer.php was in August.
+# Raises ParseError, which extends Error — catch (Exception) would not catch it.
+head -c 4000 /tmp/verify-content.bak > "$CF"
+# Captured first, not piped: `php -l` exits 255 on a parse error and
+# `set -o pipefail` would make the whole pipeline non-zero even when grep matched.
+CLINT="$(php -l "$CF" 2>&1 || true)"
+check "truncated content.php really is a parse error" "yes" \
+  "$(printf '%s' "$CLINT" | grep -q 'Parse error' && echo yes || echo no)"
+sleep 3
+CCODE="$(curl -s -o /tmp/verify-content-page.html -w '%{http_code}' "$PREVIEW")"
+PBODY="$(cat /tmp/verify-content-page.html)"
+cp /tmp/verify-content.bak "$CF"
+check "truncated content.php: page renders" "200" "$CCODE"
+check "truncated content.php: default copy shown" "FALLBACK-DEFAULT-USED" "$(pm_check "$PBODY" seeded)"
+check "truncated content.php: no error leaked to the visitor" "0" \
+  "$(printf '%s' "$PBODY" | grep -ciE 'fatal error|parse error|uncaught')"
+
+# The newsletter endpoint has the same defensive load and must survive it too.
+mv public_html/includes/newsletter.php /tmp/verify-newsletter.moved
+sleep 3
+NCODE2="$(curl -s -b "$NJAR" -o /tmp/verify-newsletter-out.json -w '%{http_code}' \
+  -H 'Accept: application/json' -X POST "$MAIN/newsletter-subscribe.php" \
+  -F "csrf_token=$NTOK" -F "email=brokennewsletter@example.test")"
+OUT="$(cat /tmp/verify-newsletter-out.json)"
+mv /tmp/verify-newsletter.moved public_html/includes/newsletter.php
+check "missing newsletter.php: no 500"                 "200"   "$NCODE2"
+check "missing newsletter.php: answers calmly, no crash" "false" "$(json_success "$OUT")"
+check "missing newsletter.php: stored nothing"         "0"     "$(subs_rows brokennewsletter@example.test)"
+rm -f /tmp/verify-newsletter-out.json
+
+sleep 3
+check "content.php restored and lints" "0" "$(php -l "$CF" >/dev/null 2>&1; echo $?)"
+check "content.php restored byte for byte" "yes" \
+  "$(cmp -s "$CF" /tmp/verify-content.bak && echo yes || echo no)"
+check "seeded copy is back on the page" "Strong systems start with strong people" \
+  "$(pm_check "$(curl -s "$PREVIEW")" seeded)"
+rm -f /tmp/verify-content.bak /tmp/verify-content-page.html "$NJAR" "$NBODY"
+
 echo
 printf '\n%s\npassed=%d failed=%d\n%s\n' "$(printf '=%.0s' {1..78})" "$pass" "$fail" "$(printf '=%.0s' {1..78})"
 exit $((fail > 0 ? 1 : 0))

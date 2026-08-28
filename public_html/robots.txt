@@ -6,5 +6,6 @@ Disallow: /tools/
 Disallow: /storage/
 Disallow: /database/
 Disallow: /assets/invoices/
+Disallow: /_phase1-preview.php
 
 Sitemap: https://prosper-minds.com/sitemap.xml
