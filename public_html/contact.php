@@ -65,6 +65,11 @@ pmPageBegin([
     'title'       => pmContent($pdo, 'contact', 'meta_title', 'Contact | Prosperminds'),
     'description' => pmContent($pdo, 'contact', 'meta_description', 'Talk to the Prosperminds programme office in Nairobi about course dates, group registrations and consolidated quotes.'),
     'canonical'   => '/contact.php',
+    // Both self-hosted. The library has to be listed before the file that uses
+    // it: head.php and footer.php emit these in order, and defer preserves
+    // execution order between external scripts.
+    'styles'      => ['/assets/css/maplibre-gl.css'],
+    'scripts'     => ['/assets/js/maplibre-gl.js', '/assets/js/pm-map.js'],
 ]);
 ?>
 
@@ -224,22 +229,31 @@ pmPageBegin([
     <div class="pm-row__side">
       <div class="pm-card pm-card--flush">
 
-        <div class="pm-figure">
-          <?php // A flat schematic, not a map tile and not a photograph. See
-                // the header comment for why there is no embedded map. It
-                // carries no information the written directions below do not,
-                // so it is hidden from assistive technology rather than given
-                // an alt text that would only repeat them. ?>
-          <svg viewBox="0 0 320 220" aria-hidden="true" focusable="false" preserveAspectRatio="xMidYMid slice">
-            <g stroke="#dcdcdc" stroke-width="1" fill="none">
-              <path d="M0 55h320M0 110h320M0 165h320M70 0v220M150 0v220M230 0v220"></path>
-            </g>
-            <path d="M60 110h90v50h170" stroke="#00BF63" stroke-width="2" fill="none"></path>
-            <rect x="138" y="98" width="24" height="24" stroke="#00BF63" stroke-width="2" fill="none"></rect>
-            <circle cx="150" cy="110" r="4" fill="#00BF63"></circle>
-          </svg>
-          <span class="pm-figure__tag"><?php echo pmContentSafe($pdo, 'contact', 'map_label',
-            'Moi Avenue, Nairobi'); ?></span>
+        <?php // The office map, drawn by assets/js/pm-map.js with OpenFreeMap
+              // tiles. Coordinates are the ones the previous Google embed used,
+              // so the pin is exactly where it has always been rather than
+              // somewhere re-guessed from the street name.
+              //
+              // aria-hidden because everything the map conveys is already
+              // written out as text immediately above and beside it: the full
+              // postal address, and the directions in "Getting here". A screen
+              // reader gains nothing from a tile canvas and loses nothing by
+              // skipping it.
+              //
+              // The fallback sentence is in the markup from the start. It is
+              // hidden only once the map reports it actually drew, so script
+              // off, no WebGL, or an unreachable tile host all leave a readable
+              // line instead of an empty grey panel. ?>
+        <div class="pm-map"
+             id="pm-office-map"
+             aria-hidden="true"
+             data-pm-map
+             data-lat="-1.2808878"
+             data-lng="36.8210917"
+             data-zoom="16"
+             data-style="https://tiles.openfreemap.org/styles/positron">
+          <p class="pm-map__fallback"><?php echo pmContentSafe($pdo, 'contact', 'map_fallback',
+            'Twiga Towers, Moi Avenue, Nairobi. The full address and directions are beside this panel.'); ?></p>
         </div>
 
         <div class="pm-cell">

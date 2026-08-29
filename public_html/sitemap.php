@@ -14,12 +14,22 @@ header('Content-Type: application/xml; charset=utf-8');
 $baseUrl = 'https://prosper-minds.com';
 $today = date('Y-m-d');
 
+// Phase 2 added about.php, services.php and contact.php as real pages. They
+// were homepage anchors before and so had no URL of their own to list; that is
+// the whole point of the rebuild's first phase of pages. services.php sits
+// above the three pillar pages because it is the entry point to them.
+//
+// 404.php is deliberately absent, and so is contact-submit.php: this file is
+// for pages worth ranking, not for error states or endpoints.
 $staticPages = [
     ['loc' => '/index.php', 'changefreq' => 'weekly', 'priority' => '1.0'],
+    ['loc' => '/services.php', 'changefreq' => 'monthly', 'priority' => '0.8'],
     ['loc' => '/service-pfm.php', 'changefreq' => 'monthly', 'priority' => '0.7'],
     ['loc' => '/service-data.php', 'changefreq' => 'monthly', 'priority' => '0.7'],
     ['loc' => '/service-sustainability.php', 'changefreq' => 'monthly', 'priority' => '0.7'],
+    ['loc' => '/about.php', 'changefreq' => 'monthly', 'priority' => '0.7'],
     ['loc' => '/sponsorship.php', 'changefreq' => 'monthly', 'priority' => '0.6'],
+    ['loc' => '/contact.php', 'changefreq' => 'monthly', 'priority' => '0.5'],
     ['loc' => '/privacy-policy.php', 'changefreq' => 'yearly', 'priority' => '0.3'],
 ];
 

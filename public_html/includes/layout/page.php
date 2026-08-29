@@ -305,6 +305,23 @@ function pmRegisterHref(): string
  *   body_class  string  Extra classes appended to the required 'pm' class.
  *   og_image    string  Root-relative path to the social image.
  *   noindex     bool    Emit robots noindex. Used by the temporary preview page.
+ *   styles      array   Extra root-relative stylesheet paths, rendered in <head>
+ *                       after the design system.
+ *   scripts     array   Extra root-relative script paths, rendered before
+ *                       </body> with defer, in the order given.
+ *
+ * WHY styles AND scripts EXIST
+ * ----------------------------
+ * Almost every page needs exactly the design system and nothing else, and that
+ * stays the default. One page so far needs more: contact.php self-hosts
+ * MapLibre GL JS for the office map. The alternatives were worse. Merging a
+ * third-party stylesheet into pm-design-system.css would put dozens of colours
+ * outside the brand palette into the file whose whole contract is that it holds
+ * none (local-dev/verify.sh asserts exactly that), and loading a 1 MB map
+ * library on all nine pages to avoid a config key is not a trade worth making.
+ *
+ * These take PATHS, not markup, and every path is escaped, so a page cannot
+ * inject arbitrary tags into the head through them.
  *
  * @param array<string, mixed> $page
  * @return array<string, mixed>
@@ -322,6 +339,8 @@ function pmPageConfig(array $page = []): array
         'body_class'  => '',
         'og_image'    => PM_SOCIAL_IMAGE,
         'noindex'     => false,
+        'styles'      => [],
+        'scripts'     => [],
     ], $page);
 }
 

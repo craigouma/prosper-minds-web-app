@@ -899,40 +899,60 @@ body.pm {
   border-color: var(--pm-border-light);
 }
 
-/* Frame for a flat line-drawn figure at the top of a tile: the contact page's
-   location schematic today.
+/* The office location map at the top of a tile: contact.php today.
+   Markup and behaviour are in assets/js/pm-map.js.
 
-   Drawn rather than embedded on purpose. A mapping provider's iframe is a
-   cross-border third-party request setting its own cookies, on a page whose
-   entire job is a form covered by the Kenya Data Protection Act 2019 and GDPR,
-   and the brief rules out stock imagery in the same breath. A schematic in the
-   brand palette costs one request less and needs no consent banner. */
-.pm-figure {
+   THE HEIGHT IS EXPLICIT AND HAS TO BE. MapLibre measures its container when it
+   initialises and renders a zero-pixel canvas if that container has no height
+   of its own yet, which is a blank frame rather than an error. An aspect-ratio
+   would work too, but a fixed band is what the layout wants beside a form:
+   tall enough to place a building, short enough that the directions beneath it
+   are still on screen.
+
+   This replaced the flat SVG schematic that stood here first. The reasoning
+   that ruled out an embed has not changed, only the answer to it: a Google Maps
+   iframe is a cross-border third-party request setting its own cookies, on the
+   one page whose entire job is a form covered by the Kenya Data Protection Act
+   2019 and GDPR, and this site already carries two Google tags it has to
+   justify. OpenFreeMap needs no key, no signup and sets no tracking cookie, and
+   its 'positron' style is grey enough not to break the three-colour palette. */
+.pm-map {
   position: relative;
-  aspect-ratio: 16 / 11;
+  height: clamp(240px, 30vw, 330px);
   background: var(--pm-surface);
   overflow: hidden;
 }
 
-.pm-figure > svg {
+/* The line the visitor sees when there is no map: script off, WebGL absent, or
+   tiles.openfreemap.org unreachable. It is in the markup from the start and is
+   hidden only once the map reports that it actually drew, so a failed tile
+   request leaves a sentence rather than an empty grey box. */
+.pm-map__fallback {
   position: absolute;
   inset: 0;
-  width: 100%;
-  height: 100%;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0;
+  padding: 24px;
+  text-align: center;
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--pm-text-tertiary);
 }
 
-/* The one label sitting on a figure. Green field, black text: the same 8.6:1
-   pairing as .pm-section--accent, never white on green. */
-.pm-figure__tag {
-  position: absolute;
-  left: 18px;
-  bottom: 18px;
-  background: var(--pm-green);
-  color: var(--pm-black);
-  padding: 9px 14px;
-  font-size: var(--pm-fs-eyebrow);
-  letter-spacing: var(--pm-ls-16);
-  text-transform: uppercase;
+.pm-map[data-pm-map-ready="true"] .pm-map__fallback {
+  display: none;
+}
+
+/* MapLibre's own attribution is required by the OpenStreetMap licence and is
+   never suppressed. It is only brought into the type system so it does not
+   arrive in the browser default sans-serif on a page set entirely in
+   Maharlika. */
+.pm-map .maplibregl-ctrl-attrib {
+  font-family: var(--pm-font);
+  font-size: 11px;
 }
 
 /* A segmented switch: a row of sibling destinations sharing one rule, with the
@@ -1252,6 +1272,21 @@ body.pm {
 
 .pm-brand__mark {
   flex: 0 0 auto;
+}
+
+/* The real logo lock-up (shield, neural head and wordmark are all one file).
+   Sized by height so the 713x183 source keeps its aspect ratio; width:auto
+   stops the intrinsic width attribute from stretching it. The width/height
+   attributes stay on the <img> to reserve space and avoid layout shift. */
+.pm-brand__logo {
+  display: block;
+  flex: 0 0 auto;
+  height: clamp(30px, 3.4vw, 40px);
+  width: auto;
+}
+
+.pm-footer .pm-brand__logo {
+  height: clamp(28px, 3vw, 34px);
 }
 
 .pm-brand__word {
