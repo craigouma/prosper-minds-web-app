@@ -1,918 +1,626 @@
-<?php require_once 'includes/config.php'; ?>
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sponsorship Appeals 2026 – Prosperminds</title>
-    <meta name="description" content="Partner with Prosperminds at Africa's premier public finance events in 2026. Sponsorship opportunities across Cape Town, Kuala Lumpur and Bali.">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <link rel="stylesheet" href="assets/css/style.css">
-    <style>
-        /* ── Sponsorship page specific styles ─────────────── */
+<?php
+/**
+ * Sponsorship.
+ *
+ * Rebuilt in Phase 3 on the design system. The page it replaces was 919 lines,
+ * 300 of them a <style> block, and it loaded Google Fonts and a Font Awesome
+ * CDN stylesheet on a page whose only job is a lead form.
+ *
+ * WHY THIS IS THE LIVE PAGE'S FLOW AND NOT THE PROTOTYPE'S
+ * -------------------------------------------------------
+ * The approved prototype's sponsorship screen drops four sections the live page
+ * has: the narrative about why traditional marketing does not reach this
+ * audience, the three-card comparison under it, the eight partnership benefits,
+ * and the audience panel. The client's decision is to keep the live page's full
+ * content flow rendered in the new design system, so all four are here. Where
+ * the prototype and the live page agree on structure, the prototype's treatment
+ * is used.
+ *
+ * THE FOUR EVENTS COME FROM THE DATABASE
+ * --------------------------------------
+ * The live page hardcoded three of them, so it had never listed Mombasa at all,
+ * seven months after that school was added to the calendar. That is the exact
+ * failure mode hardcoding produces, on the page that asks for fifteen thousand
+ * dollars. This reads the events table.
+ *
+ * THE FORM POSTS THE FIELD NAMES THE HANDLER ALREADY READS
+ * -------------------------------------------------------
+ * process-sponsorship.php is live code and is not touched by this phase. It
+ * reads exactly first_name, last_name, organisation, email, phone, country,
+ * events[], tier and message, and it requires the first four plus at least one
+ * event. Every one of those names appears below unchanged.
+ *
+ * The name is two inputs, not one. The prototype draws a single "Contact name"
+ * field; building that literally would mean the handler reads two POST keys
+ * that were never sent and every enquiry arrives with an empty name, silently.
+ * That is the same class of failure as the August registration incident: a form
+ * that looks like it works while the data goes nowhere.
+ *
+ * WITH JAVASCRIPT OFF the form still submits. It carries a real action and
+ * method, so the browser posts it and the handler answers its JSON. That is a
+ * plain response rather than a designed thank-you page, and assets/js/
+ * pm-sponsorship-form.js upgrades it to an inline notice when scripts run, but
+ * the enquiry is delivered either way. The live page had no action and no
+ * method at all, so with scripts off it discarded every enquiry typed into it.
+ * Teaching process-sponsorship.php to redirect instead of answering JSON is a
+ * Phase 4 change to a file this phase must not touch.
+ *
+ * House style: no em dashes in any user-visible copy. Client instruction. The
+ * live page carried four and each is rewritten here with a full stop or a
+ * colon, never with an en dash or a double hyphen.
+ */
 
-        /* Hero */
-        .sp-hero {
-            background: linear-gradient(135deg, #0a0a0a 0%, #0f2a14 50%, #111 100%);
-            padding: 90px 0 70px;
-            position: relative;
-            overflow: hidden;
-            text-align: center;
-        }
-        .sp-hero::before {
-            content: '';
-            position: absolute;
-            top: -50%; left: 50%;
-            transform: translateX(-50%);
-            width: 700px; height: 700px;
-            background: radial-gradient(circle, rgba(0,177,64,0.12) 0%, transparent 65%);
-            pointer-events: none;
-        }
-        .sp-hero .container { position: relative; z-index: 1; }
-        .sp-hero-label {
-            display: inline-block;
-            background: var(--primary-green);
-            color: #fff;
-            font-size: 11px;
-            font-weight: 700;
-            letter-spacing: .1em;
-            text-transform: uppercase;
-            padding: 5px 14px;
-            border-radius: 3px;
-            margin-bottom: 20px;
-        }
-        .sp-hero h1 {
-            color: #fff;
-            font-size: clamp(2.2rem, 5vw, 3.8rem);
-            font-weight: 800;
-            line-height: 1.1;
-            margin-bottom: 6px;
-        }
-        .sp-hero h1 span { color: var(--primary-green); }
-        .sp-hero-sub {
-            color: #aaa;
-            font-size: 1.05rem;
-            margin: 16px auto 32px;
-            max-width: 580px;
-            line-height: 1.7;
-        }
-        .sp-events-bar {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 12px;
-            margin-bottom: 36px;
-            justify-content: center;
-        }
-        .sp-event-pill {
-            background: rgba(255,255,255,.07);
-            border: 1px solid rgba(255,255,255,.12);
-            border-radius: 50px;
-            padding: 8px 18px;
-            color: #ddd;
-            font-size: 13px;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-        .sp-event-pill i { color: var(--primary-green); font-size: 12px; }
-        .sp-hero-btns { display: flex; gap: 14px; flex-wrap: wrap; justify-content: center; }
+require_once __DIR__ . '/includes/layout/page.php';
 
-        /* Why partner */
-        .sp-why { padding: 70px 0; background: #fff; }
-        .sp-why-grid { display: grid; grid-template-columns: repeat(3,1fr); gap: 30px; margin-top: 50px; }
-        .sp-why-card {
-            text-align: center;
-            padding: 36px 28px;
-            border-radius: 12px;
-            background: var(--light-gray);
-        }
-        .sp-why-card .icon {
-            width: 64px; height: 64px;
-            background: rgba(0,177,64,.1);
-            border-radius: 50%;
-            display: flex; align-items: center; justify-content: center;
-            margin: 0 auto 18px;
-            font-size: 26px;
-            color: var(--primary-green);
-        }
-        .sp-why-card h3 { font-size: 1.1rem; margin-bottom: 10px; }
-        .sp-why-card p { color: #555; font-size: .93rem; line-height: 1.7; }
+// ── The offer, from page_content, with the live page's own copy as the
+//    fallback so an unreachable table still renders a complete offer ─────────
+$pmTiers = pmContentJson($pdo, 'sponsorship', 'tiers', [
+    ['key' => 'platinum', 'name' => 'Platinum', 'price' => '$15,000', 'slots' => '3 slots remaining', 'benefits' => [
+        'Keynote and plenary speaking slot',
+        'Branding across every platform: digital, print and press',
+        'Sponsor video aired daily',
+        'Five VIP passes',
+        'Logo on delegate lanyards and bags',
+        'VIP roundtable with government leaders',
+        'Full page advertisement in the programme and the post event report',
+        'Prime exhibition space',
+    ]],
+    ['key' => 'gold', 'name' => 'Gold', 'price' => '$7,500', 'slots' => '5 slots remaining', 'benefits' => [
+        'Host and brand a data or IPSAS theme session',
+        'Three VIP passes',
+        'Branding on the event app and session screens',
+        'Mid tier exhibition space',
+        'Half page advertisement in the programme',
+        'Joint press feature with Prosperminds',
+        'Speaking role',
+        'Social media spotlight campaign',
+    ]],
+    ['key' => 'silver', 'name' => 'Silver', 'price' => '$4,000', 'slots' => '10 slots remaining', 'benefits' => [
+        'Speaking role',
+        'Three delegate passes',
+        'Logo on key branding points',
+        'Half page advertisement in the programme',
+        'Featured in Prosperminds publications',
+        'Website branding',
+        'Social media spotlight',
+        'Exhibition space',
+    ]],
+    ['key' => 'bronze', 'name' => 'Bronze', 'price' => '$2,000', 'slots' => '10 slots remaining', 'benefits' => [
+        'Speaker or moderator role',
+        'Three delegate passes',
+        'Logo in the programme',
+        'Website branding',
+        'Social media spotlight',
+        'Exhibition space',
+    ]],
+]);
 
-        /* Events section */
-        .sp-events { padding: 70px 0; background: #f8faf8; }
-        .sp-event-cards { display: grid; grid-template-columns: repeat(3,1fr); gap: 24px; margin-top: 40px; }
-        .sp-event-card {
-            background: #fff;
-            border-radius: 12px;
-            overflow: hidden;
-            box-shadow: 0 4px 20px rgba(0,0,0,.07);
-            border: 2px solid transparent;
-            transition: border-color .2s, transform .2s;
-        }
-        .sp-event-card:hover { border-color: var(--primary-green); transform: translateY(-4px); }
-        .sp-event-card-header {
-            background: #111;
-            padding: 22px 24px;
-            position: relative;
-            overflow: hidden;
-        }
-        .sp-event-card-header::after {
-            content: '';
-            position: absolute;
-            bottom: 0; right: 0;
-            width: 100px; height: 100px;
-            background: radial-gradient(circle, rgba(0,177,64,.25), transparent 70%);
-        }
-        .sp-event-card-header .event-num {
-            font-size: 11px;
-            font-weight: 700;
-            letter-spacing: .08em;
-            color: var(--primary-green);
-            text-transform: uppercase;
-            margin-bottom: 6px;
-        }
-        .sp-event-card-header h3 {
-            color: #fff;
-            font-size: .95rem;
-            line-height: 1.4;
-            font-weight: 700;
-        }
-        .sp-event-card-body { padding: 20px 24px; }
-        .sp-event-meta { display: flex; flex-direction: column; gap: 8px; margin-bottom: 16px; }
-        .sp-event-meta-item {
-            display: flex; align-items: center; gap: 8px;
-            font-size: .88rem; color: #444;
-        }
-        .sp-event-meta-item i { color: var(--primary-green); width: 16px; }
-        .sp-event-card a { display: block; margin-top: 4px; }
+$pmPackages = pmContentJson($pdo, 'sponsorship', 'packages', [
+    ['key' => 'gala-dinner', 'name' => 'Gala Dinner', 'price' => '$1,000', 'slots' => '2 slots remaining', 'benefits' => [
+        'Exclusive gala dinner branding',
+        'Address guests at the dinner',
+        'Logo in the entertainment zones',
+        'Two passes and website branding',
+    ]],
+    ['key' => 'digital-experience', 'name' => 'Digital Experience', 'price' => '$1,000', 'slots' => '2 slots remaining', 'benefits' => [
+        'Sponsored push notifications',
+        'Logo on the session screens',
+        'One pass and website branding',
+        'Exhibition space',
+    ]],
+    ['key' => 'exhibitor', 'name' => 'Exhibitor', 'price' => '$1,000', 'slots' => '10 slots remaining', 'benefits' => [
+        'Named in the event materials',
+        'One pass and website branding',
+        'Exhibition space',
+    ]],
+]);
 
-        /* Gains + Audience */
-        .sp-gains { padding: 70px 0; background: #fff; }
-        .sp-gains-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 40px; align-items: stretch; margin-top: 40px; }
-        .sp-gains-left { display: flex; flex-direction: column; }
-        .sp-gains-list { list-style: none; flex: 1; }
-        .sp-gains-list li {
-            display: flex; align-items: flex-start; gap: 12px;
-            padding: 12px 0;
-            border-bottom: 1px solid #f0f0f0;
-            font-size: .93rem; color: #333; line-height: 1.5;
-        }
-        .sp-gains-list li i { color: var(--primary-green); margin-top: 3px; flex-shrink: 0; }
-        .sp-audience {
-            background: #111;
-            border-radius: 12px;
-            padding: 32px;
-            color: #fff;
-            display: flex;
-            flex-direction: column;
-        }
-        .sp-audience h3 { color: var(--primary-green); margin-bottom: 18px; font-size: 1.05rem; letter-spacing: .03em; }
-        .sp-audience-tags { display: flex; flex-wrap: wrap; gap: 10px; }
-        .sp-audience-tag {
-            background: rgba(0,177,64,.15);
-            border: 1px solid rgba(0,177,64,.3);
-            color: #ccc;
-            padding: 7px 14px;
-            border-radius: 6px;
-            font-size: .85rem;
-        }
+$pmAddons = pmContentJson($pdo, 'sponsorship', 'addons', [
+    ['name' => 'Lanyard sponsorship', 'price' => '$500', 'slots' => '3 slots remaining', 'benefit' => 'Your mark on every delegate lanyard for the full five days.'],
+    ['name' => 'Delegate bag',        'price' => '$500', 'slots' => '4 slots remaining', 'benefit' => 'Branding on the bag issued to each delegate at registration.'],
+    ['name' => 'Conference Wi-Fi',    'price' => '$500', 'slots' => '2 slots remaining', 'benefit' => 'Named on the network, with branding on the splash page and the daily access card.'],
+    ['name' => 'Mobile app',          'price' => '$500', 'slots' => '2 slots remaining', 'benefit' => 'Exclusive branding on the agenda app splash and the session reminders.'],
+    ['name' => 'Water station',       'price' => '$500', 'slots' => '2 slots remaining', 'benefit' => 'Branding at the refreshment points across the venue.'],
+]);
 
-        /* Packages */
-        .sp-packages { padding: 70px 0; background: #f0f7f2; }
-        .sp-tier-cards { display: grid; grid-template-columns: repeat(2,1fr); gap: 24px; margin-top: 40px; }
+// ── The tier dropdown, and the deep link that pre-selects it ────────────────
+//
+// Each tier and package card carries an Enquire button pointing at
+// ?tier=<key>#apply. Without it, somebody who clicked Platinum has to say so
+// again in the form, and if they do not bother the single most useful
+// qualifying signal on a fifteen thousand dollar product is lost.
+//
+// Resolved SERVER SIDE, so it works with scripts off, the same as the calendar
+// filter on events.php.
+//
+// The option VALUE is what process-sponsorship.php puts in the email, so it is
+// the human sentence. The KEY is what the URL carries, and an incoming ?tier=
+// is matched against the known keys and otherwise ignored, so a hand edited
+// query string can never reach the markup.
+$pmTierOptions = [];
 
-        .sp-tier-cards { align-items: stretch; }
-        .tier-card {
-            border-radius: 14px;
-            overflow: hidden;
-            box-shadow: 0 4px 24px rgba(0,0,0,.09);
-            display: flex;
-            flex-direction: column;
-        }
-        .tier-card-platinum .tier-head { background: linear-gradient(135deg, #111 0%, #1a1a1a 100%); border-bottom: 3px solid #c9a800; }
-        .tier-card-gold      .tier-head { background: linear-gradient(135deg, #1a1200 0%, #2a1e00 100%); border-bottom: 3px solid #d4a017; }
-        .tier-card-silver    .tier-head { background: linear-gradient(135deg, #111 0%, #1c1c1c 100%); border-bottom: 3px solid #94a3b8; }
-        .tier-card-bronze    .tier-head { background: linear-gradient(135deg, #150a00 0%, #1e1000 100%); border-bottom: 3px solid #cd7f32; }
+foreach ($pmTiers as $pmTier) {
+    $pmKey = trim((string) ($pmTier['key'] ?? ''));
+    if ($pmKey !== '') {
+        $pmTierOptions[$pmKey] = trim((string) ($pmTier['name'] ?? '')) . ', ' . trim((string) ($pmTier['price'] ?? ''));
+    }
+}
 
-        .tier-head { padding: 24px 28px 20px; position: relative; }
-        .tier-badge {
-            display: inline-flex; align-items: center; gap: 6px;
-            font-size: 11px; font-weight: 700; letter-spacing: .1em;
-            text-transform: uppercase; padding: 3px 10px; border-radius: 3px; margin-bottom: 12px;
-        }
-        .tier-card-platinum .tier-badge { background: rgba(201,168,0,.2); color: #c9a800; }
-        .tier-card-gold      .tier-badge { background: rgba(212,160,23,.2); color: #d4a017; }
-        .tier-card-silver    .tier-badge { background: rgba(148,163,184,.15); color: #94a3b8; }
-        .tier-card-bronze    .tier-badge { background: rgba(205,127,50,.2); color: #cd7f32; }
+foreach ($pmPackages as $pmPackage) {
+    $pmKey = trim((string) ($pmPackage['key'] ?? ''));
+    if ($pmKey !== '') {
+        $pmTierOptions[$pmKey] = trim((string) ($pmPackage['name'] ?? '')) . ', ' . trim((string) ($pmPackage['price'] ?? ''));
+    }
+}
 
-        .tier-price { display: flex; align-items: baseline; gap: 6px; }
-        .tier-price .amount { font-size: 2.4rem; font-weight: 800; color: #fff; }
-        .tier-price .slots {
-            font-size: .8rem; color: #888;
-            background: rgba(255,255,255,.08);
-            padding: 3px 8px; border-radius: 4px; margin-left: 8px;
-        }
-        .tier-body { background: #fff; padding: 24px 28px; flex: 1; display: flex; flex-direction: column; }
-        .tier-benefits { list-style: none; flex: 1; }
-        .tier-body > .btn { margin-top: auto; }
-        .tier-benefits li {
-            display: flex; align-items: flex-start; gap: 10px;
-            padding: 7px 0; font-size: .88rem; color: #333;
-            border-bottom: 1px solid #f5f5f5;
-        }
-        .tier-benefits li:last-child { border: none; }
-        .tier-benefits li i { color: var(--primary-green); flex-shrink: 0; margin-top: 3px; font-size: 12px; }
+// The add-ons are one option rather than five: they attach to a package rather
+// than being bought alone, and process-sponsorship.php has a single `tier`
+// field, so five options would be five ways to say the same thing. The add-on
+// cards therefore carry no Enquire button of their own, because a button that
+// pre-selected nothing specific would be pretending to do something.
+$pmTierOptions['add-on'] = pmContent($pdo, 'sponsorship', 'addons_option', 'Add ons only, $500');
 
-        /* Other tiers table */
-        .sp-other-tiers { margin-top: 30px; }
-        .other-tiers-grid { display: grid; grid-template-columns: repeat(3,1fr); gap: 16px; margin-top: 24px; }
-        .other-tier-card {
-            background: #fff;
-            border-radius: 10px;
-            padding: 22px;
-            box-shadow: 0 2px 10px rgba(0,0,0,.06);
-            border-top: 3px solid var(--primary-green);
-        }
-        .other-tier-card .ot-name { font-weight: 700; font-size: .95rem; color: #111; margin-bottom: 4px; }
-        .other-tier-card .ot-price { font-size: 1.4rem; font-weight: 800; color: var(--primary-green); margin-bottom: 4px; }
-        .other-tier-card .ot-slots { font-size: .78rem; color: #999; margin-bottom: 12px; }
-        .other-tier-card ul { list-style: none; }
-        .other-tier-card ul li { font-size: .82rem; color: #555; padding: 4px 0; border-bottom: 1px solid #f0f0f0; }
-        .other-tier-card ul li::before { content: "✓ "; color: var(--primary-green); font-weight: 700; }
+$pmSelectedTier = (string) ($_GET['tier'] ?? '');
+if (!array_key_exists($pmSelectedTier, $pmTierOptions)) {
+    $pmSelectedTier = '';
+}
 
-        /* Add-ons */
-        .sp-addons { padding: 60px 0; background: #fff; }
-        .addons-grid { display: grid; grid-template-columns: repeat(5,1fr); gap: 14px; margin-top: 30px; }
-        .addon-card {
-            background: #f8faf8;
-            border: 1.5px solid #e0f0e8;
-            border-radius: 10px;
-            padding: 20px 16px;
-            text-align: center;
-        }
-        .addon-card i { font-size: 24px; color: var(--primary-green); margin-bottom: 10px; display: block; }
-        .addon-card .addon-name { font-weight: 700; font-size: .82rem; color: #111; margin-bottom: 4px; }
-        .addon-card .addon-price { font-size: 1.1rem; font-weight: 800; color: var(--primary-green); }
-        .addon-card .addon-slots { font-size: .75rem; color: #999; }
-        .addon-card .addon-benefit { font-size: .78rem; color: #666; margin-top: 6px; line-height: 1.4; }
+// ── The schools a sponsor can choose, from the calendar rather than from a
+//    hardcoded list that has already fallen out of date once ────────────────
+$pmEvents = pmActiveEvents($pdo);
 
-        /* Banner */
-        .sp-banner {
-            background: var(--primary-green);
-            padding: 40px 0;
-            text-align: center;
-        }
-        .sp-banner h2 { color: #fff; font-size: 1.8rem; margin-bottom: 6px; }
-        .sp-banner p { color: rgba(255,255,255,.85); font-size: 1rem; }
+pmPageBegin([
+    'slug'        => 'sponsorship',
+    'nav'         => 'sponsorship',
+    'title'       => pmContent($pdo, 'sponsorship', 'meta_title', 'Sponsorship | Prosperminds'),
+    'description' => pmContent($pdo, 'sponsorship', 'meta_description', 'A business-to-government partnership placing sponsors in the room with accountants general, auditors general, treasury leaders and budget controllers.'),
+    'canonical'   => '/sponsorship.php',
+    'scripts'     => ['/assets/js/pm-sponsorship-form.js'],
+]);
+?>
 
-        /* Form */
-        .sp-form { padding: 80px 0; background: #f8faf8; }
-        .sp-form-grid { display: grid; grid-template-columns: 1fr 480px; gap: 50px; align-items: stretch; }
-        .sp-form-intro {
-            display: flex;
-            flex-direction: column;
-            background: #fff;
-            border-radius: 14px;
-            padding: 40px;
-            box-shadow: 0 8px 40px rgba(0,0,0,.07);
-        }
-        .sp-form-intro h2 { font-size: 2rem; font-weight: 800; margin-bottom: 16px; }
-        .sp-form-intro h2 span { color: var(--primary-green); }
-        .sp-form-intro p { color: #555; font-size: .95rem; line-height: 1.8; margin-bottom: 16px; }
-        .sp-contact-items { display: flex; flex-direction: column; gap: 14px; margin-top: 28px; }
-        .sp-contact-item { display: flex; align-items: center; gap: 12px; color: #333; font-size: .92rem; }
-        .sp-contact-item i { width: 36px; height: 36px; background: rgba(0,177,64,.1); border-radius: 50%; display: flex; align-items: center; justify-content: center; color: var(--primary-green); flex-shrink: 0; }
-        .sp-form-card {
-            background: #fff;
-            border-radius: 14px;
-            padding: 36px;
-            box-shadow: 0 8px 40px rgba(0,0,0,.1);
-        }
+<?php // ── Hero ──────────────────────────────────────────────────────────── ?>
+<section class="pm-section pm-relative pm-clip">
+  <?php include __DIR__ . '/includes/layout/motif.php'; ?>
+  <div class="pm-container pm-relative">
 
-        /* Section headers */
-        .sp-section-tag {
-            display: inline-flex; align-items: center; gap: 8px;
-            font-size: 12px; font-weight: 700; letter-spacing: .08em;
-            text-transform: uppercase; color: var(--primary-green);
-            margin-bottom: 12px;
-        }
-        .sp-section-tag::before {
-            content: '';
-            width: 24px; height: 2px;
-            background: var(--primary-green);
-        }
-        .sp-section-h2 { font-size: clamp(1.6rem,3vw,2.2rem); font-weight: 800; color: #111; line-height: 1.2; }
-        .sp-section-sub { color: #666; font-size: .95rem; margin-top: 10px; max-width: 560px; line-height: 1.7; }
+    <span class="pm-eyebrow"><?php echo pmContentSafe($pdo, 'sponsorship', 'hero_eyebrow',
+      'Sponsorship'); ?></span>
 
-        /* Responsive */
-        @media (max-width: 900px) {
-            .sp-why-grid, .sp-event-cards, .sp-tier-cards { grid-template-columns: 1fr; }
-            .sp-gains-grid, .sp-form-grid { grid-template-columns: 1fr; }
-            .other-tiers-grid, .addons-grid { grid-template-columns: 1fr 1fr; }
-        }
-        @media (max-width: 600px) {
-            .other-tiers-grid, .addons-grid { grid-template-columns: 1fr; }
-        }
-    </style>
-    <?php include __DIR__ . '/includes/google-tag.php'; ?>
-</head>
-<body>
+    <h1 class="pm-h1"><?php echo pmContentSafe($pdo, 'sponsorship', 'hero_title',
+      'Co-Author Africa\'s Public Finance Future'); ?></h1>
 
-    <!-- Header (reuse from main site) -->
-    <header>
-        <div class="container navbar">
-            <a href="index.php" class="logo">
-                <img src="assets/images/fisrt-logo.png" alt="Prosperminds Logo">
-            </a>
-            <nav class="nav-links">
-                <a href="index.php#home">Home</a>
-                <a href="index.php#events">Events</a>
-                <a href="index.php#about">About</a>
-                <a href="index.php#services">Services</a>
-                <a href="sponsorship.php" style="color:var(--primary-green);font-weight:600;">Sponsorship</a>
-                <a href="index.php#contact">Contact</a>
-            </nav>
-            <div class="mobile-menu-btn"><i class="fas fa-bars"></i></div>
-        </div>
-    </header>
+    <p class="pm-lede pm-mt-lg"><?php echo pmContentSafe($pdo, 'sponsorship', 'hero_body',
+      'This is a business-to-government partnership, not advertising space. Sponsors sit in the room with accountants general, auditors general, treasury leaders and budget controllers for five days, as contributors to the programme rather than names on a banner.'); ?></p>
 
-    <!-- ── HERO ─────────────────────────────────────────── -->
-    <section class="sp-hero">
-        <div class="container">
-            <div class="sp-hero-label">Sponsorship Appeal 2026</div>
-            <h1>Co-Author Africa's<br><span>Public Finance Future</span></h1>
-            <p class="sp-hero-sub">
-                Join Africa's most influential public finance events as a strategic partner.
-                Three landmark conferences. Three cities. One transformational mission.
-            </p>
-
-            <div class="sp-events-bar">
-                <div class="sp-event-pill">
-                    <i class="fas fa-map-marker-alt"></i>
-                    Oct 2026 · Cape Town, South Africa
-                </div>
-                <div class="sp-event-pill">
-                    <i class="fas fa-map-marker-alt"></i>
-                    Nov 2026 · Kuala Lumpur, Malaysia
-                </div>
-                <div class="sp-event-pill">
-                    <i class="fas fa-map-marker-alt"></i>
-                    Dec 2026 · Bali, Indonesia
-                </div>
-            </div>
-
-            <div class="sp-hero-btns">
-                <a href="#apply" class="btn btn-primary" style="padding:14px 32px;font-size:1rem;">
-                    <i class="fas fa-handshake"></i> Become a Partner
-                </a>
-                <a href="#packages" class="btn btn-outline" style="padding:14px 32px;font-size:1rem;border-color:rgba(255,255,255,.3);color:#fff;">
-                    <i class="fas fa-tags"></i> View Packages
-                </a>
-            </div>
-        </div>
-    </section>
-
-    <!-- ── WHY PARTNER ───────────────────────────────────── -->
-    <section class="sp-why">
-        <div class="container">
-            <div class="sp-section-tag">Why This Moment Matters</div>
-            <h2 class="sp-section-h2">Traditional marketing won't<br>get you into that room. <span style="color:var(--primary-green);">This event will.</span></h2>
-            <p class="sp-section-sub">Africa's public sector is transforming faster than ever. The professionals in the room are not looking for service providers — they are looking for trusted partners who can support real implementation.</p>
-
-            <div class="sp-why-grid">
-                <div class="sp-why-card">
-                    <div class="icon"><i class="fas fa-bullhorn"></i></div>
-                    <h3>While others advertise…</h3>
-                    <p>You will be <strong>remembered</strong>. Your brand will be embedded into the experience of Africa's most influential finance leaders.</p>
-                </div>
-                <div class="sp-why-card">
-                    <div class="icon"><i class="fas fa-handshake"></i></div>
-                    <h3>While others pitch…</h3>
-                    <p>You will be <strong>partnering</strong>. Direct B2G engagement with decision-makers who implement policy and control budgets.</p>
-                </div>
-                <div class="sp-why-card">
-                    <div class="icon"><i class="fas fa-globe-africa"></i></div>
-                    <h3>While others wait…</h3>
-                    <p>You will already be <strong>part of Africa's real system change</strong> — shaping the conversation, not watching it from the outside.</p>
-                </div>
-            </div>
-        </div>
-    </section>
-
-    <!-- ── THE THREE EVENTS ───────────────────────────────── -->
-    <section class="sp-events" id="events">
-        <div class="container">
-            <div class="sp-section-tag">Three Events · 2026</div>
-            <h2 class="sp-section-h2">Choose Your Conference<br><span style="color:var(--primary-green);">or Sponsor All Three</span></h2>
-            <p class="sp-section-sub">Each event draws hundreds of the continent's most senior public finance officials. Sponsor one or all three for maximum reach across the year.</p>
-
-            <div class="sp-event-cards">
-                <!-- Event 1 -->
-                <div class="sp-event-card">
-                    <div class="sp-event-card-header">
-                        <div class="event-num">Event 01 · October 2026</div>
-                        <h3>Smart PFM & IPSAS Future Ready Finance Leaders Course</h3>
-                    </div>
-                    <div class="sp-event-card-body">
-                        <div class="sp-event-meta">
-                            <div class="sp-event-meta-item"><i class="far fa-calendar-alt"></i> 19–23 October 2026</div>
-                            <div class="sp-event-meta-item"><i class="fas fa-map-marker-alt"></i> Cape Town, South Africa</div>
-                            <div class="sp-event-meta-item"><i class="fas fa-users"></i> Smart PFM, IPSAS, Data Analytics, AI</div>
-                        </div>
-                        <a href="#apply" class="btn btn-primary" style="width:100%;justify-content:center;margin-top:8px;">
-                            <i class="fas fa-star"></i> Sponsor This Event
-                        </a>
-                    </div>
-                </div>
-
-                <!-- Event 2 -->
-                <div class="sp-event-card">
-                    <div class="sp-event-card-header">
-                        <div class="event-num">Event 02 · November 2026</div>
-                        <h3>IPSAS Success & Clean Audit Compliance Training</h3>
-                    </div>
-                    <div class="sp-event-card-body">
-                        <div class="sp-event-meta">
-                            <div class="sp-event-meta-item"><i class="far fa-calendar-alt"></i> 16–20 November 2026</div>
-                            <div class="sp-event-meta-item"><i class="fas fa-map-marker-alt"></i> Kuala Lumpur, Malaysia</div>
-                            <div class="sp-event-meta-item"><i class="fas fa-users"></i> IPSAS, Zero-Failure Reporting, Clean Audits</div>
-                        </div>
-                        <a href="#apply" class="btn btn-primary" style="width:100%;justify-content:center;margin-top:8px;">
-                            <i class="fas fa-star"></i> Sponsor This Event
-                        </a>
-                    </div>
-                </div>
-
-                <!-- Event 3 -->
-                <div class="sp-event-card">
-                    <div class="sp-event-card-header">
-                        <div class="event-num">Event 03 · December 2026</div>
-                        <h3>Budget Control, Revenue Growth & PFM Funding Breakthrough Conference</h3>
-                    </div>
-                    <div class="sp-event-card-body">
-                        <div class="sp-event-meta">
-                            <div class="sp-event-meta-item"><i class="far fa-calendar-alt"></i> 7–11 December 2026</div>
-                            <div class="sp-event-meta-item"><i class="fas fa-map-marker-alt"></i> Bali, Indonesia</div>
-                            <div class="sp-event-meta-item"><i class="fas fa-users"></i> Cash Control, IPSAS, Funding Strategies</div>
-                        </div>
-                        <a href="#apply" class="btn btn-primary" style="width:100%;justify-content:center;margin-top:8px;">
-                            <i class="fas fa-star"></i> Sponsor This Event
-                        </a>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </section>
-
-    <!-- ── WHAT YOU GAIN + WHO ATTENDS ────────────────────── -->
-    <section class="sp-gains">
-        <div class="container">
-            <div class="sp-gains-grid">
-                <div class="sp-gains-left">
-                    <div class="sp-section-tag">What You'll Gain</div>
-                    <h2 class="sp-section-h2">More Than a Sponsorship —<br><span style="color:var(--primary-green);">a Partnership</span></h2>
-                    <p style="color:#555;margin:14px 0 24px;line-height:1.8;">At Prosperminds, we do not sell packages. We build partnerships. We will align this platform to your goals.</p>
-                    <ul class="sp-gains-list">
-                        <li><i class="fas fa-check-circle"></i> Strong visibility before, during, and after the event</li>
-                        <li><i class="fas fa-check-circle"></i> Direct access to public finance practitioners and decision influencers</li>
-                        <li><i class="fas fa-check-circle"></i> Business-to-Government (B2G) engagement opportunities</li>
-                        <li><i class="fas fa-check-circle"></i> Thought leadership through sessions and workshops</li>
-                        <li><i class="fas fa-check-circle"></i> Brand positioning as a trusted implementation partner</li>
-                        <li><i class="fas fa-check-circle"></i> Enter new African government markets</li>
-                        <li><i class="fas fa-check-circle"></i> Showcase your solutions to the leaders who implement policy</li>
-                        <li><i class="fas fa-check-circle"></i> A clear message: you are part of Africa's transformation</li>
-                    </ul>
-                </div>
-                <div class="sp-audience">
-                    <h3><i class="fas fa-users" style="margin-right:8px;"></i>WHO WILL BE IN THE ROOM</h3>
-                    <p style="color:#aaa;font-size:.88rem;margin-bottom:20px;line-height:1.7;">Hundreds of the world's most influential public sector and government leaders:</p>
-                    <div class="sp-audience-tags">
-                        <span class="sp-audience-tag">Finance Officers</span>
-                        <span class="sp-audience-tag">Accountants</span>
-                        <span class="sp-audience-tag">Auditors</span>
-                        <span class="sp-audience-tag">Budget Controllers</span>
-                        <span class="sp-audience-tag">Treasury Leaders</span>
-                        <span class="sp-audience-tag">Revenue Managers</span>
-                        <span class="sp-audience-tag">Strategy Directors</span>
-                        <span class="sp-audience-tag">Decision Makers</span>
-                        <span class="sp-audience-tag">Policy Implementers</span>
-                    </div>
-                    <div style="margin-top:28px;padding-top:22px;border-top:1px solid rgba(255,255,255,.1);">
-                        <p style="font-size:.8rem;color:var(--primary-green);font-weight:700;text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px;">Our promise to you</p>
-                        <p style="color:#fff;font-size:1.15rem;font-weight:700;font-style:italic;">"Relevant. Reliable. Convenient."</p>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </section>
-
-    <!-- ── SPONSORSHIP PACKAGES ───────────────────────────── -->
-    <section class="sp-packages" id="packages">
-        <div class="container">
-            <div style="text-align:center;margin-bottom:10px;">
-                <div class="sp-section-tag" style="justify-content:center;">Sponsorship Packages Matrix</div>
-                <h2 class="sp-section-h2" style="text-align:center;">Choose Your Tier</h2>
-                <p class="sp-section-sub" style="margin:10px auto 0;text-align:center;">Investment levels to match your goals and budget. All packages are available across all three events.</p>
-            </div>
-
-            <!-- Premium Tiers -->
-            <div class="sp-tier-cards">
-                <!-- PLATINUM -->
-                <div class="tier-card tier-card-platinum">
-                    <div class="tier-head">
-                        <div class="tier-badge"><i class="fas fa-crown"></i> Platinum</div>
-                        <div class="tier-price">
-                            <span class="amount">$15,000</span>
-                            <span class="slots">3 slots available</span>
-                        </div>
-                    </div>
-                    <div class="tier-body">
-                        <ul class="tier-benefits">
-                            <li><i class="fas fa-check"></i> Keynote + plenary speaking slot</li>
-                            <li><i class="fas fa-check"></i> Branding across all platforms (digital, print, press)</li>
-                            <li><i class="fas fa-check"></i> Sponsor video aired daily</li>
-                            <li><i class="fas fa-check"></i> 5 VIP passes</li>
-                            <li><i class="fas fa-check"></i> Logo on delegate lanyards &amp; bags</li>
-                            <li><i class="fas fa-check"></i> VIP roundtable with government leaders</li>
-                            <li><i class="fas fa-check"></i> Full-page ad in programme &amp; post-event report</li>
-                            <li><i class="fas fa-check"></i> Prime exhibition space</li>
-                        </ul>
-                        <a href="#apply" class="btn btn-primary" style="width:100%;justify-content:center;margin-top:20px;">Apply Now</a>
-                    </div>
-                </div>
-
-                <!-- GOLD -->
-                <div class="tier-card tier-card-gold">
-                    <div class="tier-head">
-                        <div class="tier-badge"><i class="fas fa-medal"></i> Gold</div>
-                        <div class="tier-price">
-                            <span class="amount" style="color:#d4a017;">$7,500</span>
-                            <span class="slots">5 slots available</span>
-                        </div>
-                    </div>
-                    <div class="tier-body">
-                        <ul class="tier-benefits">
-                            <li><i class="fas fa-check"></i> Host &amp; brand Data / IPSAS theme session</li>
-                            <li><i class="fas fa-check"></i> 3 VIP passes</li>
-                            <li><i class="fas fa-check"></i> Branding on event app &amp; session screens</li>
-                            <li><i class="fas fa-check"></i> Mid-tier exhibition space</li>
-                            <li><i class="fas fa-check"></i> Half-page ad in programme</li>
-                            <li><i class="fas fa-check"></i> Joint press feature with Prosperminds</li>
-                            <li><i class="fas fa-check"></i> Speaking role</li>
-                            <li><i class="fas fa-check"></i> Social media spotlight campaign</li>
-                        </ul>
-                        <a href="#apply" class="btn btn-primary" style="width:100%;justify-content:center;margin-top:20px;">Apply Now</a>
-                    </div>
-                </div>
-
-                <!-- SILVER -->
-                <div class="tier-card tier-card-silver">
-                    <div class="tier-head">
-                        <div class="tier-badge"><i class="fas fa-award"></i> Silver</div>
-                        <div class="tier-price">
-                            <span class="amount">$5,000</span>
-                            <span class="slots">10 slots available</span>
-                        </div>
-                    </div>
-                    <div class="tier-body">
-                        <ul class="tier-benefits">
-                            <li><i class="fas fa-check"></i> Speaking role</li>
-                            <li><i class="fas fa-check"></i> 3 passes</li>
-                            <li><i class="fas fa-check"></i> Logo on key branding points</li>
-                            <li><i class="fas fa-check"></i> Half-page ad in programme</li>
-                            <li><i class="fas fa-check"></i> Featured in Prosperminds publications</li>
-                            <li><i class="fas fa-check"></i> Website branding</li>
-                            <li><i class="fas fa-check"></i> Social media spotlight</li>
-                            <li><i class="fas fa-check"></i> Exhibition space</li>
-                        </ul>
-                        <a href="#apply" class="btn btn-primary" style="width:100%;justify-content:center;margin-top:20px;">Apply Now</a>
-                    </div>
-                </div>
-
-                <!-- BRONZE -->
-                <div class="tier-card tier-card-bronze">
-                    <div class="tier-head">
-                        <div class="tier-badge"><i class="fas fa-ribbon"></i> Bronze</div>
-                        <div class="tier-price">
-                            <span class="amount" style="color:#cd7f32;">$2,500</span>
-                            <span class="slots">10 slots available</span>
-                        </div>
-                    </div>
-                    <div class="tier-body">
-                        <ul class="tier-benefits">
-                            <li><i class="fas fa-check"></i> Speaker / moderator role</li>
-                            <li><i class="fas fa-check"></i> 3 passes</li>
-                            <li><i class="fas fa-check"></i> Logo in programme</li>
-                            <li><i class="fas fa-check"></i> Website branding</li>
-                            <li><i class="fas fa-check"></i> Social media spotlight</li>
-                            <li><i class="fas fa-check"></i> Exhibition space</li>
-                        </ul>
-                        <a href="#apply" class="btn btn-primary" style="width:100%;justify-content:center;margin-top:20px;">Apply Now</a>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Other tiers -->
-            <div class="sp-other-tiers">
-                <h3 style="font-size:1.1rem;font-weight:700;margin-bottom:4px;color:#111;">Specialised & Entry Packages</h3>
-                <p style="color:#666;font-size:.88rem;margin-bottom:0;">Focused sponsorship opportunities at $1,000 each.</p>
-                <div class="other-tiers-grid">
-                    <div class="other-tier-card">
-                        <div class="ot-name"><i class="fas fa-utensils" style="color:var(--primary-green);margin-right:6px;"></i>Gala Dinner</div>
-                        <div class="ot-price">$1,000</div>
-                        <div class="ot-slots">2 slots available</div>
-                        <ul>
-                            <li>Exclusive gala dinner branding</li>
-                            <li>Address guests at dinner</li>
-                            <li>Logo in entertainment zones</li>
-                            <li>2 passes · Website branding</li>
-                        </ul>
-                    </div>
-                    <div class="other-tier-card">
-                        <div class="ot-name"><i class="fas fa-mobile-alt" style="color:var(--primary-green);margin-right:6px;"></i>Digital Experience</div>
-                        <div class="ot-price">$1,000</div>
-                        <div class="ot-slots">2 slots available</div>
-                        <ul>
-                            <li>Sponsored push notifications</li>
-                            <li>Logo on session screens</li>
-                            <li>1 pass · Website branding</li>
-                            <li>Exhibition space</li>
-                        </ul>
-                    </div>
-                    <div class="other-tier-card">
-                        <div class="ot-name"><i class="fas fa-store" style="color:var(--primary-green);margin-right:6px;"></i>Exhibitor</div>
-                        <div class="ot-price">$1,000</div>
-                        <div class="ot-slots">10 slots available</div>
-                        <ul>
-                            <li>Name in event materials</li>
-                            <li>1 pass · Website branding</li>
-                            <li>Exhibition space</li>
-                        </ul>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </section>
-
-    <!-- ── OPTIONAL ADD-ONS ───────────────────────────────── -->
-    <section class="sp-addons">
-        <div class="container">
-            <div class="sp-section-tag">Optional Add-Ons</div>
-            <h2 class="sp-section-h2">Enhance Your Presence</h2>
-            <p class="sp-section-sub">Add targeted visibility touchpoints to any sponsorship package for just $500 each.</p>
-            <div class="addons-grid">
-                <div class="addon-card">
-                    <i class="fas fa-id-badge"></i>
-                    <div class="addon-name">Lanyard Sponsor</div>
-                    <div class="addon-price">$500</div>
-                    <div class="addon-slots">3 slots</div>
-                    <div class="addon-benefit">Logo on all delegate lanyards</div>
-                </div>
-                <div class="addon-card">
-                    <i class="fas fa-shopping-bag"></i>
-                    <div class="addon-name">Delegate Bag</div>
-                    <div class="addon-price">$500</div>
-                    <div class="addon-slots">4 slots</div>
-                    <div class="addon-benefit">Logo on all delegate bags</div>
-                </div>
-                <div class="addon-card">
-                    <i class="fas fa-wifi"></i>
-                    <div class="addon-name">Wi-Fi Sponsor</div>
-                    <div class="addon-price">$500</div>
-                    <div class="addon-slots">2 slots</div>
-                    <div class="addon-benefit">Splash page branding + custom password</div>
-                </div>
-                <div class="addon-card">
-                    <i class="fas fa-tablet-alt"></i>
-                    <div class="addon-name">Mobile App</div>
-                    <div class="addon-price">$500</div>
-                    <div class="addon-slots">2 slots</div>
-                    <div class="addon-benefit">Exclusive branding + push alerts</div>
-                </div>
-                <div class="addon-card">
-                    <i class="fas fa-tint"></i>
-                    <div class="addon-name">Water Station</div>
-                    <div class="addon-price">$500</div>
-                    <div class="addon-slots">2 slots</div>
-                    <div class="addon-benefit">Branded eco-stations throughout venue</div>
-                </div>
-            </div>
-        </div>
-    </section>
-
-    <!-- ── BANNER ─────────────────────────────────────────── -->
-    <div class="sp-banner">
-        <div class="container">
-            <h2>Ready to become Africa's partner in transformation?</h2>
-            <p>Let's schedule a short call to explore how we can partner. Every day of delay is an opportunity lost.</p>
-            <a href="#apply" class="btn" style="background:#fff;color:var(--primary-green);font-weight:700;padding:12px 32px;margin-top:18px;display:inline-flex;gap:8px;align-items:center;">
-                <i class="fas fa-paper-plane"></i> Send Sponsorship Appeal
-            </a>
-        </div>
+    <div class="pm-btn-row pm-mt-lg">
+      <a class="pm-btn" href="#apply"><?php echo pmContentSafe($pdo, 'sponsorship', 'hero_cta_primary',
+        'Become a partner'); ?></a>
+      <a class="pm-btn pm-btn--secondary" href="#packages"><?php echo pmContentSafe($pdo, 'sponsorship', 'hero_cta_secondary',
+        'View packages'); ?></a>
     </div>
 
-    <!-- ── SPONSORSHIP APPLICATION FORM ──────────────────── -->
-    <section class="sp-form" id="apply">
-        <div class="container">
-            <div class="sp-form-grid">
-                <div class="sp-form-intro">
-                    <div class="sp-section-tag">Apply Now</div>
-                    <h2>Let's Build This<br><span>Partnership Together</span></h2>
-                    <p>Send us your sponsorship appeal and our team will respond within 48 hours to schedule a discovery call. We do not sell packages — we build partnerships tailored to your organisation's goals.</p>
-                    <p>Once confirmed, sponsors will be connected to the official sponsors management team for preparations and setup coordination.</p>
+  </div>
+</section>
 
-                    <div class="sp-contact-items">
-                        <div class="sp-contact-item">
-                            <i class="fas fa-envelope"></i>
-                            <div><strong>Email us directly</strong><br>info@prosper-minds.com</div>
-                        </div>
-                        <div class="sp-contact-item">
-                            <i class="fas fa-phone-alt"></i>
-                            <div><strong>Call us</strong><br>+254 740 582302 &nbsp;|&nbsp; +254 741 174909</div>
-                        </div>
-                        <div class="sp-contact-item">
-                            <i class="fas fa-globe"></i>
-                            <div><strong>Website</strong><br>www.prosper-minds.com</div>
-                        </div>
-                    </div>
-                </div>
 
-                <!-- Form -->
-                <div class="sp-form-card">
-                    <h3 style="font-size:1.2rem;font-weight:700;margin-bottom:6px;">Sponsorship Enquiry</h3>
-                    <p style="color:#777;font-size:.88rem;margin-bottom:24px;">Fill in the form and we'll be in touch within 48 hours.</p>
+<?php // ── Why this moment matters ───────────────────────────────────────── ?>
+<section class="pm-section pm-section--surface">
+  <div class="pm-container">
 
-                    <div id="sp-form-success" style="display:none;" class="alert alert-success">
-                        <i class="fas fa-check-circle"></i>
-                        Thank you! Your enquiry has been sent. We will contact you within 48 hours.
-                    </div>
-                    <div id="sp-form-error" style="display:none;" class="alert alert-danger">
-                        <i class="fas fa-exclamation-circle"></i>
-                        <span id="sp-error-msg">Something went wrong. Please try again.</span>
-                    </div>
+    <span class="pm-eyebrow"><?php echo pmContentSafe($pdo, 'sponsorship', 'why_eyebrow',
+      'Why this moment matters'); ?></span>
 
-                    <form id="sponsorshipForm">
-                        <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
-                            <div class="form-group">
-                                <label>First Name *</label>
-                                <input type="text" name="first_name" class="form-control" required>
-                            </div>
-                            <div class="form-group">
-                                <label>Last Name *</label>
-                                <input type="text" name="last_name" class="form-control" required>
-                            </div>
-                        </div>
+    <h2 class="pm-h2"><?php echo pmContentSafe($pdo, 'sponsorship', 'why_title',
+      'Traditional marketing will not get you into that room. This event will.'); ?></h2>
 
-                        <div class="form-group">
-                            <label>Organisation / Company *</label>
-                            <input type="text" name="organisation" class="form-control" required>
-                        </div>
+    <p class="pm-lede pm-mt-lg"><?php echo pmContentSafe($pdo, 'sponsorship', 'why_body',
+      'Africa\'s public sector is transforming faster than ever. The professionals in the room are not looking for service providers. They are looking for trusted partners who can support real implementation.'); ?></p>
 
-                        <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
-                            <div class="form-group">
-                                <label>Email Address *</label>
-                                <input type="email" name="email" class="form-control" required>
-                            </div>
-                            <div class="form-group">
-                                <label>Phone Number</label>
-                                <input type="tel" name="phone" class="form-control" placeholder="+1 234 567 8900">
-                            </div>
-                        </div>
+    <div class="pm-grid pm-grid--ruled pm-grid--3 pm-mt-lg">
+<?php foreach (pmContentJson($pdo, 'sponsorship', 'why_cards', [
+        ['title' => 'While others advertise', 'body' => 'You will be remembered. Your brand is part of the experience of Africa\'s most influential finance leaders, not an advertisement beside it.'],
+        ['title' => 'While others pitch',     'body' => 'You will be partnering. Direct business to government engagement with the people who implement policy and control budgets.'],
+        ['title' => 'While others wait',      'body' => 'You will already be part of Africa\'s real system change: shaping the conversation rather than watching it from the outside.'],
+      ]) as $pmIndex => $pmCard): ?>
+      <div class="pm-cell">
+        <span class="pm-ordinal"><?php echo pmEsc(str_pad((string) ($pmIndex + 1), 2, '0', STR_PAD_LEFT)); ?></span>
+        <h3 class="pm-h3 pm-h3--caps"><?php echo pmEsc((string) ($pmCard['title'] ?? '')); ?></h3>
+        <p class="pm-body"><?php echo pmEsc((string) ($pmCard['body'] ?? '')); ?></p>
+      </div>
+<?php endforeach; ?>
+    </div>
 
-                        <div class="form-group">
-                            <label>Country</label>
-                            <input type="text" name="country" class="form-control" placeholder="Your country">
-                        </div>
+  </div>
+</section>
 
-                        <div class="form-group">
-                            <label>Which event(s) are you interested in? *</label>
-                            <div style="display:flex;flex-direction:column;gap:8px;margin-top:4px;">
-                                <label style="display:flex;align-items:center;gap:8px;font-weight:400;cursor:pointer;">
-                                    <input type="checkbox" name="events[]" value="Cape Town – Oct 2026" style="accent-color:var(--primary-green);">
-                                    Cape Town, South Africa · Oct 2026
-                                </label>
-                                <label style="display:flex;align-items:center;gap:8px;font-weight:400;cursor:pointer;">
-                                    <input type="checkbox" name="events[]" value="Kuala Lumpur – Nov 2026" style="accent-color:var(--primary-green);">
-                                    Kuala Lumpur, Malaysia · Nov 2026
-                                </label>
-                                <label style="display:flex;align-items:center;gap:8px;font-weight:400;cursor:pointer;">
-                                    <input type="checkbox" name="events[]" value="Bali – Dec 2026" style="accent-color:var(--primary-green);">
-                                    Bali, Indonesia · Dec 2026
-                                </label>
-                            </div>
-                        </div>
 
-                        <div class="form-group">
-                            <label>Sponsorship Tier of Interest</label>
-                            <select name="tier" class="form-control">
-                                <option value="">Select a tier…</option>
-                                <option>Platinum – $15,000</option>
-                                <option>Gold – $7,500</option>
-                                <option>Silver – $5,000</option>
-                                <option>Bronze – $2,500</option>
-                                <option>Gala Dinner – $1,000</option>
-                                <option>Digital Experience – $1,000</option>
-                                <option>Exhibitor – $1,000</option>
-                                <option>Optional Add-On only – $500</option>
-                                <option>Not sure yet – please advise</option>
-                            </select>
-                        </div>
+<?php // ── The eligible events, read from the calendar ───────────────────── ?>
+<section class="pm-section" id="events">
+  <div class="pm-container">
 
-                        <div class="form-group" style="margin-bottom:24px;">
-                            <label>Message / Goals</label>
-                            <textarea name="message" class="form-control" style="height:100px;"
-                                placeholder="Tell us about your organisation's goals and what you hope to achieve through this partnership…"></textarea>
-                        </div>
+    <span class="pm-eyebrow"><?php echo pmContentSafe($pdo, 'sponsorship', 'events_eyebrow',
+      'Eligible events'); ?></span>
 
-                        <button type="submit" class="btn btn-primary" style="width:100%;justify-content:center;padding:13px;font-size:1rem;">
-                            <i class="fas fa-paper-plane"></i> Send Sponsorship Appeal
-                        </button>
-                    </form>
-                </div>
-            </div>
+    <h2 class="pm-h2"><?php echo pmContentSafe($pdo, 'sponsorship', 'events_title',
+      'Four flagship schools in 2026'); ?></h2>
+
+    <p class="pm-lede pm-mt-lg"><?php echo pmContentSafe($pdo, 'sponsorship', 'events_body',
+      'Each school draws senior public finance officials from across the continent and beyond. Sponsor one, or take the whole 2026 calendar.'); ?></p>
+
+<?php if ($pmEvents === []): ?>
+    <p class="pm-body pm-mt-lg"><?php echo pmContentSafe($pdo, 'sponsorship', 'events_empty',
+      'The 2026 calendar is being confirmed. Send an enquiry and we will come back to you with dates and audience numbers.'); ?></p>
+<?php else: ?>
+    <div class="pm-grid pm-grid--ruled pm-grid--4 pm-mt-lg">
+<?php foreach ($pmEvents as $pmEvent): ?>
+      <article class="pm-cell">
+        <?php $pmStamp = pmEventDateBlock($pmEvent)['stamp']; ?>
+<?php if ($pmStamp !== ''): ?>
+        <span class="pm-label pm-label--green"><?php echo pmEsc($pmStamp); ?></span>
+<?php endif; ?>
+        <h3 class="pm-h4"><?php echo pmEsc(pmEventProse((string) ($pmEvent['title'] ?? ''))); ?></h3>
+        <span class="pm-caption"><?php echo pmEsc(pmEventProse((string) ($pmEvent['location'] ?? ''))); ?></span>
+        <a class="pm-btn--link pm-cell__action" href="#apply">
+          <?php echo pmContentSafe($pdo, 'sponsorship', 'events_cta', 'Sponsor this event'); ?>
+          <span class="pm-sr-only"> in <?php echo pmEsc(pmEventCity($pmEvent)); ?></span>
+        </a>
+      </article>
+<?php endforeach; ?>
+    </div>
+<?php endif; ?>
+
+  </div>
+</section>
+
+
+<?php // ── What a partner gains, and who is in the room ──────────────────── ?>
+<section class="pm-section pm-section--surface">
+  <div class="pm-container pm-row">
+
+    <div class="pm-row__main">
+      <span class="pm-eyebrow"><?php echo pmContentSafe($pdo, 'sponsorship', 'gains_eyebrow',
+        'What you gain'); ?></span>
+
+      <h2 class="pm-h2"><?php echo pmContentSafe($pdo, 'sponsorship', 'gains_title',
+        'More than a sponsorship, a partnership'); ?></h2>
+
+      <p class="pm-body pm-mt-md"><?php echo pmContentSafe($pdo, 'sponsorship', 'gains_body',
+        'We do not sell packages. We build partnerships, and we align the platform to what your organisation is actually trying to achieve.'); ?></p>
+
+      <ul class="pm-list">
+<?php foreach (pmContentJson($pdo, 'sponsorship', 'gains', [
+          'Strong visibility before, during and after the event',
+          'Direct access to public finance practitioners and decision influencers',
+          'Business to government engagement opportunities',
+          'Thought leadership through sessions and workshops',
+          'Brand positioning as a trusted implementation partner',
+          'Entry into new African government markets',
+          'A platform to show your solutions to the leaders who implement policy',
+          'A clear message that you are part of Africa\'s transformation',
+        ]) as $pmGain): ?>
+        <li><?php echo pmEsc((string) $pmGain); ?></li>
+<?php endforeach; ?>
+      </ul>
+    </div>
+
+    <?php // The one dark panel on the page. Proof, in the treatment notes'
+          // sense: this is who a sponsor is actually buying access to. ?>
+    <div class="pm-row__side">
+      <div class="pm-card pm-card--dark">
+        <span class="pm-label"><?php echo pmContentSafe($pdo, 'sponsorship', 'audience_title',
+          'Who will be in the room'); ?></span>
+
+        <p class="pm-body"><?php echo pmContentSafe($pdo, 'sponsorship', 'audience_body',
+          'Hundreds of the public sector leaders who set, spend and account for public money.'); ?></p>
+
+        <ul class="pm-tags">
+<?php foreach (pmContentJson($pdo, 'sponsorship', 'audience_tags', [
+            'Finance officers', 'Accountants', 'Auditors', 'Budget controllers',
+            'Treasury leaders', 'Revenue managers', 'Strategy directors',
+            'Decision makers', 'Policy implementers',
+          ]) as $pmRole): ?>
+          <li class="pm-tag"><?php echo pmEsc((string) $pmRole); ?></li>
+<?php endforeach; ?>
+        </ul>
+
+        <div class="pm-card__foot">
+          <span class="pm-label"><?php echo pmContentSafe($pdo, 'sponsorship', 'promise_label',
+            'Our promise to you'); ?></span>
+          <p class="pm-quote__text pm-mt-sm">
+            <span class="pm-quote__mark" aria-hidden="true">&ldquo;</span><?php
+            echo pmContentSafe($pdo, 'sponsorship', 'promise_text',
+              'Relevant. Reliable. Convenient.'); ?>
+          </p>
         </div>
-    </section>
+      </div>
+    </div>
 
-    <!-- Footer -->
-    <footer>
-        <div class="container">
-            <div class="footer-grid">
-                <div class="footer-col">
-                    <div class="footer-logo"><img src="assets/images/fisrt-logo.png" alt="Prosperminds"></div>
-                    <p class="footer-desc">Co-authoring Africa's Public Finance Future through executive training, IPSAS mastery, AI automation and sustainability reporting.</p>
-                </div>
-                <div class="footer-col">
-                    <h4 class="footer-heading">Events 2026</h4>
-                    <ul class="footer-links">
-                        <li><a href="#events">Cape Town · Oct 2026</a></li>
-                        <li><a href="#events">Kuala Lumpur · Nov 2026</a></li>
-                        <li><a href="#events">Bali · Dec 2026</a></li>
-                    </ul>
-                </div>
-                <div class="footer-col">
-                    <h4 class="footer-heading">Quick Links</h4>
-                    <ul class="footer-links">
-                        <li><a href="index.php">Home</a></li>
-                        <li><a href="index.php#events">Upcoming Events</a></li>
-                        <li><a href="sponsorship.php">Sponsorship</a></li>
-                        <li><a href="index.php#contact">Contact</a></li>
-                    </ul>
-                </div>
-                <div class="footer-col">
-                    <h4 class="footer-heading">Contact</h4>
-                    <ul class="footer-links">
-                        <li><a href="mailto:info@prosper-minds.com">info@prosper-minds.com</a></li>
-                        <li><a href="tel:+254740582302">+254 740 582302</a></li>
-                        <li><a href="tel:+254741174909">+254 741 174909</a></li>
-                    </ul>
-                </div>
-            </div>
-            <div class="footer-bottom">
-                <p>&copy; <?php echo date('Y'); ?> Prosperminds. All rights reserved.</p>
-            </div>
+  </div>
+</section>
+
+
+<?php // ── The four tiers ────────────────────────────────────────────────── ?>
+<section class="pm-section" id="packages">
+  <div class="pm-container">
+
+    <span class="pm-eyebrow"><?php echo pmContentSafe($pdo, 'sponsorship', 'tiers_eyebrow',
+      'Sponsorship packages'); ?></span>
+
+    <h2 class="pm-h2"><?php echo pmContentSafe($pdo, 'sponsorship', 'tiers_title',
+      'Four partnership tiers'); ?></h2>
+
+    <p class="pm-lede pm-mt-lg"><?php echo pmContentSafe($pdo, 'sponsorship', 'tiers_body',
+      'Investment levels to match your goals and your budget. Every tier is available across every school in the calendar.'); ?></p>
+
+    <?php $pmTierCta = pmContent($pdo, 'sponsorship', 'tiers_cta', 'Enquire'); ?>
+    <div class="pm-grid pm-grid--4 pm-mt-lg">
+<?php foreach ($pmTiers as $pmTier): ?>
+<?php   $pmKey = trim((string) ($pmTier['key'] ?? '')); ?>
+      <article class="pm-card">
+        <div class="pm-stack pm-stack--xs">
+          <span class="pm-label"><?php echo pmEsc((string) ($pmTier['name'] ?? '')); ?></span>
+          <span class="pm-price"><?php echo pmEsc((string) ($pmTier['price'] ?? '')); ?></span>
+          <span class="pm-price__note pm-green"><?php echo pmEsc((string) ($pmTier['slots'] ?? '')); ?></span>
         </div>
-    </footer>
+        <ul class="pm-list">
+<?php foreach ((array) ($pmTier['benefits'] ?? []) as $pmBenefit): ?>
+          <li><?php echo pmEsc((string) $pmBenefit); ?></li>
+<?php endforeach; ?>
+        </ul>
+        <div class="pm-card__foot">
+          <?php // Carries its own tier into the form. Server side, so it works
+                // with scripts off; validated against the known keys, so a
+                // hand edited value falls back to the neutral option. ?>
+          <a class="pm-btn pm-btn--secondary pm-btn--block pm-btn--sm"
+             href="/sponsorship.php?tier=<?php echo pmEsc(rawurlencode($pmKey)); ?>#apply">
+            <?php echo pmEsc($pmTierCta); ?>
+            <span class="pm-sr-only"> about the <?php echo pmEsc((string) ($pmTier['name'] ?? '')); ?> tier</span>
+          </a>
+        </div>
+      </article>
+<?php endforeach; ?>
+    </div>
 
-    <script src="assets/js/main.js"></script>
-    <script>
-    document.getElementById('sponsorshipForm').addEventListener('submit', function(e) {
-        e.preventDefault();
+  </div>
+</section>
 
-        const events = [...document.querySelectorAll('input[name="events[]"]:checked')];
-        if (events.length === 0) {
-            document.getElementById('sp-form-error').style.display = 'flex';
-            document.getElementById('sp-error-msg').textContent = 'Please select at least one event.';
-            return;
-        }
 
-        document.getElementById('sp-form-success').style.display = 'none';
-        document.getElementById('sp-form-error').style.display   = 'none';
+<?php // ── Specialised packages and add-ons ──────────────────────────────── ?>
+<section class="pm-section pm-section--surface">
+  <div class="pm-container pm-row">
 
-        const btn = this.querySelector('button[type="submit"]');
-        const orig = btn.innerHTML;
-        btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Sending…';
-        btn.disabled  = true;
+    <div class="pm-row__main">
+      <span class="pm-eyebrow"><?php echo pmContentSafe($pdo, 'sponsorship', 'packages_eyebrow',
+        'Entry packages'); ?></span>
 
-        const data = new FormData(this);
+      <h2 class="pm-h3 pm-h3--caps"><?php echo pmContentSafe($pdo, 'sponsorship', 'packages_title',
+        'Specialised, $1,000 each'); ?></h2>
 
-        fetch('process-sponsorship.php', { method: 'POST', body: data })
-            .then(r => r.json())
-            .then(d => {
-                if (d.success) {
-                    document.getElementById('sp-form-success').style.display = 'flex';
-                    this.reset();
-                } else {
-                    document.getElementById('sp-form-error').style.display = 'flex';
-                    document.getElementById('sp-error-msg').textContent = d.message || 'Something went wrong.';
-                }
-            })
-            .catch(() => {
-                document.getElementById('sp-form-error').style.display = 'flex';
-                document.getElementById('sp-error-msg').textContent = 'Network error. Please try again.';
-            })
-            .finally(() => { btn.innerHTML = orig; btn.disabled = false; });
-    });
-    </script>
-</body>
-</html>
+      <ul class="pm-grid pm-grid--ruled pm-mt-lg">
+<?php foreach ($pmPackages as $pmPackage): ?>
+<?php     $pmKey = trim((string) ($pmPackage['key'] ?? '')); ?>
+        <li class="pm-cell">
+          <div class="pm-card__foot--split">
+            <h3 class="pm-h4"><?php echo pmEsc((string) ($pmPackage['name'] ?? '')); ?></h3>
+            <span class="pm-label"><?php echo pmEsc((string) ($pmPackage['price'] ?? '')); ?></span>
+          </div>
+          <span class="pm-caption pm-green"><?php echo pmEsc((string) ($pmPackage['slots'] ?? '')); ?></span>
+          <ul class="pm-list">
+<?php foreach ((array) ($pmPackage['benefits'] ?? []) as $pmBenefit): ?>
+            <li><?php echo pmEsc((string) $pmBenefit); ?></li>
+<?php endforeach; ?>
+          </ul>
+          <a class="pm-btn--link pm-cell__action"
+             href="/sponsorship.php?tier=<?php echo pmEsc(rawurlencode($pmKey)); ?>#apply">
+            <?php echo pmEsc($pmTierCta); ?>
+            <span class="pm-sr-only"> about the <?php echo pmEsc((string) ($pmPackage['name'] ?? '')); ?> package</span>
+          </a>
+        </li>
+<?php endforeach; ?>
+      </ul>
+    </div>
+
+    <div class="pm-row__side">
+      <span class="pm-eyebrow"><?php echo pmContentSafe($pdo, 'sponsorship', 'addons_eyebrow',
+        'Add ons'); ?></span>
+
+      <h2 class="pm-h3 pm-h3--caps"><?php echo pmContentSafe($pdo, 'sponsorship', 'addons_title',
+        '$500 each'); ?></h2>
+
+      <p class="pm-body pm-mt-md"><?php echo pmContentSafe($pdo, 'sponsorship', 'addons_body',
+        'Targeted visibility that can be added to any package above.'); ?></p>
+
+      <?php // No Enquire button per add-on, deliberately. The handler has one
+            // `tier` field, so five buttons would all pre-select the same
+            // single "Add ons only" option and each would be pretending to
+            // carry a choice it cannot. The form's dropdown holds that option. ?>
+      <ul class="pm-grid pm-grid--ruled pm-mt-lg">
+<?php foreach ($pmAddons as $pmAddon): ?>
+        <li class="pm-cell">
+          <div class="pm-card__foot--split">
+            <h3 class="pm-h4"><?php echo pmEsc((string) ($pmAddon['name'] ?? '')); ?></h3>
+            <span class="pm-label"><?php echo pmEsc((string) ($pmAddon['price'] ?? '')); ?></span>
+          </div>
+          <span class="pm-caption pm-green"><?php echo pmEsc((string) ($pmAddon['slots'] ?? '')); ?></span>
+          <p class="pm-caption"><?php echo pmEsc((string) ($pmAddon['benefit'] ?? '')); ?></p>
+        </li>
+<?php endforeach; ?>
+      </ul>
+    </div>
+
+  </div>
+</section>
+
+
+<?php // ── Closing band. The one green section on this page. ─────────────── ?>
+<section class="pm-section pm-section--accent pm-section--tight">
+  <div class="pm-container pm-band">
+    <div class="pm-row__main">
+      <h2 class="pm-h2"><?php echo pmContentSafe($pdo, 'sponsorship', 'cta_title',
+        'Ready to become Africa\'s partner in transformation?'); ?></h2>
+      <p class="pm-body pm-mt-sm"><?php echo pmContentSafe($pdo, 'sponsorship', 'cta_body',
+        'A short call is enough to work out whether this is a fit. Every event that passes is a room you were not in.'); ?></p>
+    </div>
+    <div class="pm-section-head__action">
+      <a class="pm-btn pm-btn--invert" href="#apply"><?php echo pmContentSafe($pdo, 'sponsorship', 'cta_label',
+        'Send a sponsorship enquiry'); ?></a>
+    </div>
+  </div>
+</section>
+
+
+<?php // ── The enquiry form ──────────────────────────────────────────────── ?>
+<section class="pm-section pm-section--dark" id="apply">
+  <div class="pm-container pm-row">
+
+    <div class="pm-row__side">
+      <span class="pm-eyebrow"><?php echo pmContentSafe($pdo, 'sponsorship', 'form_eyebrow',
+        'Enquiry'); ?></span>
+
+      <h2 class="pm-h2"><?php echo pmContentSafe($pdo, 'sponsorship', 'form_title',
+        'We do not sell packages. We build partnerships.'); ?></h2>
+
+      <p class="pm-body pm-mt-md"><?php echo pmContentSafe($pdo, 'sponsorship', 'form_body',
+        'Tell us which schools matter to you and what you want out of the room. A partnership lead replies within 48 hours with a proposal built around those goals.'); ?></p>
+
+      <p class="pm-caption pm-mt-md"><?php echo pmContentSafe($pdo, 'sponsorship', 'form_required_note',
+        'First name, last name, organisation, email and at least one school are required.'); ?></p>
+    </div>
+
+    <div class="pm-row__main">
+      <?php // Field names are fixed by process-sponsorship.php and must not be
+            // renamed here: first_name, last_name, organisation, email, phone,
+            // country, events[], tier, message. Renaming one would empty that
+            // field in every enquiry email, silently. ?>
+      <form class="pm-stack pm-stack--md"
+            action="/process-sponsorship.php"
+            method="post"
+            data-pm-sponsorship-form>
+
+        <div id="pm-sponsorship-status" class="pm-notice" role="status" hidden></div>
+
+        <?php // Six fields in one grid rather than three grids of two: the
+              // column this form sits in fits two controls across, and one
+              // grid keeps them on a single rhythm at every width. ?>
+        <div class="pm-grid pm-grid--3">
+          <div class="pm-field">
+            <label class="pm-field__label" for="pm-sp-first"><?php
+              echo pmContentSafe($pdo, 'sponsorship', 'form_label_first', 'First name'); ?></label>
+            <input class="pm-input" type="text" id="pm-sp-first" name="first_name"
+                   autocomplete="given-name" required>
+          </div>
+
+          <div class="pm-field">
+            <label class="pm-field__label" for="pm-sp-last"><?php
+              echo pmContentSafe($pdo, 'sponsorship', 'form_label_last', 'Last name'); ?></label>
+            <input class="pm-input" type="text" id="pm-sp-last" name="last_name"
+                   autocomplete="family-name" required>
+          </div>
+
+          <div class="pm-field">
+            <label class="pm-field__label" for="pm-sp-org"><?php
+              echo pmContentSafe($pdo, 'sponsorship', 'form_label_org', 'Organisation'); ?></label>
+            <input class="pm-input" type="text" id="pm-sp-org" name="organisation"
+                   autocomplete="organization" required>
+          </div>
+
+          <div class="pm-field">
+            <label class="pm-field__label" for="pm-sp-email"><?php
+              echo pmContentSafe($pdo, 'sponsorship', 'form_label_email', 'Email'); ?></label>
+            <input class="pm-input" type="email" id="pm-sp-email" name="email"
+                   autocomplete="email" required>
+          </div>
+
+          <div class="pm-field">
+            <label class="pm-field__label" for="pm-sp-phone"><?php
+              echo pmContentSafe($pdo, 'sponsorship', 'form_label_phone', 'Phone'); ?></label>
+            <input class="pm-input" type="tel" id="pm-sp-phone" name="phone" autocomplete="tel">
+          </div>
+
+          <div class="pm-field">
+            <label class="pm-field__label" for="pm-sp-country"><?php
+              echo pmContentSafe($pdo, 'sponsorship', 'form_label_country', 'Country'); ?></label>
+            <input class="pm-input" type="text" id="pm-sp-country" name="country"
+                   autocomplete="country-name">
+          </div>
+        </div>
+
+        <?php // A real fieldset with a real legend: four checkboxes with only a
+              // paragraph above them announce as four unrelated controls. ?>
+        <fieldset class="pm-fieldset">
+          <legend class="pm-field__label"><?php
+            echo pmContentSafe($pdo, 'sponsorship', 'form_label_events',
+              'Which schools are you interested in?'); ?></legend>
+          <span class="pm-field__hint"><?php echo pmContentSafe($pdo, 'sponsorship', 'form_hint_events',
+            'Choose at least one.'); ?></span>
+
+          <div class="pm-stack pm-stack--sm pm-mt-sm">
+<?php if ($pmEvents === []): ?>
+            <?php // No calendar, no checkboxes, and the handler requires at
+                  // least one. Saying so is better than showing a form that
+                  // cannot be submitted. ?>
+            <p class="pm-body"><?php echo pmContentSafe($pdo, 'sponsorship', 'events_empty',
+              'The 2026 calendar is being confirmed. Send an enquiry and we will come back to you with dates and audience numbers.'); ?></p>
+<?php else: ?>
+<?php   foreach ($pmEvents as $pmIndex => $pmEvent): ?>
+<?php
+        // The value is what lands in the enquiry email, so it is the shortest
+        // string that identifies a school unambiguously. Two of the four run in
+        // December, so the city has to be in it as well as the month.
+        $pmValue = trim(pmEventCity($pmEvent) . ', ' . pmEventMonthLabel($pmEvent), ', ');
+        $pmId    = 'pm-sp-event-' . (int) ($pmEvent['id'] ?? $pmIndex);
+?>
+            <label class="pm-check" for="<?php echo pmEsc($pmId); ?>">
+              <input type="checkbox" id="<?php echo pmEsc($pmId); ?>" name="events[]"
+                     value="<?php echo pmEsc($pmValue); ?>">
+              <span><?php echo pmEsc(pmEventProse((string) ($pmEvent['location'] ?? ''))); ?>,
+                <?php echo pmEsc(pmEventMonthLabel($pmEvent)); ?>.
+                <?php echo pmEsc(pmEventProse((string) ($pmEvent['title'] ?? ''))); ?></span>
+            </label>
+<?php   endforeach; ?>
+<?php endif; ?>
+          </div>
+        </fieldset>
+
+        <div class="pm-field">
+          <label class="pm-field__label" for="pm-sp-tier"><?php
+            echo pmContentSafe($pdo, 'sponsorship', 'form_label_tier', 'Tier of interest'); ?></label>
+          <select class="pm-select" id="pm-sp-tier" name="tier">
+            <option value=""><?php echo pmContentSafe($pdo, 'sponsorship', 'form_tier_none',
+              'Not sure yet, please advise'); ?></option>
+<?php foreach ($pmTierOptions as $pmKey => $pmOptionLabel): ?>
+            <option value="<?php echo pmEsc($pmOptionLabel); ?>"<?php
+              echo $pmSelectedTier === $pmKey ? ' selected' : ''; ?>><?php
+              echo pmEsc($pmOptionLabel); ?></option>
+<?php endforeach; ?>
+          </select>
+        </div>
+
+        <div class="pm-field">
+          <label class="pm-field__label" for="pm-sp-message"><?php
+            echo pmContentSafe($pdo, 'sponsorship', 'form_label_message', 'Goals'); ?></label>
+          <span class="pm-field__hint" id="pm-sp-message-hint"><?php
+            echo pmContentSafe($pdo, 'sponsorship', 'form_hint_message',
+              'What would make this partnership worthwhile for your organisation?'); ?></span>
+          <textarea class="pm-textarea" id="pm-sp-message" name="message" rows="5"
+                    aria-describedby="pm-sp-message-hint"></textarea>
+        </div>
+
+        <p class="pm-caption"><?php echo pmContentSafe($pdo, 'sponsorship', 'form_consent_html',
+          'We use these details only to answer your enquiry. See our <a href="/privacy-policy.php">privacy policy</a>.', true); ?></p>
+
+        <div class="pm-btn-row">
+          <button class="pm-btn" type="submit"><?php echo pmContentSafe($pdo, 'sponsorship', 'form_submit',
+            'Send enquiry'); ?></button>
+        </div>
+
+        <p class="pm-caption"><?php echo pmContentSafe($pdo, 'sponsorship', 'form_note',
+          'Replies within 48 hours, Monday to Friday.'); ?></p>
+      </form>
+    </div>
+
+  </div>
+</section>
+
+<?php pmPageEnd(); ?>

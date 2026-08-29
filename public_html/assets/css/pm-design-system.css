@@ -980,6 +980,45 @@ body.pm {
   overflow: hidden;
 }
 
+/* A single dark panel inside a light section.
+
+   Added in Phase 3 for the "Who will be in the room" panel on the sponsorship
+   page, which the client asked for dark while the benefit list beside it stays
+   light. .pm-section--dark cannot do that job: it is a section tone, and the
+   descendant rules it carries only reach children of a whole section.
+
+   The rules are restated here rather than by adding .pm-card--dark to ten
+   existing selector lists, so that everything this modifier does is visible in
+   one place. It is deliberately short: a dark panel is punctuation, and a panel
+   that needed the full inverted form set would be a section. */
+.pm-card--dark {
+  background: var(--pm-black);
+  border-color: var(--pm-black);
+  color: var(--pm-white);
+}
+
+.pm-card--dark .pm-body,
+.pm-card--dark .pm-caption,
+.pm-card--dark .pm-quote__text {
+  color: var(--pm-on-dark-muted);
+}
+
+.pm-card--dark .pm-label,
+.pm-card--dark .pm-eyebrow {
+  color: var(--pm-green);
+  border-left-color: var(--pm-green);
+}
+
+.pm-card--dark .pm-tag {
+  border-color: var(--pm-on-dark-rule);
+  color: var(--pm-on-dark);
+}
+
+.pm-card--dark .pm-rule,
+.pm-card--dark .pm-card__foot {
+  border-top-color: var(--pm-on-dark-rule);
+}
+
 /* A card used as a sidebar rather than as another item in the main column: the
    services curriculum panel and the same panel on each of the three service
    detail pages. The alternate surface is what separates it from the white page
@@ -1336,6 +1375,28 @@ body.pm {
   color: var(--pm-on-dark-faint);
 }
 
+/* A group of related controls. A set of checkboxes with only a paragraph above
+   them announces as unrelated controls, so the group is a real <fieldset> with
+   a real <legend>.
+
+   The UA gives a fieldset a border, padding, and a min-width that stops it
+   shrinking inside a grid or flex column. All three are removed: in this system
+   a group is drawn by its legend and its spacing, not by a box, and a box round
+   one group and not the others reads as an error state.
+
+   Added in Phase 3 for the sponsorship enquiry's school picker; every future
+   radio or checkbox group wants the same treatment. */
+.pm-fieldset {
+  border: 0;
+  margin: 0;
+  padding: 0;
+  min-width: 0;
+}
+
+.pm-fieldset > legend {
+  padding: 0;
+}
+
 /* A consent / checkbox row. The box is a real checkbox, sized up to a legible
    target rather than replaced with a styled span, so it stays operable with a
    keyboard and announces correctly. */
@@ -1346,6 +1407,14 @@ body.pm {
   font-size: var(--pm-fs-small);
   line-height: 1.6;
   color: var(--pm-text-muted);
+}
+
+/* --pm-text-muted is a grey chosen against white and drops to about 3:1 on
+   black. Checkbox labels on a dark section are real reading copy, so they take
+   the on-dark token the rest of the dark system uses. */
+.pm-section--dark .pm-check,
+.pm-card--dark .pm-check {
+  color: var(--pm-on-dark-muted);
 }
 
 .pm-check input[type="checkbox"] {
