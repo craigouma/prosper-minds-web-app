@@ -58,6 +58,7 @@
      12. Site footer
      13. Utilities
      14. Accessibility and reduced motion
+     15. The registration flow (Phase 4)
    =========================================================================== */
 
 
@@ -2057,4 +2058,360 @@ body.pm {
     background: var(--pm-white);
     color: var(--pm-black);
   }
+}
+
+
+/* ---------------------------------------------------------------------------
+   15. THE REGISTRATION FLOW
+   ---------------------------------------------------------------------------
+   The steps collapse only under [data-pm-steps="on"], which pm-register.js
+   writes onto <html> after it has finished wiring itself up. NOT
+   html[data-pm-js]: that flag would still be set if pm-register.js were itself
+   the file that failed, leaving four hidden steps behind a dead Continue button
+   on the page that takes the money. Undriven, the page is one long form that
+   posts on its own, so everything below is state layered on a working document.
+--------------------------------------------------------------------------- */
+
+.pm-reg__head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  align-items: baseline;
+}
+
+.pm-reg__stepcount {
+  margin-left: auto;
+  font-size: var(--pm-fs-label);
+  letter-spacing: var(--pm-ls-16);
+  text-transform: uppercase;
+  color: var(--pm-text-tertiary);
+}
+
+.pm-reg__progress {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 120px), 1fr));
+  gap: clamp(8px, 1.4vw, 20px);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.pm-reg__progress-item {
+  display: block;
+  border-top: 3px solid var(--pm-border-light);
+  padding-top: 12px;
+  color: var(--pm-text-tertiary);
+  text-align: left;
+  background: none;
+  border-left: 0;
+  border-right: 0;
+  border-bottom: 0;
+  width: 100%;
+}
+
+.pm-reg__progress-item[data-pm-state="current"] {
+  border-top-color: var(--pm-green);
+  color: var(--pm-black);
+}
+
+.pm-reg__progress-item[data-pm-state="done"] {
+  border-top-color: var(--pm-black);
+  color: var(--pm-black);
+}
+
+.pm-reg__progress-num {
+  display: block;
+  font-size: var(--pm-fs-eyebrow);
+  letter-spacing: var(--pm-ls-16);
+  margin-bottom: 6px;
+}
+
+.pm-reg__progress-name {
+  display: block;
+  font-size: 13px;
+  line-height: 1.35;
+}
+
+/* -- The two columns ------------------------------------------------------ */
+.pm-reg__aside {
+  flex: 0 1 340px;
+  min-width: min(100%, 280px);
+}
+
+/* Clears the sticky site header. Only above the width where the aside still
+   sits beside the form; stacked, it would pin itself over the fields. */
+@media (min-width: 900px) {
+  .pm-reg__sticky {
+    position: sticky;
+    top: 116px;
+  }
+}
+
+/* -- The invoice summary panel -------------------------------------------- */
+.pm-reg__summary {
+  border: 1px solid var(--pm-black);
+  border-radius: var(--pm-radius);
+  padding: clamp(22px, 2.4vw, 30px);
+  background: var(--pm-white);
+}
+
+.pm-reg__summary-head {
+  display: block;
+  font-size: var(--pm-fs-eyebrow);
+  letter-spacing: var(--pm-ls-22);
+  text-transform: uppercase;
+  color: var(--pm-black);
+  padding-bottom: 16px;
+  border-bottom: var(--pm-rule-heavy);
+}
+
+.pm-reg__line {
+  display: flex;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 18px 0;
+  border-bottom: var(--pm-rule-light);
+}
+
+.pm-reg__line-label {
+  font-size: 14.5px;
+  line-height: 1.5;
+  color: var(--pm-text-muted);
+}
+
+.pm-reg__line-value {
+  font-size: 14.5px;
+  color: var(--pm-black);
+  white-space: nowrap;
+}
+
+.pm-reg__total {
+  display: flex;
+  justify-content: space-between;
+  gap: 14px;
+  align-items: baseline;
+  padding-top: 20px;
+}
+
+.pm-reg__total-label {
+  font-size: var(--pm-fs-label);
+  letter-spacing: var(--pm-ls-16);
+  text-transform: uppercase;
+  color: var(--pm-black);
+}
+
+.pm-reg__total-value {
+  font-size: clamp(20px, 2.4vw, 28px);
+  color: var(--pm-black);
+  white-space: nowrap;
+}
+
+/* -- One step ------------------------------------------------------------- */
+.pm-reg__panel {
+  display: block;
+  padding-top: clamp(28px, 3vw, 40px);
+}
+
+.pm-reg__panel:first-of-type {
+  padding-top: 0;
+}
+
+/* -- The delegate counter ------------------------------------------------- */
+.pm-reg__stepper {
+  display: none;
+  align-items: center;
+  gap: 2px;
+}
+
+.pm-reg__stepper-btn {
+  width: 52px;
+  height: 52px;
+  border: 1px solid var(--pm-black);
+  border-radius: var(--pm-radius);
+  background: var(--pm-white);
+  color: var(--pm-black);
+  font-size: 20px;
+  line-height: 1;
+  cursor: pointer;
+  transition: background var(--pm-transition), color var(--pm-transition);
+}
+
+.pm-reg__stepper-btn:hover {
+  background: var(--pm-black);
+  color: var(--pm-white);
+}
+
+.pm-reg__stepper-btn[disabled] {
+  border-color: var(--pm-border);
+  color: var(--pm-border);
+  cursor: default;
+}
+
+.pm-reg__stepper-btn[disabled]:hover {
+  background: var(--pm-white);
+  color: var(--pm-border);
+}
+
+.pm-reg__stepper-value {
+  min-width: 72px;
+  height: 52px;
+  border-top: 1px solid var(--pm-black);
+  border-bottom: 1px solid var(--pm-black);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 19px;
+  color: var(--pm-black);
+}
+
+/* -- One delegate ---------------------------------------------------------- */
+.pm-reg__delegate-head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: baseline;
+}
+
+.pm-reg__delegate-note {
+  margin-left: auto;
+  font-size: var(--pm-fs-eyebrow);
+  letter-spacing: var(--pm-ls-16);
+  text-transform: uppercase;
+  color: var(--pm-text-tertiary);
+}
+
+/* -- Review rows ----------------------------------------------------------- */
+.pm-reg__review {
+  border: var(--pm-rule-light);
+  border-radius: var(--pm-radius);
+}
+
+.pm-reg__review-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  padding: 20px clamp(18px, 2.2vw, 26px);
+  border-bottom: var(--pm-rule-light);
+}
+
+.pm-reg__review-row:last-child {
+  border-bottom: 0;
+}
+
+.pm-reg__review-label {
+  flex: 0 0 120px;
+  font-size: var(--pm-fs-label);
+  letter-spacing: var(--pm-ls-16);
+  text-transform: uppercase;
+  color: var(--pm-text-muted);
+}
+
+.pm-reg__review-value {
+  flex: 1 1 200px;
+  font-size: 15px;
+  line-height: 1.5;
+  color: var(--pm-black);
+}
+
+/* -- Step navigation ------------------------------------------------------- */
+.pm-reg__nav {
+  display: none;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: clamp(30px, 3.4vw, 44px);
+  padding-top: 26px;
+  border-top: var(--pm-rule-light);
+}
+
+.pm-reg__nav-next {
+  margin-left: auto;
+}
+
+/* -- Confirmation ---------------------------------------------------------- */
+.pm-reg__done-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.pm-reg__done-mark {
+  width: 34px;
+  height: 34px;
+  flex: 0 0 auto;
+  border: 1px solid var(--pm-green);
+  color: var(--pm-green);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+}
+
+.pm-reg__done-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 150px), 1fr));
+  gap: 1px;
+  background: var(--pm-on-dark-rule);
+}
+
+.pm-reg__done-cell {
+  background: var(--pm-black);
+  padding: 18px;
+}
+
+.pm-reg__done-label {
+  display: block;
+  font-size: var(--pm-fs-eyebrow);
+  letter-spacing: var(--pm-ls-16);
+  text-transform: uppercase;
+  color: var(--pm-on-dark-faint);
+  margin-bottom: 8px;
+}
+
+.pm-reg__done-value {
+  display: block;
+  font-size: 20px;
+  color: var(--pm-white);
+}
+
+.pm-reg__done-value--green {
+  color: var(--pm-green);
+}
+
+/* -- The driven state ------------------------------------------------------ */
+[data-pm-steps="on"] .pm-reg__panel {
+  display: none;
+}
+
+[data-pm-steps="on"] .pm-reg__panel[data-pm-current] {
+  display: block;
+  padding-top: 0;
+}
+
+[data-pm-steps="on"] .pm-reg__nav,
+[data-pm-steps="on"] .pm-reg__stepper {
+  display: flex;
+}
+
+.pm-reg__undriven {
+  display: block;
+}
+
+[data-pm-steps="on"] .pm-reg__undriven,
+[data-pm-steps="on"] .pm-reg__driven-hide {
+  display: none;
+}
+
+.pm-reg__stepcount {
+  display: none;
+}
+
+[data-pm-steps="on"] .pm-reg__stepcount {
+  display: block;
+}
+
+/* The UA's [hidden] rule is type-level, so .pm-card { display: flex } and its
+   like beat it. The confirmation panel must stay hidden until the server has
+   confirmed a commit, so this has to win. */
+[hidden] {
+  display: none !important;
 }
