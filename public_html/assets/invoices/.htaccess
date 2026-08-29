@@ -1,0 +1,4 @@
+# Invoices carry delegate names, billing addresses and amounts, and the
+# filenames are a predictable date plus sequential id. Direct web access is
+# denied; they must be served through an authenticated script.
+Require all denied
