@@ -100,7 +100,9 @@ pmPageBegin([
         ['value' => '5',   'label' => 'Days per school'],
       ]) as $stat): ?>
       <div class="pm-cell">
-        <span class="pm-stat__value"><?php echo pmEsc((string) ($stat['value'] ?? '')); ?></span>
+        <?php // data-pm-count animates the figure up from zero. The real number
+              // is the text content and must stay there. ?>
+        <span class="pm-stat__value" data-pm-count><?php echo pmEsc((string) ($stat['value'] ?? '')); ?></span>
         <span class="pm-stat__label"><?php echo pmEsc((string) ($stat['label'] ?? '')); ?></span>
       </div>
 <?php endforeach; ?>

@@ -1,7 +1,8 @@
 /**
  * Shared layout behaviour for the rebuilt site.
  *
- * Currently one job: the mobile navigation panel.
+ * Two jobs, one independent IIFE each so that neither can take the other down:
+ * the mobile navigation panel, and the stat counters.
  *
  * PROGRESSIVE ENHANCEMENT
  * -----------------------
@@ -108,6 +109,107 @@
     // Inert on purpose. A broken menu script must never stop a page working.
     if (window.console && window.console.warn) {
       window.console.warn('pm-layout: navigation unavailable', error);
+    }
+  }
+})();
+
+
+/*
+ * Stat counters. The REAL figure is always the element's text content; this
+ * counts up TO it and restores that exact string at the end. Never render a
+ * zero and rely on script to replace it: the old site did, the script never
+ * fired, and it advertised "0 leaders trained" for months.
+ */
+(function () {
+  'use strict';
+
+  try {
+    var nodes = document.querySelectorAll('[data-pm-count]');
+
+    if (!nodes.length) {
+      return;
+    }
+
+    if (!window.IntersectionObserver || !window.requestAnimationFrame) {
+      return;
+    }
+
+    if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      return;
+    }
+
+    var DURATION = 1100;
+
+    function group(value, grouped) {
+      var text = String(value);
+
+      return grouped ? text.replace(/\B(?=(\d{3})+(?!\d))/g, ',') : text;
+    }
+
+    function animate(el) {
+      var finalText = el.textContent;
+      var match = finalText.match(/(\d[\d,]*)/);
+
+      if (!match) {
+        return;
+      }
+
+      var raw = match[1];
+      var target = parseInt(raw.replace(/,/g, ''), 10);
+
+      if (!isFinite(target) || target <= 0) {
+        return;
+      }
+
+      var grouped = raw.indexOf(',') !== -1;
+      var prefix = finalText.slice(0, match.index);
+      var suffix = finalText.slice(match.index + raw.length);
+      var started = null;
+
+      function frame(now) {
+        try {
+          if (started === null) {
+            started = now;
+          }
+
+          var progress = Math.min(1, (now - started) / DURATION);
+          var eased = 1 - Math.pow(1 - progress, 3);
+
+          if (progress < 1) {
+            el.textContent = prefix + group(Math.round(target * eased), grouped) + suffix;
+            window.requestAnimationFrame(frame);
+
+            return;
+          }
+
+          // The original string, not a recomputation of it.
+          el.textContent = finalText;
+        } catch (frameError) {
+          el.textContent = finalText;
+        }
+      }
+
+      window.requestAnimationFrame(frame);
+    }
+
+    var observer = new window.IntersectionObserver(function (entries) {
+      for (var i = 0; i < entries.length; i++) {
+        if (!entries[i].isIntersecting) {
+          continue;
+        }
+
+        // Before animating, so this runs once even if animate() throws.
+        observer.unobserve(entries[i].target);
+        animate(entries[i].target);
+      }
+    }, { threshold: 0.25 });
+
+    for (var n = 0; n < nodes.length; n++) {
+      observer.observe(nodes[n]);
+    }
+  } catch (error) {
+    if (window.console && window.console.warn) {
+      window.console.warn('pm-layout: stat counters unavailable', error);
     }
   }
 })();

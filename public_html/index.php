@@ -95,7 +95,11 @@ pmPageBegin([
     </div>
 
     <?php // Real figures from the brief, held as one json row rather than eight
-          // numbered keys, so adding a fifth is a content edit. ?>
+          // numbered keys, so adding a fifth is a content edit.
+          //
+          // data-pm-count animates the figure up from zero. The real number is
+          // the text content and must stay there; never render 0 and rely on
+          // script to replace it. ?>
     <div class="pm-grid pm-grid--ruled pm-grid--4 pm-mt-lg">
 <?php foreach (pmContentJson($pdo, 'home', 'hero_facts', [
         ['value' => '25',  'label' => 'Years collective experience'],
@@ -104,7 +108,7 @@ pmPageBegin([
         ['value' => '5',   'label' => 'Day residential format'],
       ]) as $fact): ?>
       <div class="pm-cell">
-        <span class="pm-stat__value"><?php echo pmEsc((string) ($fact['value'] ?? '')); ?></span>
+        <span class="pm-stat__value" data-pm-count><?php echo pmEsc((string) ($fact['value'] ?? '')); ?></span>
         <span class="pm-stat__label"><?php echo pmEsc((string) ($fact['label'] ?? '')); ?></span>
       </div>
 <?php endforeach; ?>
@@ -206,7 +210,7 @@ pmPageBegin([
           ['value' => '5',   'label' => 'Days per school'],
         ]) as $stat): ?>
         <div class="pm-cell">
-          <span class="pm-stat__value"><?php echo pmEsc((string) ($stat['value'] ?? '')); ?></span>
+          <span class="pm-stat__value" data-pm-count><?php echo pmEsc((string) ($stat['value'] ?? '')); ?></span>
           <span class="pm-stat__label"><?php echo pmEsc((string) ($stat['label'] ?? '')); ?></span>
         </div>
 <?php endforeach; ?>
