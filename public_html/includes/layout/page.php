@@ -99,12 +99,29 @@ if (is_file(__DIR__ . '/../events.php')) {
 
 if (!function_exists('pmActiveEvents')) {
     function pmActiveEvents(?PDO $pdo): array { return []; }
+    function pmAllEvents(?PDO $pdo): array { return []; }
+    function pmEventById(?PDO $pdo, int $id): ?array { return null; }
     function pmEventNextEarlyBird(array $event, ?string $today = null): ?array { return null; }
     function pmSoonestEarlyBird(array $events, ?string $today = null): ?array { return null; }
     function pmEventCity(array $event): string { return trim((string) strtok((string) ($event['location'] ?? ''), ',')); }
     function pmEarlyBirdBadge(array $event, string $lapsedLabel, ?string $today = null): string { return $lapsedLabel; }
     function pmEarlyBirdFill(string $template, array $earlyBird, array $event): string { return $template; }
     function pmEventsMatchingTags(array $events, array $tags): array { return $events; }
+    function pmEventIsPast(array $event, ?string $today = null): bool { return false; }
+    function pmEventIsListable(array $event, ?string $today = null): bool { return false; }
+    function pmPartitionEventsByDate(array $events, ?string $today = null): array { return ['upcoming' => [], 'past' => []]; }
+    /** The one stand-in that must still DO its job. It is the house no-em-dash
+     *  rule, and a no-op here would let the rule fail silently on exactly the
+     *  page whose data layer is already broken. It needs no database. */
+    function pmEventProse(?string $text): string {
+        return (string) preg_replace('/\s*\x{2014}\s*/u', ', ', (string) $text);
+    }
+    function pmEventLines(?string $text): array { return []; }
+    function pmEventAgenda(array $event): array { return []; }
+    function pmEventDateBlock(array $event): array { return ['range' => '', 'stamp' => '']; }
+    function pmEventDatesLong(array $event): string { return (string) ($event['date_display'] ?? ''); }
+    function pmEventLengthLabel(array $event, string $singular = 'day', string $plural = 'days'): string { return ''; }
+    function pmEventFocusTags(array $event): array { return []; }
 }
 
 // ── Event card markup, loaded defensively ───────────────────────────────────
@@ -180,17 +197,15 @@ function pmEsc(?string $value): string
  * The site navigation, in order, shared by the header and the footer's Site
  * column so the two can never drift apart.
  *
- * PHASE 3 NOTE — read before changing a URL here.
- * -----------------------------------------------
- * Phase 2 landed about.php, services.php and contact.php as real pages, so
- * those three are no longer homepage anchors. 'events' is still an anchor on
- * purpose: the standalone CPD calendar (events.php) and the redesigned
- * event.php are Phase 3, and until events.php exists the homepage's own events
- * grid is the only calendar there is. Pointing at a page that does not exist
- * would put a 404 in the header of every page on the site.
+ * Every item is now a real page. Phase 2 landed about.php, services.php and
+ * contact.php; Phase 3 landed events.php, and 'events' stopped being the
+ * homepage anchor it had been since launch. Nothing in this navigation points
+ * at a fragment any more, which was the whole point of the exercise: Section
+ * 4.1 of the design brief names nav links that pretend to be pages as the core
+ * problem with the live site.
  *
- * When events.php lands, change the one 'href' here and both the header and
- * the footer follow. sitemap.php needs the new URL too.
+ * Changing one 'href' here updates both the header and the footer's Site
+ * column. sitemap.php lists the same URLs and has to be kept in step by hand.
  *
  * The "Admin" link is deliberately absent. It was removed from the public
  * navbar in commit 66bc766 and must not be reintroduced.
@@ -201,7 +216,7 @@ function pmNavItems(): array
 {
     return [
         'home'        => ['label' => 'Home',        'href' => '/index.php'],
-        'events'      => ['label' => 'Events',      'href' => '/index.php#events'],
+        'events'      => ['label' => 'Events',      'href' => '/events.php'],
         'services'    => ['label' => 'Services',    'href' => '/services.php'],
         'about'       => ['label' => 'About',       'href' => '/about.php'],
         'sponsorship' => ['label' => 'Sponsorship', 'href' => '/sponsorship.php'],
@@ -285,11 +300,12 @@ function pmServiceHref(string $key): string
  * PHASE 4 NOTE: the redesigned multi-step registration flow is the last phase
  * of the rebuild, and there is no generic "register" URL today — the live
  * event-registration.php needs an event id. Until that flow exists, the honest
- * destination is the events list, where a delegate picks an event first.
+ * destination is the calendar, where a delegate picks a school first. Phase 3
+ * made that a real page, so this no longer has to send them to a fragment.
  */
 function pmRegisterHref(): string
 {
-    return '/index.php#events';
+    return '/events.php';
 }
 
 /**

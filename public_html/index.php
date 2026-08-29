@@ -125,6 +125,13 @@ pmPageBegin([
         <h2 class="pm-h2"><?php echo pmContentSafe($pdo, 'home', 'events_title',
           'Four flagship events'); ?></h2>
       </div>
+      <?php // Added in Phase 3, when the standalone calendar became a real
+            // page. The homepage grid shows what is coming; events.php is the
+            // whole calendar including the past cohorts the client requires be
+            // kept reachable. The approved prototype's homepage carries exactly
+            // this action in this position. ?>
+      <a class="pm-btn pm-btn--secondary pm-btn--sm pm-section-head__action" href="/events.php"><?php
+        echo pmContentSafe($pdo, 'home', 'events_cta_label', 'Full calendar'); ?></a>
     </div>
 
     <?php pmRenderEventGrid(

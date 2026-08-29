@@ -74,7 +74,7 @@ pmPageBegin([
           // heading nobody needs to read. ?>
     <nav class="pm-grid pm-grid--ruled pm-grid--4 pm-mt-lg" aria-label="Suggested pages">
 <?php foreach (pmContentJson($pdo, 'notfound', 'routes', [
-        ['eyebrow' => 'Calendar',    'label' => 'The 2026 schools',     'href' => '/index.php#events'],
+        ['eyebrow' => 'Calendar',    'label' => 'The 2026 schools',     'href' => '/events.php'],
         ['eyebrow' => 'Services',    'label' => 'The three pillars',    'href' => '/services.php'],
         ['eyebrow' => 'Sponsorship', 'label' => 'Partner with a school', 'href' => '/sponsorship.php'],
         ['eyebrow' => 'Contact',     'label' => 'Programme office',     'href' => '/contact.php'],

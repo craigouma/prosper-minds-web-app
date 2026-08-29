@@ -534,6 +534,36 @@ body.pm {
   color: var(--pm-green);
 }
 
+/* A price. Smaller than .pm-stat__value, which is a headline figure, and larger
+   than a heading, because on a pricing card the number IS the heading and the
+   tier name above it is the label.
+
+   Added in Phase 3 and used by both of its pricing blocks: the three delegate
+   tiers on an event page and the four sponsorship tiers. Lower case rather than
+   uppercase, because "USD 599" and "$15,000" are already set the way they are
+   meant to read and .pm-h2 would only shout them. */
+.pm-price {
+  font-size: clamp(26px, 2.9vw, 36px);
+  line-height: 1.05;
+  color: var(--pm-black);
+}
+
+/* The qualifier under a price: "per delegate", "per event". */
+.pm-price__note {
+  font-size: var(--pm-fs-eyebrow);
+  letter-spacing: var(--pm-ls-16);
+  text-transform: uppercase;
+  color: var(--pm-text-muted);
+}
+
+.pm-section--dark .pm-price {
+  color: var(--pm-white);
+}
+
+.pm-section--dark .pm-price__note {
+  color: var(--pm-on-dark-muted);
+}
+
 
 /* ---------------------------------------------------------------------------
    6. EYEBROW LABELS
@@ -595,6 +625,38 @@ body.pm {
 
 .pm-label--green {
   color: var(--pm-green);
+}
+
+/* A set of short standing labels: the job titles in the room on the
+   sponsorship page. Not links, not filters, not removable, so they are plain
+   <li> rather than buttons and carry no interactive affordance at all.
+
+   Added in Phase 3. Kept in the label family rather than invented as a pill
+   because the house shape is a 2px radius and a hairline, never a capsule.
+   Reusable anywhere a short closed vocabulary has to be shown as a set:
+   audiences, focus areas, accreditations. */
+.pm-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.pm-tag {
+  display: inline-block;
+  padding: 8px 13px;
+  border: var(--pm-rule);
+  border-radius: var(--pm-radius);
+  font-size: var(--pm-fs-small);
+  line-height: 1.3;
+  color: var(--pm-text-quaternary);
+}
+
+.pm-section--dark .pm-tag {
+  border-color: var(--pm-on-dark-rule);
+  color: var(--pm-on-dark);
 }
 
 
@@ -822,6 +884,34 @@ body.pm {
   align-self: flex-start;
 }
 
+/* ONE cell in a ruled grid filled green, everything else left alone.
+
+   Added in Phase 3 for the fact strip at the top of an event page, where the
+   approved prototype fills only the early bird cell. That is the sanctioned use
+   of green as an active state rather than as a background field: one cell in
+   four, carrying the single time-limited fact on the page.
+
+   The selector is scoped to .pm-grid--ruled > because the ruled grid paints its
+   children white at that same specificity, and an unscoped .pm-cell--accent
+   would lose to it. Black text on green, never white: 8.6:1 against 2.2:1. */
+.pm-grid--ruled > .pm-cell--accent {
+  background: var(--pm-green);
+  color: var(--pm-black);
+}
+
+/* Body and caption text inside the green cell. .pm-body's default is
+   --pm-text-muted, a grey chosen for white surfaces, and on green it drops to
+   roughly 3:1. These put it back on black, which is 8.6:1 against the brand
+   green and is the reason the accent band uses black text everywhere else. */
+.pm-cell--accent .pm-label {
+  color: var(--pm-black);
+}
+
+.pm-cell--accent .pm-body,
+.pm-cell--accent .pm-caption {
+  color: rgba(0, 0, 0, 0.78);
+}
+
 /* A band: heading on the left, one action on the right, wrapping on a phone.
    Used for the single accent CTA per page. */
 .pm-band {
@@ -998,6 +1088,143 @@ body.pm {
 .pm-switch__link[aria-current="page"] {
   color: var(--pm-black);
   border-top-color: var(--pm-green);
+}
+
+/* The compact form of the same control: two or three short boxed segments
+   sitting inline rather than a full-width row of columns.
+
+   Added in Phase 3 for the events calendar's "Upcoming / Past cohorts" filter,
+   which the approved prototype draws as a pair of small boxes with the current
+   one filled black, not as the wide top-ruled segments the services pages use.
+   The two are the same component because they are the same idea (a small,
+   closed set of peer views, each a real URL, marked with aria-current), and
+   splitting them would be two things to keep in step.
+
+   Which variant to use is a question of scale: --boxed when the labels are one
+   or two words and the control is a filter above a list, the base variant when
+   each segment carries a sentence and is a destination in its own right. */
+.pm-switch--boxed {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  grid-template-columns: none;
+}
+
+.pm-switch--boxed .pm-switch__link {
+  padding: 13px 22px;
+  min-height: var(--pm-tap-min);
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid var(--pm-border);
+  border-radius: var(--pm-radius);
+  color: var(--pm-black);
+  font-size: var(--pm-fs-label);
+  letter-spacing: var(--pm-ls-14);
+  text-transform: uppercase;
+}
+
+.pm-switch--boxed .pm-switch__link:hover,
+.pm-switch--boxed .pm-switch__link:focus-visible {
+  border-color: var(--pm-black);
+}
+
+.pm-switch--boxed .pm-switch__link[aria-current="page"] {
+  background: var(--pm-black);
+  border-color: var(--pm-black);
+  color: var(--pm-white);
+}
+
+/* ---------------------------------------------------------------------------
+   8b. THE LISTING: HAIRLINE-SEPARATED ROWS
+   ---------------------------------------------------------------------------
+   The calendar on events.php. Deliberately NOT the card grid: the approved
+   prototype draws the schools as full-width rows divided by a hairline, which
+   is the printed-timetable treatment, and a delegate comparing four schools
+   reads a stack of rows far faster than a row of tiles. The card grid stays
+   what the homepage and the service pages use, where a school is one item among
+   other kinds of content rather than the whole page.
+
+   Reusable rather than a one-off: events.php renders the same component twice
+   (upcoming and past cohorts) and any future "everything of one kind, in date
+   order" page wants exactly this. It is built from a grid rather than a table
+   because nothing in the row is tabular data with column headings.
+
+   The bar above it carries the filter on the left and the count on the right.
+--------------------------------------------------------------------------- */
+.pm-listing__bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 18px;
+  margin-bottom: 8px;
+}
+
+.pm-listing__count {
+  margin-left: auto;
+}
+
+.pm-listing {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.pm-listing__row {
+  display: grid;
+  /* banner | date | title and meta | price, badge and action */
+  grid-template-columns: minmax(160px, 220px) minmax(110px, 150px) minmax(0, 1fr) auto;
+  gap: clamp(18px, 2.4vw, 34px);
+  align-items: start;
+  padding-block: clamp(24px, 2.8vw, 34px);
+  border-top: var(--pm-rule-light);
+}
+
+.pm-listing > li:last-child .pm-listing__row {
+  border-bottom: var(--pm-rule-light);
+}
+
+.pm-listing__date {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+/* The day range: the largest thing in the row after the title. Not .pm-h2,
+   which is uppercase and would set a numeral in caps for no reason. */
+.pm-listing__range {
+  font-size: clamp(26px, 3vw, 38px);
+  line-height: 1;
+  color: var(--pm-black);
+}
+
+/* Location, length and focus tag on one wrapping line, separated by space
+   rather than by a glyph, so nothing has to be read out as punctuation. */
+.pm-listing__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 20px;
+}
+
+.pm-listing__side {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
+  min-width: 0;
+}
+
+@media (max-width: 900px) {
+  /* On a phone the four columns become two: the banner keeps the date beside
+     it, and the title, meta and actions run full width underneath. Collapsing
+     to a single column instead would push the action four screens down. */
+  .pm-listing__row {
+    grid-template-columns: minmax(120px, 1fr) minmax(0, 1.2fr);
+  }
+
+  .pm-listing__row > :nth-child(3),
+  .pm-listing__row > :nth-child(4) {
+    grid-column: 1 / -1;
+  }
 }
 
 /* Pull quote. The opening quotation mark is the only place green is used as
@@ -1631,6 +1858,17 @@ body.pm {
 .pm-row__main { flex: 1 1 320px; min-width: 0; }
 .pm-row__side { flex: 1 1 280px; min-width: 0; }
 
+/* A narrow leading column inside a .pm-row for an index: the "01 / DAY 1" mark
+   beside each day of an event agenda. Fixed rather than flexible, so the
+   numerals line up down the page however long the titles beside them are.
+   Added in Phase 3; the same shape suits any numbered step list. */
+.pm-row__index {
+  flex: 0 0 78px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
 .pm-mt-0  { margin-top: 0; }
 .pm-mt-sm { margin-top: 14px; }
 .pm-mt-md { margin-top: 22px; }
@@ -1695,6 +1933,18 @@ body.pm {
 
 .pm-relative { position: relative; }
 .pm-clip { overflow: hidden; }
+
+/* A control that only works with JavaScript, hidden until JavaScript has said
+   so. head.php stamps data-pm-js="on" on <html> before first paint, which is
+   the same contract .pm-nav-toggle already uses.
+
+   The rule this enforces: never show a visitor a button that will do nothing
+   when they press it. The banner library's "Copy link" needs the clipboard API,
+   so with scripts off it is absent and the "Download" link beside it, a plain
+   <a href> that needs nothing, is still there. */
+.pm-js-only { display: none; }
+
+[data-pm-js="on"] .pm-js-only { display: inline-block; }
 
 
 /* ---------------------------------------------------------------------------

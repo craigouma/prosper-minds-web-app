@@ -21,8 +21,15 @@ $today = date('Y-m-d');
 //
 // 404.php is deliberately absent, and so is contact-submit.php: this file is
 // for pages worth ranking, not for error states or endpoints.
+// Phase 3 added events.php, the standalone CPD calendar, which replaced the
+// homepage's #events fragment in the site navigation. It is listed second and
+// weekly because it is the page that changes most often after the homepage: it
+// gains a school whenever one is published and loses one to the past cohorts
+// view whenever one starts. The archive at /events.php?show=past is not listed
+// separately; it holds no URL the event pages below do not already carry.
 $staticPages = [
     ['loc' => '/index.php', 'changefreq' => 'weekly', 'priority' => '1.0'],
+    ['loc' => '/events.php', 'changefreq' => 'weekly', 'priority' => '0.9'],
     ['loc' => '/services.php', 'changefreq' => 'monthly', 'priority' => '0.8'],
     ['loc' => '/service-pfm.php', 'changefreq' => 'monthly', 'priority' => '0.7'],
     ['loc' => '/service-data.php', 'changefreq' => 'monthly', 'priority' => '0.7'],
