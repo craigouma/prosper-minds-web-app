@@ -1294,6 +1294,416 @@ check "seeded copy restored" "182" "$(pc_rows)"
 
 
 
+
+# ════════════════════════════════════════════════════════════════════════════
+# 12. PHASE 4: the rebuilt registration form, and the stat counters
+#
+# event-registration.php is the revenue path, so these assertions are about
+# behaviour and money, not appearance. The three that matter most:
+#
+#   * 12c, THE POST CONTRACT. Every field name process-registration.php reads
+#     out of $_POST is extracted FROM THE HANDLER and looked for in the rendered
+#     form. A renamed field would empty that column on every registration
+#     silently, and the failure would look like success.
+#   * 12e, the invoice agreement. The figures the summary panel shows are
+#     compared, as numbers, with unit_price_amount and total_amount as the
+#     handler actually stored them.
+#   * 12i, the deliberate breaks from 8g and 8h restated against the new form:
+#     a corrupted mailer and a broken funnel table must each still produce a
+#     successful, saved, invoiced registration.
+#
+# EVENT 5 throughout. Sections 3 and 7 use event 2 and section 8 uses event 3,
+# and no earlier section touches event 5, so every count below is determined by
+# this section alone. Section 8e asserts exact all-time registration and revenue
+# totals and runs before this, so the registrations created here cannot disturb
+# it.
+# ════════════════════════════════════════════════════════════════════════════
+
+R_EVENT=5
+R_URL="$MAIN/event-registration.php?id=$R_EVENT"
+R_TITLE="$(fq "SELECT title FROM events WHERE id=$R_EVENT")"
+R_LOC="$(fq "SELECT location FROM events WHERE id=$R_EVENT")"
+REG_UP=public_html/database/migrations/2026-08-29-03-seed-page-content-register.up.sql
+REG_DOWN=public_html/database/migrations/2026-08-29-03-seed-page-content-register.down.sql
+REG_JS=public_html/assets/js/pm-register.js
+
+reg_rows() { fq "SELECT COUNT(*) FROM page_content WHERE page_slug='register'"; }
+reg_attr() { printf '%s' "$1" | sed -n "s/.*$2=\"\([^\"]*\)\".*/\1/p" | head -1; }
+reg_col()  { fq "SELECT $2 FROM event_registrations WHERE email='$1'"; }
+
+# One registration posted with exactly the field names the rebuilt form renders,
+# through a session the form itself issued the token to.
+reg_submit() { # reg_submit <email> <delegate count>
+  local email="$1" n="$2" jar page tok i
+  local args=()
+  jar="$(mktemp)"
+  page="$(curl -s -b "$jar" -c "$jar" "$R_URL")"
+  tok="$(printf '%s' "$page" | sed -n 's/.*name="csrf_token" value="\([a-f0-9]*\)".*/\1/p' | head -1)"
+
+  i=1
+  while [ "$i" -le "$n" ]; do
+    args+=(-F "attendees[first_name][]=Delegate$i" -F "attendees[last_name][]=Phasefour" \
+           -F "attendees[email][]=d$i.$email" -F "attendees[title][]=Budget Controller")
+    i=$((i + 1))
+  done
+
+  curl -s -b "$jar" -X POST "$MAIN/process-registration.php" \
+    -F "csrf_token=$tok" -F "event_id=$R_EVENT" -F "event_name=$R_TITLE" \
+    -F "first_name=Phase" -F "last_name=Four" -F "phone=+254700000001" \
+    -F "email=$email" -F "organization=Local Test Ministry of Finance" \
+    -F "country=Kenya" -F "address=1 Test Street, Nairobi, 00100, Kenya" \
+    -F "gender=Female" -F "meal_preference=Vegetarian" \
+    -F "future_topics=Local testing only" -F "consent=yes" \
+    ${args[@]+"${args[@]}"}
+  rm -f "$jar"
+}
+
+echo ""; echo "=== 12a. The register seed migration ==="
+for m in "$REG_UP" "$REG_DOWN"; do
+  check "$(basename "$m") tracked in git" "yes" \
+    "$(git ls-files --error-unmatch "$m" >/dev/null 2>&1 && echo yes || echo no)"
+done
+check "register seed applies cleanly" "0" \
+  "$("${DB_MAIN_FILE[@]}" < "$REG_UP" >/dev/null 2>&1; echo $?)"
+check "register seed inserts 56 rows" "56" "$(reg_rows)"
+check "register seed re-applies without duplicating" "56" \
+  "$("${DB_MAIN_FILE[@]}" < "$REG_UP" >/dev/null 2>&1; reg_rows)"
+# INSERT IGNORE, not an upsert: from Phase 5 these rows are what staff edit.
+fq "UPDATE page_content SET content_value='EDITED BY A HUMAN' WHERE page_slug='register' AND section_key='summary_head'" >/dev/null
+"${DB_MAIN_FILE[@]}" < "$REG_UP" >/dev/null 2>&1
+check "re-seeding does not overwrite an edited row" "EDITED BY A HUMAN" \
+  "$(fq "SELECT content_value FROM page_content WHERE page_slug='register' AND section_key='summary_head'")"
+check "register down migration applies cleanly" "0" \
+  "$("${DB_MAIN_FILE[@]}" < "$REG_DOWN" >/dev/null 2>&1; echo $?)"
+check "no register rows left" "0" "$(reg_rows)"
+# Unseeded is not broken: every call site passes its own inline default.
+check "unseeded: the page still renders its own copy" "yes" \
+  "$(has_text "$(curl -s "$R_URL")" 'Invoice summary')"
+"${DB_MAIN_FILE[@]}" < "$REG_UP" >/dev/null 2>&1
+check "register seed restored" "56" "$(reg_rows)"
+
+echo ""; echo "=== 12b. The page renders on the design system ==="
+R_BODY="$(curl -s "$R_URL")"
+check "register page answers 200" "200" "$(page_code "event-registration.php?id=$R_EVENT")"
+check "h1 is the school itself" "$R_TITLE" "$(page_h1 "event-registration.php?id=$R_EVENT")"
+check "no PHP error in the page" "0" \
+  "$(printf '%s' "$R_BODY" | grep -ciE 'fatal error|parse error|warning:|uncaught|sqlstate')"
+check "no em dash in the rendered page" "0" "$(printf '%s' "$R_BODY" | grep -c $'\xe2\x80\x94')"
+check "loads the design system" "yes" "$(has_text "$R_BODY" 'pm-design-system.css')"
+check "no longer loads the old stylesheet" "no" "$(has_text "$R_BODY" 'assets/css/style.css')"
+check "no longer loads a font or icon CDN" "0" \
+  "$(printf '%s' "$R_BODY" | grep -ciE 'fonts\.googleapis|cdnjs\.cloudflare')"
+check "loads the flow script" "yes" "$(has_text "$R_BODY" '/assets/js/pm-register.js')"
+check "flow script is served" "200" "$(curl -s -o /dev/null -w '%{http_code}' "$MAIN/assets/js/pm-register.js")"
+# The prototype's five segments, by their own labels.
+check "five progress segments" "5" "$(printf '%s' "$R_BODY" | grep -c 'data-pm-progress=')"
+for lbl in 'Event and tickets' 'Contact and billing' 'Delegates' 'Review and consent' 'Confirmation'; do
+  check "progress names: $lbl" "yes" "$(has_text "$R_BODY" "$lbl")"
+done
+check "step counter present" "yes" "$(has_text "$R_BODY" 'Step 1 of 5')"
+check "selected school card names the location" "yes" "$(has_text "$R_BODY" "$R_LOC")"
+check "change school links to the calendar" "yes" \
+  "$(has_text "$R_BODY" 'pm-btn--link" href="/events.php"')"
+check "invoice summary panel present" "yes" "$(has_text "$R_BODY" 'Invoice summary')"
+check "bank transfer note present" "yes" \
+  "$(has_text "$R_BODY" 'No card details are collected on this site')"
+check "no undefined pm- class on the register page" "0" \
+  "$(printf '%s' "$R_BODY" | php -r '
+$html = stream_get_contents(STDIN);
+$css  = (string) @file_get_contents("public_html/assets/css/pm-design-system.css");
+preg_match_all("/\.(pm-[A-Za-z0-9_-]+)/", $css, $m);
+$defined = array_flip($m[1]);
+preg_match_all("/class=\"([^\"]*)\"/", $html, $u);
+$used = [];
+foreach ($u[1] as $attr) {
+    foreach (preg_split("/\s+/", trim($attr)) as $c) {
+        if ($c !== "" && str_starts_with($c, "pm-")) { $used[$c] = true; }
+    }
+}
+echo count(array_diff_key($used, $defined));')"
+# The handler refuses an inactive event, so the form must not render for one.
+fq "UPDATE events SET is_active = 0 WHERE id = $R_EVENT" >/dev/null
+check "inactive event redirects rather than rendering a doomed form" "302" \
+  "$(curl -s -o /dev/null -w '%{http_code}' "$R_URL")"
+fq "UPDATE events SET is_active = 1 WHERE id = $R_EVENT" >/dev/null
+check "active event renders again" "200" "$(page_code "event-registration.php?id=$R_EVENT")"
+
+echo ""; echo "=== 12c. THE POST CONTRACT: every field name the handler reads ==="
+# The list is extracted from process-registration.php, not retyped here, so a
+# field renamed on either side fails this rather than silently emptying a column.
+printf '%s' "$R_BODY" > /tmp/verify-reg-page.html
+check "handler reads no field the form does not send" "0" \
+  "$(php -r '
+$handler = (string) file_get_contents("public_html/process-registration.php");
+$page    = (string) file_get_contents("/tmp/verify-reg-page.html");
+preg_match_all("/\\\$_POST\\[.attendees.\\]\\[.(\\w+).\\]/", $handler, $nested);
+preg_match_all("/\\\$_POST\\[.(\\w+).\\]/", $handler, $scalar);
+$missing = 0;
+foreach (array_unique($scalar[1]) as $name) {
+    if ($name === "attendees") { continue; }
+    if (strpos($page, "name=\"" . $name . "\"") === false) { $missing++; }
+}
+foreach (array_unique($nested[1]) as $name) {
+    if (strpos($page, "name=\"attendees[" . $name . "][]\"") === false) { $missing++; }
+}
+echo $missing;')"
+# Named individually as well, so a failure above says which one.
+for n in csrf_token event_id event_name first_name last_name phone email \
+         organization country address gender meal_preference future_topics consent; do
+  check "form sends name=\"$n\"" "yes" "$(has_text "$R_BODY" "name=\"$n\"")"
+done
+for n in first_name last_name email title; do
+  check "form sends attendees[$n][], five rows" "5" \
+    "$(printf '%s' "$R_BODY" | grep -c -F "name=\"attendees[$n][]\"")"
+done
+check "delegate rows are real markup, not a template" "0" \
+  "$(printf '%s' "$R_BODY" | grep -ci '<template')"
+
+echo ""; echo "=== 12d. A full registration through the rebuilt form ==="
+R_ONE="$(reg_submit p4-one@example.test 1)"
+check "one delegate: returns success"   "true" "$(json_success "$R_ONE")"
+check "one delegate: row written"       "1"    "$(fq "SELECT COUNT(*) FROM event_registrations WHERE email='p4-one@example.test'")"
+check "one delegate: invoice number assigned" "1" \
+  "$(fq "SELECT COUNT(*) FROM event_registrations WHERE email='p4-one@example.test' AND invoice_number IS NOT NULL")"
+check "one delegate: invoice PDF written" "yes" \
+  "$([ -f "public_html/$(reg_col p4-one@example.test invoice_path)" ] && echo yes || echo no)"
+check "one delegate: consent captured"  "1"    "$(reg_col p4-one@example.test consent)"
+check "one delegate: attendee_count"    "1"    "$(reg_col p4-one@example.test attendee_count)"
+
+R_THREE="$(reg_submit p4-three@example.test 3)"
+check "three delegates: returns success" "true" "$(json_success "$R_THREE")"
+check "three delegates: attendee_count"  "3"    "$(reg_col p4-three@example.test attendee_count)"
+# The four attendees arrays are zipped by index in the handler, so a row that
+# lost one of its four fields would land with a blank name here.
+check "three delegates: all three names stored" "1" \
+  "$(fq "SELECT COUNT(*) FROM event_registrations WHERE email='p4-three@example.test'
+           AND attendee_details LIKE '%Delegate1%'
+           AND attendee_details LIKE '%Delegate2%'
+           AND attendee_details LIKE '%Delegate3%'")"
+check "three delegates: job titles stored" "1" \
+  "$(fq "SELECT COUNT(*) FROM event_registrations WHERE email='p4-three@example.test' AND attendee_details LIKE '%Budget Controller%'")"
+check "funnel: page_views logged for event 5" "yes" \
+  "$([ "$(funnel_rows page_view $R_EVENT)" -ge 2 ] && echo yes || echo no)"
+check "funnel: two submit_attempts"  "2" "$(funnel_rows submit_attempt $R_EVENT)"
+check "funnel: two submit_successes" "2" "$(funnel_rows submit_success $R_EVENT)"
+check "funnel: no submit_fail yet"   "0" "$(funnel_rows submit_fail $R_EVENT)"
+
+echo ""; echo "=== 12e. The total the UI shows is the total the handler stored ==="
+# The guard against an interface that disagrees with the system of record.
+R_UNIT_SHOWN="$(reg_attr "$R_BODY" data-pm-unit-amount)"
+R_TOTAL_SHOWN="$(reg_attr "$R_BODY" data-pm-total-amount)"
+R_CUR_SHOWN="$(reg_attr "$R_BODY" data-pm-currency)"
+check "unit price shown equals unit price stored" \
+  "$(reg_col p4-one@example.test unit_price_amount)" "$R_UNIT_SHOWN"
+check "currency shown equals currency stored" \
+  "$(reg_col p4-one@example.test currency_code)" "$R_CUR_SHOWN"
+check "total shown for one delegate equals the total stored" \
+  "$(reg_col p4-one@example.test total_amount)" "$R_TOTAL_SHOWN"
+# The multi-delegate rule, on real numbers: what the panel would show for three
+# delegates is unit x 3, and that has to be what the invoice charged.
+check "unit shown x 3 equals the three-delegate total stored" \
+  "$(reg_col p4-three@example.test total_amount)" \
+  "$(php -r 'printf("%.2f", (float) $argv[1] * 3);' "$R_UNIT_SHOWN")"
+check "response total matches the stored total" \
+  "$(reg_col p4-three@example.test total_amount)" \
+  "$(printf '%s' "$R_THREE" | php -r '$d=json_decode(stream_get_contents(STDIN),true); printf("%.2f", (float) ($d["total_amount"] ?? 0));')"
+# The prototype shows an early bird deduction. The handler applies none, so the
+# panel must not promise one.
+check "no discount line in the summary panel" "0" \
+  "$(printf '%s' "$R_BODY" | awk '/pm-reg__summary/,/<\/aside>/' \
+     | grep -ciE 'early bird|discount|deduct|per cent off')"
+check "no tier selector that could change the price" "0" \
+  "$(printf '%s' "$R_BODY" | grep -c -E 'name="tier"|name="delegate_tier"|data-pm-tier')"
+check "the flow script multiplies unit by count and nothing else" "1" \
+  "$(grep -c 'unitAmount \* delegateCount' "$REG_JS")"
+check "the flow script does no discount arithmetic" "0" \
+  "$(php -r 'echo preg_replace(["~/\*.*?\*/~s", "~//.*~"], "", (string) file_get_contents($argv[1]));' "$REG_JS" \
+     | grep -ciE 'discount|early.?bird|per cent')"
+# Two implementations of one rule, so assert they are literally the same two
+# patterns. The numeric agreement above is what proves the rule itself.
+check "the page's price parser mirrors parseEventPrice()" "yes" \
+  "$(php -r '
+$inv = (string) file_get_contents("public_html/includes/invoice.php");
+$reg = (string) file_get_contents("public_html/event-registration.php");
+preg_match_all("~preg_match\(([^,]+),~", $inv, $a);
+preg_match_all("~preg_match\(([^,]+),~", $reg, $b);
+$a = array_values(array_unique($a[1]));
+$b = array_values(array_unique($b[1]));
+sort($a); sort($b);
+echo (count($a) === 2 && $a === $b) ? "yes" : "no";')"
+
+echo ""; echo "=== 12f. CSRF on the rebuilt form ==="
+R_BEFORE="$(fq "SELECT COUNT(*) FROM event_registrations")"
+for mode in missing forged nosession; do
+  OUT="$(TOKEN_MODE=$mode EVENT_ID=$R_EVENT ./local-dev/test-register-main.sh "p4-csrf-$mode@example.test")"
+  check "rebuilt form: $mode token rejected" "false" "$(json_success "$OUT")"
+done
+check "rebuilt form: rejected posts stored nothing" "0" \
+  "$(fq "SELECT COUNT(*) FROM event_registrations WHERE email LIKE 'p4-csrf-%'")"
+check "rebuilt form: no new rows at all from them" "$R_BEFORE" \
+  "$(fq "SELECT COUNT(*) FROM event_registrations")"
+R_TOK="$(printf '%s' "$R_BODY" | sed -n 's/.*name="csrf_token" value="\([a-f0-9]*\)".*/\1/p' | head -1)"
+check "the form still carries a session CSRF token" "yes" \
+  "$(printf '%s' "$R_TOK" | grep -Eq '^[a-f0-9]{64}$' && echo yes || echo no)"
+
+echo ""; echo "=== 12g. The GA4 purchase event fires only from confirmed success ==="
+check "purchase event is in the flow script" "1" "$(grep -c "'purchase'" "$REG_JS")"
+for f in transaction_id currency item_id item_name quantity; do
+  check "purchase payload carries $f" "yes" "$(grep -q "$f" "$REG_JS" && echo yes || echo no)"
+done
+check "value comes from the server response" "1" \
+  "$(grep -c 'value: parseFloat(data.total_amount)' "$REG_JS")"
+check "price comes from the server response" "1" \
+  "$(grep -c 'price: parseFloat(data.unit_price_amount)' "$REG_JS")"
+# The one that matters: the confirmation, and the purchase event inside it, are
+# reached only after the success:true guard has already returned.
+check "confirmSuccess is called after the success guard, and only once" "yes" \
+  "$(awk '/data.success !== true/ { guard = NR } \
+           /^ *confirmSuccess\(data, submittedCount\);/ { call = NR; calls++ } \
+           END { print (calls == 1 && guard > 0 && call > guard) ? "yes" : "no" }' "$REG_JS")"
+check "the response carries a non-zero value to fire it with" "yes" \
+  "$(printf '%s' "$R_THREE" | php -r '$d=json_decode(stream_get_contents(STDIN),true);
+      echo ((float)($d["total_amount"] ?? 0) > 0 && ($d["invoice_number"] ?? "") !== "" && ($d["currency_code"] ?? "") !== "") ? "yes" : "no";')"
+
+echo ""; echo "=== 12h. The steps degrade without JavaScript ==="
+# curl runs no script, so $R_BODY IS the no-JavaScript rendering.
+check "the form posts to the handler on its own" "yes" \
+  "$(printf '%s' "$R_BODY" | php -r '
+$html = stream_get_contents(STDIN);
+preg_match("/<form[^>]*id=\"standaloneRegForm\"[^>]*>/s", $html, $m);
+$tag = $m[0] ?? "";
+echo (str_contains($tag, "action=\"/process-registration.php\"")
+      && str_contains($tag, "method=\"post\"")) ? "yes" : "no";')"
+check "a real submit button is in the document" "1" \
+  "$(printf '%s' "$R_BODY" | grep -c 'type="submit" data-pm-submit')"
+check "all four input steps are in the document" "4" \
+  "$(printf '%s' "$R_BODY" | grep -c 'class="pm-reg__panel"')"
+check "progress segments are real anchors" "5" \
+  "$(printf '%s' "$R_BODY" | grep -c 'href="#pm-reg-step-')"
+check "the confirmation ships hidden by attribute" "1" \
+  "$(printf '%s' "$R_BODY" | grep -c 'data-pm-done hidden')"
+# The steps must collapse on an attribute the flow script sets ITSELF, not on
+# html[data-pm-js], which would still be set if this were the file that broke.
+check "steps collapse on data-pm-steps" "yes" \
+  "$(grep -q '\[data-pm-steps="on"\] .pm-reg__panel' public_html/assets/css/pm-design-system.css && echo yes || echo no)"
+check "steps are NOT collapsed on data-pm-js" "0" \
+  "$(grep -c 'data-pm-js="on"\] .pm-reg' public_html/assets/css/pm-design-system.css)"
+check "the flag is set after the last listener is attached" "yes" \
+  "$(awk '/addEventListener/ { last = NR } /root.setAttribute\(.data-pm-steps./ { set = NR } \
+          END { print (set > last) ? "yes" : "no" }' "$REG_JS")"
+check "the whole flow script is inside one try/catch" "1" "$(grep -c '^  } catch (error) {' "$REG_JS")"
+check "hidden really hides, whatever the component display is" "1" \
+  "$(grep -c 'display: none !important' public_html/assets/css/pm-design-system.css)"
+
+echo ""; echo "=== 12i. CRITICAL: the 8g and 8h breaks, restated on the new form ==="
+# A corrupted mailer must still produce a saved, invoiced registration. Same
+# shape as section 3 and section 8g: break the secondary concern for real, then
+# prove the primary outcome is untouched.
+V=public_html/vendor/phpmailer/phpmailer/src/PHPMailer.php
+cp "$V" /tmp/verify-p4-phpmailer.bak
+head -c 130680 /tmp/verify-p4-phpmailer.bak > "$V"
+R_MAIL="$(reg_submit p4-corruptmailer@example.test 2)"
+cp /tmp/verify-p4-phpmailer.bak "$V"
+check "corrupt mailer: registration still returns success" "true" "$(json_success "$R_MAIL")"
+check "corrupt mailer: row persisted" "1" \
+  "$(fq "SELECT COUNT(*) FROM event_registrations WHERE email='p4-corruptmailer@example.test'")"
+check "corrupt mailer: invoice number assigned" "1" \
+  "$(fq "SELECT COUNT(*) FROM event_registrations WHERE email='p4-corruptmailer@example.test' AND invoice_number IS NOT NULL")"
+check "corrupt mailer: invoice PDF written" "yes" \
+  "$([ -f "public_html/$(reg_col p4-corruptmailer@example.test invoice_path)" ] && echo yes || echo no)"
+check "corrupt mailer: recorded as an unsent notification" "yes" \
+  "$([ "$(fq "SELECT COUNT(*) FROM failed_notifications WHERE registration_id = $(reg_col p4-corruptmailer@example.test id)")" -ge 1 ] && echo yes || echo no)"
+check "corrupt mailer: still counted as submit_success, never submit_fail" "3" \
+  "$(funnel_rows submit_success $R_EVENT)"
+check "corrupt mailer: no submit_fail" "0" "$(funnel_rows submit_fail $R_EVENT)"
+check "vendor file restored intact" "0" "$(php -l "$V" >/dev/null 2>&1; echo $?)"
+rm -f /tmp/verify-p4-phpmailer.bak
+
+# A broken funnel table must still produce a saved, invoiced registration. DROP
+# is not a sufficient break: ensureFunnelEventsSchema() would recreate it and
+# every insert would succeed. The real table is set aside and replaced with one
+# the INSERT cannot satisfy, which is what a half-applied migration looks like.
+fq "RENAME TABLE funnel_events TO funnel_events_p4bak" >/dev/null
+fq "CREATE TABLE funnel_events (id INT AUTO_INCREMENT PRIMARY KEY, wrong_column INT DEFAULT NULL)" >/dev/null
+check "broken funnel table: register page still renders" "200" \
+  "$(curl -s -o /dev/null -w '%{http_code}' "$R_URL")"
+R_FUNNEL="$(reg_submit p4-brokenfunnel@example.test 2)"
+check "broken funnel table: registration still returns success" "true" "$(json_success "$R_FUNNEL")"
+check "broken funnel table: row persisted" "1" \
+  "$(fq "SELECT COUNT(*) FROM event_registrations WHERE email='p4-brokenfunnel@example.test'")"
+check "broken funnel table: invoice number assigned" "1" \
+  "$(fq "SELECT COUNT(*) FROM event_registrations WHERE email='p4-brokenfunnel@example.test' AND invoice_number IS NOT NULL")"
+check "broken funnel table: invoice PDF written" "yes" \
+  "$([ -f "public_html/$(reg_col p4-brokenfunnel@example.test invoice_path)" ] && echo yes || echo no)"
+check "broken funnel table: nothing written to it" "0" "$(fq "SELECT COUNT(*) FROM funnel_events")"
+fq "DROP TABLE funnel_events" >/dev/null
+fq "RENAME TABLE funnel_events_p4bak TO funnel_events" >/dev/null
+check "real funnel table restored" "1" "$(table_exists funnel_events)"
+check "restored table still holds this section's rows" "3" "$(funnel_rows submit_success $R_EVENT)"
+
+echo ""; echo "=== 12j. The register page survives a broken content table ==="
+"${DB_MAIN[@]}" "RENAME TABLE page_content TO page_content_p4bak" >/dev/null 2>&1
+"${DB_MAIN[@]}" "CREATE TABLE page_content (id INT PRIMARY KEY)" >/dev/null 2>&1
+R_BROKEN="$(curl -s "$R_URL")"
+check "broken page_content: register page still 200" "200" "$(page_code "event-registration.php?id=$R_EVENT")"
+check "broken page_content: still has its h1" "$R_TITLE" "$(page_h1 "event-registration.php?id=$R_EVENT")"
+check "broken page_content: no error on the page" "0" \
+  "$(printf '%s' "$R_BROKEN" | grep -ciE 'fatal error|parse error|warning:|uncaught|sqlstate')"
+check "broken page_content: still no em dash" "0" "$(printf '%s' "$R_BROKEN" | grep -c $'\xe2\x80\x94')"
+# The field names are markup, not content, so a broken content table cannot
+# touch them. Asserted because that is the property the money depends on.
+check "broken page_content: the POST contract is intact" "yes" \
+  "$([ "$(has_text "$R_BROKEN" 'name="first_name"')" = yes ] && \
+     [ "$(has_text "$R_BROKEN" 'name="consent"')" = yes ] && \
+     [ "$(has_text "$R_BROKEN" 'name="attendees[first_name][]"')" = yes ] && \
+     [ "$(has_text "$R_BROKEN" 'name="attendees[title][]"')" = yes ] && echo yes || echo no)"
+check "broken page_content: the invoice figures still render" "599.00" \
+  "$(reg_attr "$R_BROKEN" data-pm-total-amount)"
+check "broken page_content: five progress segments still render" "5" \
+  "$(printf '%s' "$R_BROKEN" | grep -c 'data-pm-progress=')"
+"${DB_MAIN[@]}" "DROP TABLE page_content" >/dev/null 2>&1
+"${DB_MAIN[@]}" "RENAME TABLE page_content_p4bak TO page_content" >/dev/null 2>&1
+check "page_content restored with its rows" "238" "$(pc_rows)"
+
+echo ""; echo "=== 12k. Animated stat counters ==="
+# The old site rendered a permanent "0" because a counter script never fired.
+# curl runs no script, so these are the no-JavaScript renderings.
+IDX="$(curl -s "$MAIN/index.php")"
+ABT="$(curl -s "$MAIN/about.php")"
+check "homepage: the real 875 is in the markup" "2" \
+  "$(printf '%s' "$IDX" | grep -c 'data-pm-count>875<')"
+check "about: the real 875 is in the markup" "1" \
+  "$(printf '%s' "$ABT" | grep -c 'data-pm-count>875<')"
+check "homepage: the real 25 is in the markup" "2" \
+  "$(printf '%s' "$IDX" | grep -c 'data-pm-count>25<')"
+check "homepage: no counter renders as 0" "0" \
+  "$(printf '%s' "$IDX" | grep -c 'data-pm-count>0<')"
+check "about: no counter renders as 0" "0" \
+  "$(printf '%s' "$ABT" | grep -c 'data-pm-count>0<')"
+check "homepage: counter markup on every stat" "8" \
+  "$(printf '%s' "$IDX" | grep -c 'data-pm-count')"
+check "about: counter markup on every stat" "4" \
+  "$(printf '%s' "$ABT" | grep -c 'data-pm-count')"
+check "the counter lives in pm-layout.js, not a new file" "1" \
+  "$(grep -c 'data-pm-count' public_html/assets/js/pm-layout.js)"
+check "it animates only on scroll into view" "yes" \
+  "$(grep -q 'IntersectionObserver' public_html/assets/js/pm-layout.js && echo yes || echo no)"
+check "it animates each figure once" "1" \
+  "$(grep -c 'observer.unobserve' public_html/assets/js/pm-layout.js)"
+check "it respects prefers-reduced-motion" "1" \
+  "$(grep -c "prefers-reduced-motion: reduce" public_html/assets/js/pm-layout.js)"
+# The end state is the original string, not a recomputation of it, so a
+# thousands separator or a trailing + cannot be lost.
+check "it restores the original text verbatim" "2" \
+  "$(grep -c 'el.textContent = finalText;' public_html/assets/js/pm-layout.js)"
+check "the counter is its own try/catch" "2" \
+  "$(grep -c '^  } catch (error) {' public_html/assets/js/pm-layout.js)"
+check "pm-layout.js still lints" "0" \
+  "$(command -v node >/dev/null 2>&1 && { node --check public_html/assets/js/pm-layout.js >/dev/null 2>&1; echo $?; } || echo 0)"
+check "pm-register.js still lints" "0" \
+  "$(command -v node >/dev/null 2>&1 && { node --check "$REG_JS" >/dev/null 2>&1; echo $?; } || echo 0)"
+rm -f /tmp/verify-reg-page.html
+
 echo
 printf '\n%s\npassed=%d failed=%d\n%s\n' "$(printf '=%.0s' {1..78})" "$pass" "$fail" "$(printf '=%.0s' {1..78})"
 exit $((fail > 0 ? 1 : 0))
