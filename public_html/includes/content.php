@@ -1,61 +1,16 @@
 <?php
 /**
- * Database-driven page content for the rebuilt site.
+ * Page copy from the page_content table, addressed by (page_slug, section_key).
  *
- * WHY THIS EXISTS
- * ---------------
- * REBUILD-PLAN.md section 1 makes the case: if the new pages ship with their
- * copy hardcoded in PHP, then adding the planned CMS (Phase 5) means going back
- * and refactoring every page to read from the database instead. That rework is
- * avoidable by reading content from a table from the very first page, even
- * while there is no admin UI to edit it. Content is seeded by migration today;
- * the CMS later becomes an admin screen over a data layer that already exists
- * and has already been proven in production.
- *
- * THE MODEL
- * ---------
- * One table, page_content, addressed by (page_slug, section_key):
- *
- *     ('home', 'hero_title')     -> "Strong systems start with strong people"
- *     ('home', 'hero_body')      -> "Prosperminds trains senior government..."
- *     ('home', 'stats')          -> '[{"value":"25","label":"Years"}, ...]'
- *
- * content_type is one of text | html | image | json and decides how a value is
- * rendered, not how it is stored. Every value is a string in LONGTEXT; the
- * type is the contract between whoever seeds a row and whoever prints it.
- *
- * SAFETY CONTRACT — read before editing anything below.
- * -----------------------------------------------------
- * Page content is a SECONDARY concern. The primary outcome is that a page
- * renders. In August 2026 this site told 36 delegates their registration had
- * failed because a secondary concern (sending email) was allowed to decide the
- * primary answer; see the Phase 2 comment in process-registration.php and
- * commit 2d05cc1. includes/funnel.php restates the same discipline for
- * analytics. This file is the third instance of it, so:
- *
- *   1. Every public function catches Throwable — not Exception. A truncated
- *      include raises ParseError, which extends Error, which catch (Exception)
- *      does not catch. That is precisely how the August failure escaped.
- *   2. Nothing here ever throws, echoes, or sets an HTTP status. A missing
- *      table, an unreachable database, a malformed JSON value: every one of
- *      them returns the caller's own $default, so the page still renders with
- *      the copy the developer wrote inline as the fallback.
- *   3. Callers are expected to pass a real default for every key. A page whose
- *      fallback is an empty string will render blank if the table disappears,
- *      and that is the caller's bug, not this file's. Seeded values and inline
- *      defaults should say the same thing.
- *   4. The on-demand CREATE TABLE refuses to run inside an open transaction.
- *      CREATE TABLE causes an implicit COMMIT in MySQL, so a schema check in
- *      the middle of a registration could commit a half-written row. Content
- *      is never worth that.
- *   5. One query per page, not per key. pmContentAll() fetches the whole page
- *      and caches it in a static array for the rest of the request, including
- *      caching the failure, so a broken database costs one failed query rather
- *      than one per lookup.
- *
- * This file is loaded defensively by includes/layout/page.php, which substitutes
- * no-op stand-ins with the same signatures if the file is missing or fails to
- * parse. Call sites therefore need no guard of their own.
+ * Safety contract: content is secondary, rendering the page is primary.
+ *   - Every public function catches Throwable, not Exception, and returns the
+ *     caller's $default instead. A truncated include raises ParseError, which
+ *     extends Error, so catch (Exception) would miss it.
+ *   - Callers must pass a real default. An empty default renders blank if the
+ *     table disappears.
+ *   - The on-demand CREATE TABLE refuses to run inside an open transaction:
+ *     CREATE TABLE implicitly commits in MySQL and would commit a half-written
+ *     registration.
  */
 
 /** The four accepted content types. Enforced here rather than by a database

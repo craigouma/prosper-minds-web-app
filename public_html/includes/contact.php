@@ -1,44 +1,9 @@
 <?php
 /**
- * Contact form enquiries.
+ * Contact enquiries.
  *
- * WHY THIS EXISTS
- * ---------------
- * The contact form on the current live index.php is a set of inputs inside a
- * <form> with no action and no method and no name attributes. It posts nowhere.
- * Every enquiry ever typed into it was discarded by the browser. PROJECT.md
- * section 5, Priority 3 flags exactly this and notes it was never confirmed
- * whether the form delivers anywhere; it does not.
- *
- * THE RULE THIS FILE IS BUILT ON
- * ------------------------------
- * A message must never be lost, and the visitor must never be told it was lost
- * when it was not. Those are two different failures and this codebase has
- * already paid for both:
- *
- *   * In August 2026 thirty-six delegates were told their registration had
- *     failed because sending email was allowed to answer "was it saved?".
- *     Commit 2d05cc1 fixed that. The same trap is available here, and the same
- *     answer applies: the DATABASE ROW is the outcome, the email about it is
- *     not.
- *   * The live contact form is the opposite failure: it always reported nothing
- *     at all and stored nothing at all.
- *
- * So pmContactStore() returns true only on a confirmed INSERT, and the alert
- * email is sent afterwards by the caller, outside that judgement. A mail
- * failure marks the row `notified = 0` and is logged; it never turns a stored
- * message into a reported failure, and it never discards the message.
- *
- * That is why pmContactStore() reports its outcome at all, unlike the read
- * helpers in includes/content.php: a person pressing Send genuinely needs to
- * know whether their message was kept.
- *
- * WHAT IS STORED
- * --------------
- * Name, organisation, email, phone, the message, which form it came from, and
- * a timestamp. No IP address, no user agent, no referrer. Same
- * data-minimisation position as funnel_events and newsletter_subscribers, and
- * the same reason: none of the three helps anyone answer an enquiry.
+ * The message is stored before any mail is attempted, so a mail failure cannot
+ * lose it. Same rule as the registration path.
  */
 
 /** Longest message accepted. Comfortably above a real enquiry and far below

@@ -1,24 +1,4 @@
 <?php
-/**
- * Privacy policy.
- *
- * Written against what this codebase ACTUALLY does, not a generic template.
- * Every claim here was checked against the code before it was written:
- *
- *   * The registration fields listed are the columns process-registration.php
- *     really inserts into event_registrations.
- *   * The analytics cookie section describes includes/funnel.php as built:
- *     one first-party cookie (pm_funnel_sid), a random UUID, 24 hours, and
- *     deliberately no IP address and no user agent stored.
- *   * The newsletter section describes newsletter_subscribers, which stores an
- *     email address and a timestamp and nothing else.
- *
- * If any of those change, this page has to change with them. That is the point
- * of writing it from the code rather than from a boilerplate.
- *
- * House style: no em dashes anywhere in the copy. Client instruction.
- */
-
 require_once __DIR__ . '/includes/config.php';
 require_once __DIR__ . '/includes/layout/page.php';
 

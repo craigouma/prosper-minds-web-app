@@ -1,30 +1,4 @@
 <?php
-/**
- * The neural-node background motif.
- *
- * The brand's only sanctioned background texture. Section 2 of the design brief
- * permits "neural-network / node / abstract mind-inspired patterns ... used
- * sparingly and with intent, not as filler", and Section 5 rules out the
- * alternatives explicitly: no gradients, no blurred blobs, no abstract 3D
- * shapes, no stock photography.
- *
- * It is a partial rather than copy-pasted markup because it appears on four
- * Phase 2 pages and would otherwise be four chances for the node coordinates to
- * drift apart. The paths are the ones in the approved prototype, unchanged.
- *
- * Usage: inside a .pm-relative .pm-clip section, before the .pm-container.
- *
- *     <section class="pm-section pm-relative pm-clip">
- *       <?php include __DIR__ . '/includes/layout/motif.php'; ?>
- *       <div class="pm-container pm-relative"> ... </div>
- *     </section>
- *
- * aria-hidden because it carries no information: it is texture, and a screen
- * reader announcing fifteen circles would be noise. The colour is the brand
- * green literal rather than a token because SVG presentation attributes cannot
- * read a CSS custom property; it is the same #00BF63 --pm-green holds, and it
- * is the same literal the header and footer marks already use.
- */
 ?>
 <svg class="pm-motif" viewBox="0 0 800 480" preserveAspectRatio="xMidYMid slice" aria-hidden="true" focusable="false">
   <g stroke="#00BF63" stroke-width="0.7" fill="none" opacity="0.5">

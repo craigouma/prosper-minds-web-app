@@ -1,31 +1,4 @@
 <?php
-/**
- * Site footer for every rebuilt page, including the newsletter signup.
- *
- * Included by pmPageEnd() in includes/layout/page.php, which is the only
- * supported way to reach it — it expects $pmPage and $pdo to be in scope.
- *
- * Structure, taken from the approved prototype's footer:
- *   top band   newsletter: one line of copy, an email field, a green submit
- *   columns    brand + tagline | Site | Nairobi HQ | Contact
- *   bottom     rule and copyright
- *
- * NEWSLETTER
- * ----------
- * Footer-only and deliberately not a popup or modal. Revision 4 of the design
- * brief is explicit about why: a modal "conflicts with the brand's 'never
- * playful, strategic not sales-heavy' tone".
- *
- * It is a real form posting to a real endpoint, which is new — the current
- * live footer's field has no action and no method and silently discards
- * everything typed into it (PROJECT.md section 5, Priority 3).
- *
- * The result comes back as ?newsletter=<status> on the same page, so the
- * response works with JavaScript off. The status values are the ones
- * newsletter-subscribe.php redirects with, and anything unrecognised shows
- * nothing rather than guessing.
- */
-
 /** @var array<string, mixed> $pmPage */
 /** @var PDO|null $pdo */
 

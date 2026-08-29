@@ -1,43 +1,4 @@
 <?php
-/**
- * Contact form endpoint.
- *
- * Posted to by the form on contact.php. Built to the same shape as
- * newsletter-subscribe.php, which is the pattern in this codebase for a public,
- * unauthenticated write endpoint.
- *
- * WHAT IT ANSWERS WITH
- * --------------------
- * By default a 303 redirect back to /contact.php#enquiry, with the outcome
- * carried in the session rather than the query string. The newsletter endpoint
- * puts its status on the URL because its only state is one word; a contact form
- * that failed validation has to give the visitor their own paragraph back,
- * which does not belong in a URL and must not be bookmarkable or shareable.
- *
- * If the caller asks for JSON (Accept: application/json, or the
- * X-Requested-With header a fetch/XHR would send) it answers
- * {"success": bool, "status": "...", "message": "...", "errors": {...}},
- * matching the shape process-registration.php and newsletter-subscribe.php
- * already use. local-dev/verify.sh section 10c uses this path.
- *
- * WHAT IT NEVER DOES
- * ------------------
- * It never emits a 500, never prints a database error and never leaves the
- * visitor on a blank page. And it never loses a message: the row is committed
- * before the notification email is attempted, success is reported on the row,
- * and a mail failure is recorded against the row rather than shown to the
- * sender. That is the August 2026 rule (commit 2d05cc1) applied to a second
- * form. See the header of includes/contact.php.
- *
- * Statuses, in the order they are decided:
- *   method   the request was not a POST
- *   csrf     missing, malformed or forged token, nothing is stored
- *   invalid  a field failed validation, nothing is stored
- *   error    the row could not be written, nothing is stored
- *   ok       stored. The email may or may not have gone out; the sender is
- *            told their message is with us either way, because it is.
- */
-
 require_once __DIR__ . '/includes/config.php';
 require_once __DIR__ . '/includes/csrf.php';
 

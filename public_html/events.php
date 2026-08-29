@@ -1,37 +1,4 @@
 <?php
-/**
- * The CPD calendar.
- *
- * New in Phase 3. Until now "Events" was an anchor down the homepage, which is
- * the problem Section 4.1 of the design brief names: nav links that pretend to
- * be pages. This is a real URL, and pmNavItems() now points at it.
- *
- * UPCOMING AND PAST ARE TWO URLS, NOT A TAB
- * -----------------------------------------
- * The filter is a pair of links carrying ?show=, resolved on the server. It is
- * not a JavaScript toggle, for three reasons: the calendar stays usable with
- * scripts off, "the past cohorts" becomes a page somebody can link to and a
- * search engine can index, and the browser's own back button does the right
- * thing. The approved prototype draws it as a segmented control, which
- * .pm-switch--boxed is.
- *
- * PAST COHORTS ARE NEVER HIDDEN
- * -----------------------------
- * The client's onboarding email is explicit that past events must be preserved
- * and never deleted. The way an admin retires a finished school today is to
- * clear is_active, so the archive is built from pmAllEvents() rather than
- * pmActiveEvents(), and pmEventIsListable() is what still keeps an unpublished
- * FUTURE event (a draft) off the page. See includes/events.php.
- *
- * Every visible label comes from page_content slug 'events'. Every fact about a
- * school comes from the `events` table, and the early bird position is computed
- * on each render rather than stored, so it cannot go stale.
- *
- * House style: no em dashes in any user-visible copy. Client instruction, and
- * it applies to the database rows this page prints as much as to the copy in
- * it, which is what pmEventProse() is for.
- */
-
 require_once __DIR__ . '/includes/layout/page.php';
 
 // Two views, and only two. Anything else in the query string is the upcoming

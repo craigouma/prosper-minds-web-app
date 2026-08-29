@@ -1,18 +1,4 @@
 <?php
-/**
- * Document head for every rebuilt page.
- *
- * Included by pmPageBegin() in includes/layout/page.php, which is the only
- * supported way to reach it — it expects $pmPage (the resolved page config)
- * and $pdo to already be in scope. Do not include this file directly.
- *
- * The analytics tag is includes/google-tag.php, included unchanged. It carries
- * both the GA4 property (G-H030354F23) and the Ads tag (AW-18352784550), and
- * the Ads "Purchase" conversion is sourced from the GA4 purchase event, so the
- * tag has to be on every page for the funnel to attribute correctly. That file
- * is not modified by this phase.
- */
-
 /** @var array<string, mixed> $pmPage */
 /** @var PDO|null $pdo */
 

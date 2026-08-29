@@ -1,39 +1,7 @@
 <?php
 /**
- * Not found.
- *
- * Rebuilt on the design system. The page it replaces was standalone: it fetched
- * Inter from Google Fonts and Font Awesome from a CDN, used a purple-to-green
- * gradient header, 12px rounded corners and a drop shadow, and pulled its
- * assets with RELATIVE paths. That last one is the functional bug: Apache
- * serves this file through ErrorDocument for a request to any path, so a 404 at
- * /some/deep/path asked for /some/deep/assets/css/style.css and got nothing.
- * Every asset here is root-relative.
- *
- * WHAT THIS PAGE GAVE UP, AND WHY THAT IS ACCEPTABLE
- * --------------------------------------------------
- * The old file's header comment said "a 404 page must never fail itself, so
- * this does not require config.php or touch the database". That was a real
- * property and it is now gone: this page composes the shared layout, which
- * opens a database connection, and includes/config.php die()s if that fails.
- *
- * The trade is worth making and is mitigated:
- *
- *   * http_response_code(404) is set on the FIRST line, before anything is
- *     required. If config.php does die, the visitor still gets a 404 with a
- *     plain sentence rather than a 200 with the wrong content, which is the
- *     failure that actually matters to a crawler.
- *   * The content layer is already proof against its own failure: a missing,
- *     broken or unreachable page_content table renders the inline defaults
- *     below, and local-dev/verify.sh proves it against this page.
- *   * If the database is down, every other page on the site is down too. A
- *     branded 404 in that state is not the problem worth solving.
- *
- * The alternative, a second hand-written copy of the header and footer that
- * needs no database, is a copy that silently drifts from the real one. That
- * is precisely the duplication this rebuild exists to remove.
- *
- * House style: no em dashes in any user-visible copy. Client instruction.
+ * Sets a real 404 status. A PHP script defaults to 200, which would make this a
+ * soft 404 that a crawler cannot tell from a real page.
  */
 
 // First, before any require. See the header comment.

@@ -1,33 +1,4 @@
 <?php
-/**
- * Site header and primary navigation for every rebuilt page.
- *
- * Included by pmPageBegin() in includes/layout/page.php, which is the only
- * supported way to reach it — it expects $pmPage to already be in scope.
- *
- * Structure, taken from the approved prototype's header:
- *   left   shield-and-mind mark + PROSPERMINDS wordmark, linking home
- *   right  nav links in uppercase letter-spaced small caps
- *   far right  the green primary action
- *
- * The mark is inline SVG rather than an <img> so it inherits nothing, costs no
- * request, and stays crisp. It is the brand's secondary/digital logo: the
- * shield outline in green with the neural head inside in black. Per the brand
- * rules it is never recoloured, stretched, shadowed or rotated.
- *
- * MOBILE MENU — progressive enhancement, deliberately
- * ---------------------------------------------------
- * The nav is a plain list in the document. Below 900px, and ONLY when the
- * inline script in head.php has confirmed JavaScript runs (html[data-pm-js]),
- * CSS collapses it into a full-screen panel and reveals the toggle button.
- * With JavaScript off, no toggle is shown and every link stays in normal flow
- * and reachable. Nothing about navigating this site requires script.
- *
- * The toggle's state lives in one place: data-pm-nav-open on <html>. CSS reads
- * it, assets/js/pm-layout.js writes it, and aria-expanded is kept in step so
- * the control announces correctly.
- */
-
 /** @var array<string, mixed> $pmPage */
 
 $pmNavActive = (string) ($pmPage['nav'] ?? '');

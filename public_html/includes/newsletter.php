@@ -2,48 +2,10 @@
 /**
  * Newsletter subscriptions.
  *
- * WHY THIS EXISTS
- * ---------------
- * The newsletter field in the current live footer (index.php, and the same
- * markup copied into all three service-*.php pages) is a <form> with no action,
- * no method and no name attribute. It posts nowhere. Every address a visitor
- * has ever typed into it has been silently discarded. PROJECT.md section 5,
- * Priority 3 flags exactly this: "Confirm the contact form and newsletter
- * signup are wired to a real destination rather than silently discarding
- * submissions." This closes the newsletter half of it for the rebuilt pages.
- *
- * The rebuilt footer (includes/layout/footer.php) posts to
- * newsletter-subscribe.php, which calls pmNewsletterSubscribe() below. The
- * live pages are deliberately NOT changed in this phase; they keep their dead
- * form until Phase 2 replaces them wholesale.
- *
- * WHAT IS STORED, AND WHAT IS NOT
- * -------------------------------
- * The email address, the page that collected it, and a timestamp. Nothing
- * else. No IP address, no user agent, no referrer — the same data-minimisation
- * position taken for funnel_events, and for the same reason: the audience
- * includes EU and Kenyan public-sector delegates (GDPR / Kenya DPA 2019) and a
- * mailing list is not worth taking on personal data it does not need.
- *
- * An email address IS personal data. See PHASE1-FOUNDATION-PROGRESS.md,
- * "Before this reaches production", for the consent-wording and unsubscribe
- * questions that are a client decision, not a technical one.
- *
- * SAFETY CONTRACT
- * ---------------
- * A newsletter signup is a SECONDARY concern; the primary outcome is that the
- * page the form sits in renders and keeps working. So:
- *
- *   1. pmNewsletterSubscribe() catches Throwable, not Exception, and never
- *      throws. A missing table or an unreachable database returns an outcome
- *      array, it does not become a 500 on a page whose real job was to show a
- *      delegate a course agenda.
- *   2. The failure message shown to a visitor is calm and actionable and never
- *      exposes a database error. Details go to error_log() only.
- *   3. A repeat submission of an address already on the list is reported as
- *      success, not as an error. It is not a failure from the subscriber's
- *      point of view, and telling a stranger "that address is already
- *      subscribed" leaks who is on the list.
+ * pmNewsletterSubscribe() catches Throwable and never throws: a signup must not
+ * be able to 500 the page it sits in. A repeat address is reported as success,
+ * because telling a stranger an address is already subscribed leaks who is on
+ * the list.
  */
 
 /**

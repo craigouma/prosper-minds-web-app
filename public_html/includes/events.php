@@ -1,46 +1,13 @@
 <?php
 /**
- * Event data for the rebuilt public pages.
+ * Event data for the rebuilt pages.
  *
- * WHY THIS EXISTS
- * ---------------
- * Phase 2 pages (homepage, services overview, the three service detail pages)
- * all need the same three things from the `events` table: the list of active
- * events, a city label, and the early bird position. Before this file each of
- * those was open-coded in index.php, which is how the live homepage ended up
- * printing every early bird tier including the ones that had already lapsed.
+ * pmEventNextEarlyBird() returns the first early-bird tier whose date has not
+ * passed, or null when all three have. Deliberately computed rather than
+ * seeded: a stored date would go stale silently.
  *
- * THE EARLY BIRD RULE, AND WHY IT IS COMPUTED
- * -------------------------------------------
- * The approved prototype contains an invented deadline ("Seats for the October
- * cohort close on 12 September", "Twenty per cent applies until 15 July 2026").
- * Neither is true of the real data, and a wrong deadline on a page selling USD
- * 599 seats is worse than no deadline. PHASE1-FOUNDATION-PROGRESS.md section 8.3
- * therefore left home.cta_title deliberately unseeded.
- *
- * The fix is not to seed a corrected date, because a seeded date goes stale the
- * moment it passes and nobody notices. It is to compute the position from the
- * three tier columns the `events` table already carries, every time the page
- * renders. pmEventNextEarlyBird() below is the whole of that rule, and
- * local-dev/verify.sh section 10b pins it against fixed dates, including the
- * case where every tier has lapsed.
- *
- * SAFETY CONTRACT
- * ---------------
- * Same discipline as includes/content.php and includes/funnel.php. A public
- * marketing page whose real job is to render must not be taken down by the
- * events query, so:
- *
- *   1. pmActiveEvents() catches Throwable, not Exception, and returns [] on any
- *      failure. Callers render an empty state, not a 500.
- *   2. Nothing here throws, echoes, or sets an HTTP status.
- *   3. pmEventNextEarlyBird() is pure: it takes an already-fetched row and a
- *      date string, touches no database and no globals, which is what makes it
- *      testable against fixed dates rather than against "today".
- *
- * This file is loaded defensively by includes/layout/page.php, which substitutes
- * no-op stand-ins with the same signatures if it is missing or fails to parse.
- * Call sites need no guard of their own.
+ * Reads never throw. A failed query returns an empty set so a page still
+ * renders, matching the contract in includes/content.php.
  */
 
 /** The columns every list view needs. One definition, so the active list and

@@ -1,41 +1,4 @@
 <?php
-/**
- * Contact page.
- *
- * New. "Contact" was an anchor down the homepage on the live site, and the form
- * at the end of that anchor was a set of inputs inside a <form> with no action,
- * no method and no name attributes. It posted nowhere. Every enquiry ever typed
- * into it was discarded by the browser before it left the page. PROJECT.md
- * section 5, Priority 3 records that nobody had confirmed whether it delivered
- * anywhere; it did not.
- *
- * This form posts to contact-submit.php, which stores the message in
- * contact_messages before it attempts to notify anyone, and reports success on
- * the stored row rather than on the email about it. See the header of
- * includes/contact.php for why that distinction is the whole point.
- *
- * THE FLASH
- * ---------
- * contact-submit.php answers a browser with a 303 back to this page and puts
- * the outcome in the session rather than the query string, because a failed
- * submission has to hand the visitor their own paragraph back and a URL is the
- * wrong place for someone's enquiry. It is read once here and cleared
- * immediately, so a refresh does not replay it and a stale message cannot
- * appear on a later visit.
- *
- * WHY THERE IS NO EMBEDDED MAP
- * ----------------------------
- * A mapping provider's iframe is a cross-border third-party request setting its
- * own cookies, on the one page whose entire job is a form covered by the Kenya
- * Data Protection Act 2019 and GDPR. It would need a consent banner to be
- * lawful and would be the only thing on the site that did. The brief also rules
- * out stock imagery in the same breath. So the location is a flat schematic in
- * the brand palette plus written directions, which costs one request less and
- * needs no consent at all.
- *
- * House style: no em dashes in any user-visible copy. Client instruction.
- */
-
 require_once __DIR__ . '/includes/layout/page.php';
 
 // Read once, clear immediately. Anything still in the session after this line

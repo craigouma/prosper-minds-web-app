@@ -1,23 +1,4 @@
 <?php
-/**
- * Services overview: the three pillars, side by side.
- *
- * New. "Services" was an anchor down the homepage on the live site. This page
- * answers one question, "what are the three things Prosperminds teaches", in a
- * form a delegate can compare across, and hands off to a detail page per pillar
- * for the narrative, the audience, the teaching format and the calendar.
- *
- * The pillar data is one json row, page_content services.pillars, shared with
- * the homepage and the About page. The URL each pillar maps to is a route
- * rather than content and lives in pmServiceHref(); see the comment there.
- *
- * The events grid shows EVERY active school, not a filtered subset, because
- * the three pillars between them cover the whole calendar. The per-pillar
- * filtering happens on the detail pages, where the question is narrower.
- *
- * House style: no em dashes in any user-visible copy. Client instruction.
- */
-
 require_once __DIR__ . '/includes/layout/page.php';
 
 $events = pmActiveEvents($pdo);

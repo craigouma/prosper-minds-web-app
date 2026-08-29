@@ -1,38 +1,9 @@
 <?php
 /**
- * Newsletter signup endpoint for the rebuilt site's footer.
+ * Endpoint for the footer newsletter form.
  *
- * Posted to by the form in includes/layout/footer.php. The current live pages
- * (index.php, service-*.php) are untouched by this phase and keep their dead,
- * action-less field until Phase 2 replaces them.
- *
- * WHAT IT ANSWERS WITH
- * --------------------
- * By default a 303 redirect back to the page the visitor was on, with
- * ?newsletter=<status> appended and #newsletter as the fragment, so the footer
- * can show the result. That path works with JavaScript switched off, which is
- * the whole reason it is a redirect and not a JSON-only endpoint.
- *
- * If the caller asks for JSON (Accept: application/json, or the
- * X-Requested-With: XMLHttpRequest header a fetch/XHR would send), it answers
- * {"success": bool, "status": "...", "message": "..."} instead, matching the
- * shape process-registration.php already uses. local-dev/verify.sh uses this
- * path because a JSON body is far easier to assert on than a Location header.
- *
- * WHAT IT NEVER DOES
- * ------------------
- * It never emits a 500, never prints a database error, and never leaves the
- * visitor on a blank page. A newsletter signup is a secondary concern; the
- * primary outcome is that the page it sits in keeps working. Every failure is
- * a calm sentence and an error_log() line. See the safety contract at the top
- * of includes/newsletter.php.
- *
- * Statuses, in the order they are decided:
- *   method   the request was not a POST
- *   csrf     missing, malformed or forged token — nothing is stored
- *   ok       stored, or already stored (a repeat submit is not a failure)
- *   invalid  not a usable email address — nothing is stored
- *   error    the database could not be reached — nothing is stored
+ * return_to is re-validated here and never trusted from the request: it is a
+ * path only, rejecting anything starting "//" to close an open redirect.
  */
 
 require_once __DIR__ . '/includes/config.php';

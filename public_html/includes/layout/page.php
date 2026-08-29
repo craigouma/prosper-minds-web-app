@@ -1,54 +1,7 @@
 <?php
 /**
- * Shared page bootstrap and layout composition for the rebuilt site.
- *
- * HOW A PAGE USES THIS
- * --------------------
- * This file must be the FIRST thing a page requires, before any output at all,
- * because it starts the session (the footer's newsletter form needs a CSRF
- * token) and because includes/config.php may need to send headers.
- *
- *     <?php
- *     require_once __DIR__ . '/includes/layout/page.php';
- *
- *     $content = pmContentAll($pdo, 'about');   // one query, whole page
- *
- *     pmPageBegin([
- *         'slug'        => 'about',
- *         'nav'         => 'about',
- *         'title'       => 'About Prosperminds',
- *         'description' => 'Twenty-five years inside treasuries and audit offices.',
- *         'canonical'   => '/about.php',
- *     ]);
- *     ?>
- *     <section class="pm-section">
- *       <div class="pm-container">
- *         <span class="pm-eyebrow">Track record</span>
- *         <h1 class="pm-h1"><?php echo pmContentSafe($pdo, 'about', 'hero_title',
- *               'Twenty-five years in the room'); ?></h1>
- *       </div>
- *     </section>
- *     <?php
- *     pmPageEnd();
- *
- * Every visible string goes through pmContentSafe() (or pmContentAll() plus
- * pmEsc()) with a real inline default. The default is what the page shows if
- * the content table is missing, empty or unreachable, so it should say the same
- * thing the seeded row says — see includes/content.php, safety contract point 3.
- *
- * WHY THE DEFENSIVE LOAD BELOW
- * ----------------------------
- * includes/content.php is new, and the August 2026 outage was one new file
- * arriving incomplete: a truncated PHP file raises ParseError, an Error, which
- * catch (Exception) does not catch. includes/config.php already loads
- * includes/funnel.php this way and substitutes no-ops. The same treatment is
- * applied here to content.php and newsletter.php, so a page that composes this
- * layout renders its inline defaults rather than a white screen if either file
- * arrives broken. Call sites need no guard of their own.
- *
- * config.php itself is loaded normally, not defensively: it opens the database
- * connection the whole site depends on, so if it is broken there is no page to
- * save. That is the same judgement the existing entry points already make.
+ * Page bootstrap: pmPageBegin() opens the document and chrome, pmPageEnd()
+ * closes it. Pages should not include head.php or footer.php directly.
  */
 
 require_once __DIR__ . '/../config.php';
