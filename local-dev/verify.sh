@@ -780,6 +780,109 @@ check "seeded copy is back on the page" "Strong systems start with strong people
   "$(pm_check "$(curl -s "$PREVIEW")" seeded)"
 rm -f /tmp/verify-content.bak /tmp/verify-content-page.html "$NJAR" "$NBODY"
 
+# ---------------------------------------------------------------------------
+# 10. PHASE 2 PAGES
+# ---------------------------------------------------------------------------
+# The Phase 2 rebuild replaced index.php and the three service pages and added
+# about.php, services.php and contact.php. These assertions are deliberately
+# behavioural rather than cosmetic: that each page answers, that it carries its
+# own h1 (so a page has not been wired to the wrong template), that the house
+# no-em-dash rule holds in the RENDERED output rather than only in source, and
+# that the Phase 1 content-layer safety contract still holds for real pages and
+# not just the preview page.
+
+echo ""; echo "=== 10a. Every Phase 2 page answers with its own h1 ==="
+
+page_h1() { curl -s "$MAIN/$1" | grep -o '<h1[^>]*>[^<]*' | head -1 | sed 's/<[^>]*>//' | sed 's/^ *//;s/ *$//'; }
+page_code() { curl -s -o /dev/null -w '%{http_code}' "$MAIN/$1"; }
+
+for pg in index.php about.php services.php service-pfm.php service-data.php \
+          service-sustainability.php contact.php privacy-policy.php; do
+  check "$pg answers 200" "200" "$(page_code "$pg")"
+done
+
+# Each h1 must be non-empty AND distinct from the homepage's, which catches a
+# page accidentally rendering the homepage template.
+HOME_H1="$(page_h1 index.php)"
+check "index.php has an h1" "yes" "$([ -n "$HOME_H1" ] && echo yes || echo no)"
+for pg in about.php services.php service-pfm.php service-data.php \
+          service-sustainability.php contact.php privacy-policy.php; do
+  H="$(page_h1 "$pg")"
+  check "$pg has its own h1" "yes" \
+    "$([ -n "$H" ] && [ "$H" != "$HOME_H1" ] && echo yes || echo no)"
+done
+
+check "404.php really returns 404" "404" "$(page_code 404.php)"
+
+echo ""; echo "=== 10b. No em dashes in rendered output (client house style) ==="
+# Checked on the rendered HTML, not the source: source may legitimately contain
+# em dashes inside PHP comments, which are never shipped.
+for pg in index.php about.php services.php service-pfm.php service-data.php \
+          service-sustainability.php contact.php privacy-policy.php 404.php; do
+  check "$pg renders no em dash" "0" "$(curl -s "$MAIN/$pg" | grep -c '\xe2\x80\x94')"
+done
+
+echo ""; echo "=== 10c. Contact enquiry endpoint ==="
+CJAR=$(mktemp); CBODY=$(mktemp)
+contact_rows() { fq "SELECT COUNT(*) FROM contact_messages WHERE email='$1'"; }
+
+# A valid submission needs the session's own CSRF token, exactly as a browser
+# would carry it.
+CPAGE="$(curl -s -c "$CJAR" -b "$CJAR" "$MAIN/contact.php")"
+CTOK="$(printf '%s' "$CPAGE" | sed -n 's/.*name="csrf_token" value="\([a-f0-9]*\)".*/\1/p' | head -1)"
+check "contact form exposes a CSRF token" "yes" "$([ -n "$CTOK" ] && echo yes || echo no)"
+
+curl -s -o "$CBODY" -b "$CJAR" -c "$CJAR" -X POST "$MAIN/contact-submit.php" \
+  -d "csrf_token=$CTOK" -d "name=Verify Tester" -d "email=contact-ok@example.test" \
+  -d "organisation=Ministry of Testing" -d "message=A real enquiry from verify.sh" >/dev/null
+check "valid enquiry stored" "1" "$(contact_rows contact-ok@example.test)"
+
+# Forged token must store nothing.
+curl -s -o /dev/null -b "$CJAR" -X POST "$MAIN/contact-submit.php" \
+  -d "csrf_token=deadbeefdeadbeefdeadbeefdeadbeef" -d "name=Forged" \
+  -d "email=contact-forged@example.test" -d "message=should not persist"
+check "forged CSRF stores nothing" "0" "$(contact_rows contact-forged@example.test)"
+
+# Invalid address must be rejected.
+CPAGE2="$(curl -s -c "$CJAR" -b "$CJAR" "$MAIN/contact.php")"
+CTOK2="$(printf '%s' "$CPAGE2" | sed -n 's/.*name="csrf_token" value="\([a-f0-9]*\)".*/\1/p' | head -1)"
+curl -s -o /dev/null -b "$CJAR" -X POST "$MAIN/contact-submit.php" \
+  -d "csrf_token=$CTOK2" -d "name=Bad Address" -d "email=not-an-email" \
+  -d "message=should not persist"
+check "invalid email stores nothing" "0" "$(contact_rows not-an-email)"
+rm -f "$CJAR" "$CBODY"
+
+echo ""; echo "=== 10d. Office map is self-hosted and wired ==="
+check "maplibre js served"  "200" "$(curl -s -o /dev/null -w '%{http_code}' "$MAIN/assets/js/maplibre-gl.js")"
+check "maplibre css served" "200" "$(curl -s -o /dev/null -w '%{http_code}' "$MAIN/assets/css/maplibre-gl.css")"
+check "pm-map.js served"    "200" "$(curl -s -o /dev/null -w '%{http_code}' "$MAIN/assets/js/pm-map.js")"
+# No CDN: a third-party script host is exactly what self-hosting avoided.
+check "no CDN script host on contact.php" "0" \
+  "$(curl -s "$MAIN/contact.php" | grep -c 'unpkg\|jsdelivr\|cdnjs')"
+check "map uses the positron style" "1" \
+  "$(curl -s "$MAIN/contact.php" | grep -c 'tiles.openfreemap.org/styles/positron')"
+# The address must be real text on the page, never only inside the map.
+check "address is real text, not only in the map" "yes" \
+  "$(curl -s "$MAIN/contact.php" | grep -q 'Twiga Towers' && echo yes || echo no)"
+
+echo ""; echo "=== 10e. CRITICAL: Phase 2 pages survive a broken content table ==="
+# Phase 1 proved this for the preview page. It has to hold for the real pages
+# too, or the safety contract is decorative.
+"${DB_MAIN[@]}" "RENAME TABLE page_content TO page_content_p2bak" >/dev/null 2>&1
+"${DB_MAIN[@]}" "CREATE TABLE page_content (id INT PRIMARY KEY)" >/dev/null 2>&1
+for pg in index.php about.php services.php contact.php; do
+  check "broken page_content: $pg still 200" "200" "$(page_code "$pg")"
+  check "broken page_content: $pg still has an h1" "yes" \
+    "$([ -n "$(page_h1 "$pg")" ] && echo yes || echo no)"
+done
+"${DB_MAIN[@]}" "DROP TABLE page_content" >/dev/null 2>&1
+"${DB_MAIN[@]}" "RENAME TABLE page_content_p2bak TO page_content" >/dev/null 2>&1
+check "page_content restored" "1" \
+  "$(fq "SELECT COUNT(*) > 0 FROM page_content")"
+check "seeded copy back after restore" "yes" \
+  "$([ -n "$(page_h1 index.php)" ] && echo yes || echo no)"
+
+
 echo
 printf '\n%s\npassed=%d failed=%d\n%s\n' "$(printf '=%.0s' {1..78})" "$pass" "$fail" "$(printf '=%.0s' {1..78})"
 exit $((fail > 0 ? 1 : 0))
