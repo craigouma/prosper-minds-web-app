@@ -1175,7 +1175,7 @@ tier_selected() {
     | sed -n 's/.*<option value="\([^"]*\)" selected>.*/\1/p' | head -1
 }
 check "?tier=platinum pre-selects Platinum"        "Platinum, \$15,000"    "$(tier_selected platinum)"
-check "?tier=bronze pre-selects Bronze"            "Bronze, \$2,000"       "$(tier_selected bronze)"
+check "?tier=bronze pre-selects Bronze"            "Bronze, \$2,500"       "$(tier_selected bronze)"
 check "?tier=gala-dinner pre-selects the package"  "Gala Dinner, \$1,000"  "$(tier_selected gala-dinner)"
 check "no ?tier= selects nothing"                  "0" \
   "$(printf '%s' "$SPPAGE" | grep -c ' selected>')"
