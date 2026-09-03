@@ -441,40 +441,24 @@ include 'header.php';
 <?php endif; ?>
 
 <div class="finance-shell">
-    <div class="finance-topbar finance-topbar-compact">
-        <div class="finance-brand">
-            <div class="finance-brand-icon"><i class="fas fa-book"></i></div>
-            <div>
-                <strong>Prosperminds Finance</strong>
-                <span>Sales, payables and reporting workspace</span>
+    <div class="pma-financetabs">
+<?php
+$pmFinanceGroups = [
+    'Dashboard'  => ['overview' => 'Executive summary', 'collections' => 'Collections pipeline', 'reporting' => 'Reporting'],
+    'Sales'      => ['customers' => 'Customers', 'invoices' => 'Invoices', 'credit-notes' => 'Credit notes'],
+    'Purchasing' => ['vendors' => 'Vendors', 'vendor-bills' => 'Vendor bills', 'expenses' => 'Expenses'],
+];
+foreach ($pmFinanceGroups as $pmGroupLabel => $pmItems): ?>
+        <div class="pma-financegroup">
+            <span class="pma-financegroup-label"><?php echo htmlspecialchars($pmGroupLabel); ?></span>
+            <div class="pma-financegroup-items">
+<?php   foreach ($pmItems as $pmKey => $pmLabel): ?>
+                <a class="tab-btn <?php echo $section === $pmKey ? 'active' : ''; ?>" style="text-decoration:none"
+                   href="accounting.php?section=<?php echo $pmKey; ?>"><?php echo htmlspecialchars($pmLabel); ?></a>
+<?php   endforeach; ?>
             </div>
         </div>
-        <nav class="finance-menu finance-menu-dropdown">
-            <details class="finance-dropdown" <?php echo in_array($section, ['overview', 'collections', 'reporting'], true) ? 'open' : ''; ?>>
-                <summary class="finance-menu-item">Dashboard</summary>
-                <div class="finance-dropdown-panel">
-                    <a href="accounting.php?section=overview">Executive Summary</a>
-                    <a href="accounting.php?section=collections">Collections Pipeline</a>
-                    <a href="accounting.php?section=reporting">Reporting</a>
-                </div>
-            </details>
-            <details class="finance-dropdown" <?php echo in_array($section, ['customers', 'invoices', 'credit-notes'], true) ? 'open' : ''; ?>>
-                <summary class="finance-menu-item">Sales</summary>
-                <div class="finance-dropdown-panel">
-                    <a href="accounting.php?section=customers">Customers</a>
-                    <a href="accounting.php?section=invoices">Invoices</a>
-                    <a href="accounting.php?section=credit-notes">Credit Notes</a>
-                </div>
-            </details>
-            <details class="finance-dropdown" <?php echo in_array($section, ['vendors', 'vendor-bills', 'expenses'], true) ? 'open' : ''; ?>>
-                <summary class="finance-menu-item">Purchasing</summary>
-                <div class="finance-dropdown-panel">
-                    <a href="accounting.php?section=vendors">Vendors</a>
-                    <a href="accounting.php?section=vendor-bills">Vendor Bills</a>
-                    <a href="accounting.php?section=expenses">Expenses</a>
-                </div>
-            </details>
-        </nav>
+<?php endforeach; ?>
     </div>
 
     <div class="stats-grid" style="margin-top:18px;">
@@ -650,6 +634,9 @@ include 'header.php';
                             <strong>Invoice Lines</strong>
                             <button type="button" class="btn btn-outline btn-sm" onclick="addFinanceLine('invoiceLinesBody','invoice')">Add Line</button>
                         </div>
+                        <div class="finance-line-head">
+                            <span>Applies to</span><span>Description</span><span>Qty</span><span>Unit price</span><span></span>
+                        </div>
                         <div id="invoiceLinesBody"></div>
                     </div>
                     <div class="form-group" style="margin-top:16px;"><label>Notes</label><textarea name="notes" class="form-control"></textarea></div>
@@ -767,6 +754,9 @@ include 'header.php';
                         <div class="finance-lines-header">
                             <strong>Bill Lines</strong>
                             <button type="button" class="btn btn-outline btn-sm" onclick="addFinanceLine('billLinesBody','bill')">Add Line</button>
+                        </div>
+                        <div class="finance-line-head">
+                            <span>Applies to</span><span>Description</span><span>Qty</span><span>Unit price</span><span></span>
                         </div>
                         <div id="billLinesBody"></div>
                     </div>
@@ -943,10 +933,10 @@ function financeLineRow(type) {
 
     return `
         <div class="finance-line-row">
-            <select name="${eventFieldName}" class="form-control">${optionsHtml}</select>
-            <input type="text" name="${descFieldName}" class="form-control" placeholder="Description" required>
-            <input type="number" step="0.01" min="0.01" name="${qtyFieldName}" class="form-control" placeholder="Qty" value="1" required>
-            <input type="number" step="0.01" min="0" name="${priceFieldName}" class="form-control" placeholder="Unit Price" value="0.00" required>
+            <select name="${eventFieldName}" class="form-control" aria-label="What this line is for">${optionsHtml}</select>
+            <input type="text" name="${descFieldName}" class="form-control" aria-label="Description" placeholder="What is being charged for" required>
+            <input type="number" step="1" min="1" name="${qtyFieldName}" class="form-control" aria-label="Quantity" value="1" required>
+            <input type="number" step="0.01" min="0" name="${priceFieldName}" class="form-control" aria-label="Unit price" value="0.00" required>
             <button type="button" class="btn btn-outline btn-sm" onclick="this.parentElement.remove()">Remove</button>
         </div>
     `;

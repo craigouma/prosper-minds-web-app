@@ -1731,7 +1731,7 @@ check "and it is the one that stops a real break" "1" \
 check "IBM Plex Mono is self-hosted"         "yes" "$([ -s public_html/assets/fonts/IBMPlexMono-Regular.woff2 ] && echo yes || echo no)"
 check "its OFL licence ships with it"        "yes" "$([ -s public_html/assets/fonts/OFL-IBMPlexMono.txt ] && echo yes || echo no)"
 check "no Google Fonts call in the admin CSS" "0"  "$(grep -c 'fonts.googleapis' $CSS)"
-check "figures are set in tabular numerals"  "3"   "$(grep -c 'tabular-nums' $CSS)"
+check "figures are set in tabular numerals"  "4"   "$(grep -c 'tabular-nums' $CSS)"
 
 check "the shell loads pm-admin.css"         "1"   "$(grep -c 'pm-admin.css' $HDR)"
 check "the shell no longer loads admin.css"  "0"   "$(grep -c 'css/admin.css' $HDR)"
@@ -1929,11 +1929,13 @@ check "no radius above 2px in the CSS"      "0" \
 
 # The palette is closed. Anything not on this list is a colour the brand does
 # not have, which is how the old template look crept back in as inline styles.
-PALETTE='#000000|#00bf63|#007a41|#0d0d0d|#3d3d3d|#6b6b6b|#8a5a00|#9a9a9a|#b02a17|#b8b8b8|#d8bb7a|#dcdcdc|#e8e8e8|#f6f6f4|#ffffff'
+PALETTE='#000000|#00bf63|#007a41|#0d0d0d|#3d3d3d|#6b6b6b|#8a5a00|#9a9a9a|#b02a17|#b8b8b8|#d8bb7a|#dcdcdc|#e8e8e8|#f6f6f4|#ffffff|#1a0dab|#4d5156'
 check "the page bodies use only palette colours" "0" \
   "$(grep -rhoE '#[0-9a-fA-F]{6}' $APHP | tr 'A-F' 'a-f' | grep -vcE "^($PALETTE)$")"
 check "the stylesheet uses only palette colours" "0" \
   "$(grep -ohE '#[0-9a-fA-F]{6}' $ACSS | tr 'A-F' 'a-f' | grep -vcE "^($PALETTE)$")"
+check "Google's colours appear only in the search preview" "0" \
+  "$(grep -n '#1a0dab\|#4d5156' $ACSS | grep -vc 'serp')"
 
 check "content is capped to the prototype frame" "1" "$(grep -c '\-\-pma-content: 1254px' $ACSS)"
 check "the top bar and body both respect it"     "2" "$(grep -c 'var(--pma-content)' $ACSS)"
@@ -1949,8 +1951,8 @@ check "the collapsed state has styles"      "1" "$(grep -c '\.pma-shell\.is-coll
 check "the toggle script is loaded"         "1" "$(grep -c 'pm-admin.js' public_html/admin/header.php)"
 check "pm-admin.js lints"                   "0" \
   "$(command -v node >/dev/null 2>&1 && { node --check public_html/assets/js/pm-admin.js >/dev/null 2>&1; echo $?; } || echo 0)"
-check "the toggle choice survives a reload" "1" "$(grep -c 'localStorage.setItem' public_html/assets/js/pm-admin.js)"
-check "blocked site data does not break it" "2" "$(grep -c 'catch (error)' public_html/assets/js/pm-admin.js)"
+check "toggle choices survive a reload"      "2" "$(grep -c 'localStorage.setItem' public_html/assets/js/pm-admin.js)"
+check "blocked site data does not break it" "4" "$(grep -c 'catch (error)' public_html/assets/js/pm-admin.js)"
 
 echo
 echo "=== 16. Phase 5C: media library ==="

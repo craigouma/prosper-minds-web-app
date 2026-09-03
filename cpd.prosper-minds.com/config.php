@@ -6,6 +6,7 @@
 error_reporting(E_ALL);
 ini_set('log_errors', '1');
 ini_set('display_errors', (getenv('PM_DISPLAY_ERRORS') === '1') ? '1' : '0');
+date_default_timezone_set('Africa/Nairobi');
 
 // Import PHPMailer classes
 require 'vendor/autoload.php';

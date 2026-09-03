@@ -346,8 +346,67 @@ include 'header.php';
                 <?php echo $selectedEvent ? htmlspecialchars($selectedEvent['title']) : 'All events'; ?>
             </div>
         </div>
+        <div style="margin-left:auto;display:flex;gap:4px">
+            <button type="button" class="btn btn-outline btn-sm is-on" data-funnel-view="bars">Bars</button>
+            <button type="button" class="btn btn-outline btn-sm" data-funnel-view="flow">Flow</button>
+        </div>
     </div>
-    <div style="padding:20px;">
+
+<?php
+// A proportional flow drawn as inline SVG. funnel-graph-js was the obvious
+// route, but it needs a build step this panel does not have, and its stylesheet
+// ships gradients and a palette the brand does not use.
+$pmFunnelW = 900;
+$pmFunnelH = 260;
+$pmTop     = max(1, (int) $stages[0]['hits']);
+$pmSeg     = count($stages) > 1 ? $pmFunnelW / (count($stages) - 1) : $pmFunnelW;
+$pmY = static function (int $hits) use ($pmTop, $pmFunnelH): float {
+    return ($pmFunnelH / 2) * (1 - min(1, $hits / $pmTop));
+};
+$pmUpper = $pmLower = [];
+foreach ($stages as $i => $stage) {
+    $x = round($i * $pmSeg, 2);
+    $y = round($pmY((int) $stage['hits']), 2);
+    $pmUpper[] = [$x, $y];
+    $pmLower[] = [$x, round($pmFunnelH - $y, 2)];
+}
+$pmPath = 'M ' . $pmUpper[0][0] . ' ' . $pmUpper[0][1];
+for ($i = 1; $i < count($pmUpper); $i++) {
+    $cx = round(($pmUpper[$i - 1][0] + $pmUpper[$i][0]) / 2, 2);
+    $pmPath .= " C $cx {$pmUpper[$i-1][1]}, $cx {$pmUpper[$i][1]}, {$pmUpper[$i][0]} {$pmUpper[$i][1]}";
+}
+$pmPath .= ' L ' . end($pmLower)[0] . ' ' . end($pmLower)[1];
+for ($i = count($pmLower) - 2; $i >= 0; $i--) {
+    $cx = round(($pmLower[$i + 1][0] + $pmLower[$i][0]) / 2, 2);
+    $pmPath .= " C $cx {$pmLower[$i+1][1]}, $cx {$pmLower[$i][1]}, {$pmLower[$i][0]} {$pmLower[$i][1]}";
+}
+$pmPath .= ' Z';
+?>
+    <div style="padding:20px" data-funnel-panel="flow" hidden>
+        <div class="pma-funnelflow">
+            <svg viewBox="0 -18 <?php echo $pmFunnelW; ?> <?php echo $pmFunnelH + 36; ?>"
+                 preserveAspectRatio="none" role="img"
+                 aria-label="Registration funnel shown as a proportional flow">
+                <path d="<?php echo $pmPath; ?>" fill="#00BF63" fill-opacity="0.9"></path>
+<?php foreach ($stages as $i => $stage): if ($i === 0) { continue; } $x = round($i * $pmSeg, 2); ?>
+                <line x1="<?php echo $x; ?>" y1="-18" x2="<?php echo $x; ?>" y2="<?php echo $pmFunnelH + 18; ?>"
+                      stroke="#dcdcdc" stroke-width="1"></line>
+<?php endforeach; ?>
+            </svg>
+            <div class="pma-funnelflow-labels">
+<?php foreach ($stages as $i => $stage): ?>
+                <div>
+                    <span class="pma-funnelflow-figure"><?php echo (int) $stage['hits']; ?></span>
+                    <span class="pma-funnelflow-name"><?php echo htmlspecialchars($stage['label']); ?></span>
+                    <span class="pma-funnelflow-pct"><?php
+                      echo $pct((float) $stage['hits'], (float) $stages[0]['hits']); ?> of views</span>
+                </div>
+<?php endforeach; ?>
+            </div>
+        </div>
+    </div>
+
+    <div style="padding:20px;" data-funnel-panel="bars">
         <?php foreach ($stages as $index => $stage): ?>
             <?php if ($index > 0): ?>
                 <div style="display:flex;align-items:center;gap:8px;margin:0 0 10px 2px;font-size:12px;color:#6b6b6b;">

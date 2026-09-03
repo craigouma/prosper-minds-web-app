@@ -203,13 +203,13 @@ include 'header.php';
     <div class="alert alert-danger"><i class="fas fa-exclamation-circle"></i> <?php echo htmlspecialchars($error); ?></div>
 <?php endif; ?>
 
-<div style="display:grid;grid-template-columns:1fr 380px;gap:24px;align-items:start;">
+<div class="pma-split">
 
     <!-- Events list -->
     <div class="table-card">
         <div class="table-card-header">
             <div>
-                <div class="card-title">All Events</div>
+                <h2 class="card-title">All events</h2>
                 <div class="card-subtitle"><?php echo count($events); ?> total</div>
             </div>
             <a href="events.php" class="btn btn-primary btn-sm">
@@ -256,17 +256,13 @@ include 'header.php';
                         </td>
                         <td>
                             <a href="events.php?edit=<?php echo $ev['id']; ?>"
-                               class="btn btn-outline btn-sm btn-icon" title="Edit">
-                                <i class="fas fa-edit"></i>
-                            </a>
+                               class="btn btn-outline btn-sm">Edit</a>
                             <?php if (isSuper()): ?>
                             <form method="POST" style="display:inline;"
                                   onsubmit="return confirm('Move this event to the trash? Registrations are kept, and you can restore it for 30 days.');">
                                 <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrfToken); ?>">
                                 <input type="hidden" name="delete_id" value="<?php echo $ev['id']; ?>">
-                                <button type="submit" class="btn btn-danger btn-sm btn-icon" title="Delete">
-                                    <i class="fas fa-trash"></i>
-                                </button>
+                                <button type="submit" class="btn btn-danger btn-sm" title="Delete">Delete</button>
                             </form>
                             <?php endif; ?>
                         </td>
@@ -285,7 +281,7 @@ include 'header.php';
     <!-- Add / Edit form -->
     <div class="card">
         <div class="card-title" style="margin-bottom:4px;">
-            <?php echo $editEvent ? '<i class="fas fa-edit" style="color:var(--primary);margin-right:6px;"></i>Edit Event' : '<i class="fas fa-plus-circle" style="color:var(--primary);margin-right:6px;"></i>New Event'; ?>
+            <?php echo $editEvent ? 'Edit event' : 'New event'; ?>
         </div>
         <div class="card-subtitle" style="margin-bottom:20px;">
             <?php echo $editEvent ? 'Update the event details below' : 'Fill in the details below'; ?>

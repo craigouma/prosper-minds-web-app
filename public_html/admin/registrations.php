@@ -99,34 +99,32 @@ include 'header.php';
 ?>
 
 <div class="card" style="padding:16px 20px;margin-bottom:20px;">
-    <form method="GET" class="filter-bar" action="registrations.php">
-        <div>
-            <label>Search</label>
-            <input type="text" name="search" class="form-control"
-                   placeholder="Name, email, organization" value="<?php echo htmlspecialchars($search); ?>">
-        </div>
-        <div>
-            <label>Event</label>
-            <select name="event" class="form-control">
-                <option value="">All Events</option>
+    <form method="GET" action="registrations.php" class="pma-toolbar" style="border:0;padding:0 0 18px">
+        <label class="pma-search">
+            <svg width="14" height="14" viewBox="0 0 16 16" aria-hidden="true">
+                <path d="M7.2 3a4.2 4.2 0 110 8.4 4.2 4.2 0 010-8.4zM10.4 10.4 13.5 13.5"
+                      fill="none" stroke="#6b6b6b" stroke-width="1.3"></path>
+            </svg>
+            <span class="pma-vh">Search registrations</span>
+            <input type="search" name="search" placeholder="Name, email, organisation or invoice number"
+                   value="<?php echo htmlspecialchars($search); ?>">
+        </label>
+        <label>
+            <span class="pma-vh">Event</span>
+            <select name="event">
+                <option value="">All events</option>
                 <?php foreach ($uniqueEvents as $ev): ?>
                     <option value="<?php echo htmlspecialchars($ev); ?>" <?php echo $filterEvent === $ev ? 'selected' : ''; ?>>
                         <?php echo htmlspecialchars($ev); ?>
                     </option>
                 <?php endforeach; ?>
             </select>
-        </div>
-        <div style="align-self:flex-end;">
-            <button type="submit" class="btn btn-primary">
-                <i class="fas fa-search"></i> Filter
-            </button>
-            <a href="registrations.php" class="btn btn-outline">Reset</a>
-        </div>
-        <div style="margin-left:auto;align-self:flex-end;">
-            <a href="registrations.php?export=csv" class="btn btn-outline">
-                <i class="fas fa-download"></i> Export CSV
-            </a>
-        </div>
+        </label>
+        <button type="submit" class="btn btn-outline btn-sm">Apply</button>
+<?php if ($search !== '' || $filterEvent !== ''): ?>
+        <a href="registrations.php" class="btn btn-outline btn-sm">Clear</a>
+<?php endif; ?>
+        <a href="registrations.php?export=csv" class="btn btn-outline btn-sm" style="margin-left:auto">Export CSV</a>
     </form>
 </div>
 
@@ -192,8 +190,9 @@ include 'header.php';
                         title="<?php echo htmlspecialchars($r['event_name']); ?>">
                         <?php echo htmlspecialchars($r['event_name']); ?>
                     </td>
-                    <td>
-                        <button class="btn btn-outline btn-sm btn-icon view-btn"
+                    <td class="pma-rowactions-cell">
+                      <div class="pma-rowactions">
+                        <button class="btn btn-outline btn-sm view-btn"
                                 data-id="<?php echo $r['id']; ?>"
                                 data-fn="<?php echo htmlspecialchars($r['first_name']); ?>"
                                 data-ln="<?php echo htmlspecialchars($r['last_name']); ?>"
@@ -213,42 +212,37 @@ include 'header.php';
                                 data-total="<?php echo htmlspecialchars(($r['currency_code'] ?? 'USD') . ' ' . number_format((float) ($r['total_amount'] ?? 0), 2)); ?>"
                                 data-attendees="<?php echo htmlspecialchars($r['attendee_details'] ?? '[]', ENT_QUOTES); ?>"
                                 title="View Details">
-                            <i class="fas fa-eye"></i>
+                            View
                         </button>
-                        <button class="btn btn-outline btn-sm btn-icon resend-btn"
+                        <button class="btn btn-outline btn-sm resend-btn"
                                 data-id="<?php echo $r['id']; ?>"
                                 data-email="<?php echo htmlspecialchars($r['email']); ?>"
                                 title="Resend Email to <?php echo htmlspecialchars($r['email']); ?>">
-                            <i class="fas fa-paper-plane"></i>
+                            Resend
                         </button>
                         <?php
                             $invoiceFile = !empty($r['invoice_path']) ? __DIR__ . '/../' . ltrim($r['invoice_path'], '/\\') : '';
                         ?>
                         <?php if ($invoiceFile !== '' && is_file($invoiceFile)): ?>
-                        <a class="btn btn-outline btn-sm btn-icon"
+                        <a class="btn btn-outline btn-sm"
                            href="download-invoice.php?id=<?php echo $r['id']; ?>"
-                           title="Download Invoice PDF">
-                            <i class="fas fa-file-pdf"></i>
-                        </a>
+                           title="Download the invoice PDF">Invoice</a>
                         <button type="button" class="btn btn-outline btn-sm" data-copy="<?php
                             echo htmlspecialchars(pmInvoiceLink((int) $r['id'])); ?>"
                             title="Copy a link the delegate can use for 30 days">Link</button>
                         <?php else: ?>
-                        <button class="btn btn-outline btn-sm btn-icon" disabled
-                                title="Invoice PDF not available">
-                            <i class="fas fa-file-pdf" style="opacity:.35;"></i>
-                        </button>
+                        <button class="btn btn-outline btn-sm" disabled
+                                title="Invoice PDF not available">Invoice</button>
                         <?php endif; ?>
                         <?php if (hasPermission('registrations', 'delete')): ?>
                         <form method="POST" style="display:inline;"
-                              onsubmit="return confirm('Delete this registration? This cannot be undone.');">
+                              onsubmit="return confirm('Delete this registration permanently? A delegate record is not covered by the 30 day trash, so this cannot be undone.');">
                             <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrfToken); ?>">
                             <input type="hidden" name="delete_id" value="<?php echo $r['id']; ?>">
-                            <button type="submit" class="btn btn-danger btn-sm btn-icon" title="Delete">
-                                <i class="fas fa-trash"></i>
-                            </button>
+                            <button type="submit" class="btn btn-danger btn-sm" title="Delete">Delete</button>
                         </form>
                         <?php endif; ?>
+                      </div>
                     </td>
                 </tr>
                 <?php endforeach; ?>
@@ -256,8 +250,8 @@ include 'header.php';
                 <tr>
                     <td colspan="8">
                         <div class="empty-state">
-                            <i class="fas fa-inbox"></i>
-                            No registrations found.
+                            <span class="empty-state-title">No registrations match</span>
+                            Clear the filters above, or wait for the next sign-up.
                         </div>
                     </td>
                 </tr>

@@ -92,11 +92,23 @@ require_once 'header.php';
 
       <div style="padding:16px">
         <span class="pma-label">Result preview</span>
+<?php
+$pmHost  = parse_url($origin, PHP_URL_HOST) ?: 'prosper-minds.com';
+$pmCrumb = $pmHost . ' › ' . trim(str_replace(['/', '.php'], [' › ', ''], $PAGES[$slug]['path']), ' ›');
+?>
         <div class="pma-serp">
-          <span class="pma-serp-url"><?php echo htmlspecialchars($origin . $PAGES[$slug]['path']); ?></span>
-          <span class="pma-serp-title"><?php echo htmlspecialchars($title !== '' ? $title : 'Prosperminds'); ?></span>
-          <span class="pma-serp-desc"><?php echo htmlspecialchars($desc !== '' ? $desc
-            : 'No description is set, so a search engine will write its own from the page.'); ?></span>
+          <div class="pma-serp-brand">
+            <span class="pma-serp-favicon"><img src="../assets/images/favicon-32.png" alt=""></span>
+            <span>
+              <span class="pma-serp-site">Prosperminds</span><br>
+              <span class="pma-serp-url"><?php echo htmlspecialchars($pmCrumb); ?></span>
+            </span>
+          </div>
+          <div class="pma-serp-title"><?php
+            echo htmlspecialchars($title !== '' ? mb_strimwidth($title, 0, 62, '...') : 'Prosperminds'); ?></div>
+          <div class="pma-serp-desc"><?php
+            echo htmlspecialchars($desc !== '' ? mb_strimwidth($desc, 0, 160, '...')
+              : 'No description is set, so a search engine will write its own from whatever it finds on the page.'); ?></div>
         </div>
 
 <?php if ($canEdit): ?>
@@ -107,13 +119,15 @@ require_once 'header.php';
             <label for="meta_title">Search title</label>
             <input type="text" id="meta_title" name="meta_title" class="form-control" maxlength="320"
                    value="<?php echo htmlspecialchars($title); ?>">
-            <span class="form-hint"><?php echo mb_strlen($title); ?> characters. Around 60 fits before it is cut off.</span>
+            <span class="form-hint <?php echo mb_strlen($title) > 60 ? 'pma-count-over' : ''; ?>"><?php
+              echo mb_strlen($title); ?> characters. Around 60 fits before a search engine cuts it off.</span>
           </div>
           <div class="form-group">
             <label for="meta_description">Search description</label>
             <textarea id="meta_description" name="meta_description" class="form-control" rows="3"
                       maxlength="320"><?php echo htmlspecialchars($desc); ?></textarea>
-            <span class="form-hint"><?php echo mb_strlen($desc); ?> characters. Around 155 fits.</span>
+            <span class="form-hint <?php echo mb_strlen($desc) > 155 ? 'pma-count-over' : ''; ?>"><?php
+              echo mb_strlen($desc); ?> characters. Around 155 fits.</span>
           </div>
           <button type="submit" class="btn btn-primary btn-sm">Save</button>
         </form>

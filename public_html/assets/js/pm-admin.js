@@ -288,3 +288,48 @@
     init();
   }
 }());
+
+(function () {
+  'use strict';
+
+  function init() {
+    var buttons = document.querySelectorAll('[data-funnel-view]');
+    if (!buttons.length) {
+      return;
+    }
+
+    function show(view) {
+      document.querySelectorAll('[data-funnel-panel]').forEach(function (panel) {
+        panel.hidden = panel.getAttribute('data-funnel-panel') !== view;
+      });
+      buttons.forEach(function (b) {
+        b.classList.toggle('is-on', b.getAttribute('data-funnel-view') === view);
+      });
+      try {
+        window.localStorage.setItem('pmFunnelView', view);
+      } catch (error) {
+        // A browser with site data blocked still gets a working toggle.
+      }
+    }
+
+    buttons.forEach(function (b) {
+      b.addEventListener('click', function () { show(b.getAttribute('data-funnel-view')); });
+    });
+
+    var stored = null;
+    try {
+      stored = window.localStorage.getItem('pmFunnelView');
+    } catch (error) {
+      stored = null;
+    }
+    if (stored === 'flow') {
+      show('flow');
+    }
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', init);
+  } else {
+    init();
+  }
+}());
