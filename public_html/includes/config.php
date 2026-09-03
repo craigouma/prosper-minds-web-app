@@ -1,4 +1,13 @@
 <?php
+
+// Errors are logged, never printed. A notice printed into the response would
+// corrupt the JSON that process-registration.php returns, break any header()
+// redirect issued after it, and disclose the absolute server path. Set
+// PM_DISPLAY_ERRORS=1 in a local .env to see them on screen instead.
+error_reporting(E_ALL);
+ini_set('log_errors', '1');
+ini_set('display_errors', (getenv('PM_DISPLAY_ERRORS') === '1') ? '1' : '0');
+
 require_once __DIR__ . '/../vendor/autoload.php';
 use PHPMailer\PHPMailer\PHPMailer;
 use PHPMailer\PHPMailer\Exception;

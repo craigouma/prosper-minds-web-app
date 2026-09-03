@@ -1,4 +1,12 @@
 <?php
+
+// Errors are logged, never printed. A notice printed into the response would
+// corrupt the JSON the registration handler returns, break any header()
+// redirect issued after it, and disclose the absolute server path.
+error_reporting(E_ALL);
+ini_set('log_errors', '1');
+ini_set('display_errors', (getenv('PM_DISPLAY_ERRORS') === '1') ? '1' : '0');
+
 // Import PHPMailer classes
 require 'vendor/autoload.php';
 use PHPMailer\PHPMailer\PHPMailer;
