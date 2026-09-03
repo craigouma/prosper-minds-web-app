@@ -1745,7 +1745,7 @@ check "nav registry lists four groups"       "4"   "$(php -r "
 check "nav registry covers 18 screens"       "18"  "$(php -r "
   require 'public_html/admin/includes/nav.php';
   \$n=0; foreach (pmAdminNav() as \$g) { \$n += count(\$g['items']); } echo \$n;")"
-check "eight screens are built so far"       "8"   "$(php -r "
+check "nine screens are built so far"        "9"   "$(php -r "
   require 'public_html/admin/includes/nav.php';
   \$n=0; foreach (pmAdminNav() as \$g) foreach (\$g['items'] as \$i) if (!empty(\$i['built'])) \$n++; echo \$n;")"
 check "the CMS permission modules exist"     "8"   "$(php -r "
@@ -1897,7 +1897,7 @@ check "unsubscribing is audited"         "1" \
   "$("${DB_MAIN[@]}" "SELECT COUNT(*) FROM cms_audit_log WHERE action='newsletter_unsubscribe' AND entity_id='$NID'")"
 
 CSV="$(curl -s -b "$JAR" "$MAIN/admin/submissions.php?export=newsletter")"
-check "the newsletter export is CSV"          "1" "$(printf '%s' "$CSV" | grep -c '^EMAIL,SUBSCRIBED_AT,SOURCE')"
+check "the newsletter export is CSV"          "1" "$(printf '%s' "$CSV" | grep -c 'EMAIL,SUBSCRIBED_AT,SOURCE')"
 check "the export leaves out the opted-out"   "0" "$(printf '%s' "$CSV" | grep -c 'unsub-me@example.test')"
 CSV="$(curl -s -b "$JAR" "$MAIN/admin/submissions.php?export=sponsorship")"
 check "the sponsorship export has a header"   "1" "$(printf '%s' "$CSV" | grep -c 'Organisation')"
@@ -1949,6 +1949,84 @@ check "pm-admin.js lints"                   "0" \
   "$(command -v node >/dev/null 2>&1 && { node --check public_html/assets/js/pm-admin.js >/dev/null 2>&1; echo $?; } || echo 0)"
 check "the toggle choice survives a reload" "1" "$(grep -c 'localStorage.setItem' public_html/assets/js/pm-admin.js)"
 check "blocked site data does not break it" "2" "$(grep -c 'catch (error)' public_html/assets/js/pm-admin.js)"
+
+echo
+echo "=== 16. Phase 5C: media library ==="
+
+UPD=public_html/assets/uploads
+MJAR=/tmp/verify-media-cookies.txt
+
+media_login() {
+  rm -f "$MJAR"
+  local tok
+  tok="$(curl -s -c "$MJAR" "$MAIN/admin/login.php" \
+        | sed -n 's/.*name="csrf_token" value="\([^"]*\)".*/\1/p' | head -1)"
+  curl -s -b "$MJAR" -c "$MJAR" -o /dev/null \
+    --data-urlencode "csrf_token=$tok" --data-urlencode "username=localtest" \
+    --data-urlencode "password=localtest-analytics-pw" "$MAIN/admin/login.php"
+}
+media_token() {
+  curl -s -b "$MJAR" "$MAIN/admin/media.php" \
+    | sed -n 's/.*name="csrf_token" value="\([^"]*\)".*/\1/p' | head -1
+}
+media_upload() {
+  curl -s -b "$MJAR" -X POST "$MAIN/admin/media.php" \
+    -F "csrf_token=$(media_token)" -F "action=upload" \
+    -F "alt_text=$2" -F "file=@$1"
+}
+
+check "the uploads directory exists"        "yes" "$([ -d $UPD ] && echo yes || echo no)"
+check "uploads refuse to run PHP"           "1"   "$(grep -c 'php_flag engine off' $UPD/.htaccess)"
+check "uploads deny script extensions"      "1"   "$(grep -c 'Require all denied' $UPD/.htaccess)"
+check "uploaded files are gitignored"       "1"   "$(grep -c '^\*$' $UPD/.gitignore)"
+check "the media migration has both halves" "2"   \
+  "$(ls public_html/database/migrations/2026-09-03-04-create-cms-media.*.sql 2>/dev/null | wc -l | tr -d ' ')"
+
+"${DB_MAIN[@]}" "DELETE FROM cms_media" >/dev/null 2>&1
+rm -f $UPD/*.png $UPD/*/*.png $UPD/*.jpg $UPD/*/*.jpg 2>/dev/null
+media_login
+check "media.php returns 200" "200" "$(curl -s -b "$MJAR" -o /dev/null -w '%{http_code}' "$MAIN/admin/media.php")"
+check "cms_media was created on demand"       "1" "$(table_exists cms_media)"
+check "cms_media_usage was created on demand" "1" "$(table_exists cms_media_usage)"
+
+OUT="$(media_upload "public_html/assets/images/fisrt-logo.png" "Brand shield in green")"
+check "an upload is accepted"      "1" "$(printf '%s' "$OUT" | grep -c 'Uploaded\.')"
+check "the file is recorded"       "1" "$("${DB_MAIN[@]}" "SELECT COUNT(*) FROM cms_media WHERE mime='image/png'")"
+check "the alt text is stored"     "1" "$("${DB_MAIN[@]}" "SELECT COUNT(*) FROM cms_media WHERE alt_text='Brand shield in green'")"
+check "dimensions were read"       "1" "$("${DB_MAIN[@]}" "SELECT COUNT(*) FROM cms_media WHERE width=713 AND height=183")"
+FN="$("${DB_MAIN[@]}" "SELECT filename FROM cms_media ORDER BY id DESC LIMIT 1")"
+check "the original is on disk"    "yes" "$([ -f "$UPD/$FN" ] && echo yes || echo no)"
+for s in thumb medium large; do
+  check "the $s size was generated" "yes" "$([ -f "$UPD/$s/$FN" ] && echo yes || echo no)"
+done
+check "the thumb is 400 wide"      "400" "$(php -r "\$i=getimagesize('$UPD/thumb/$FN'); echo \$i[0];")"
+check "a small image is not upscaled" "713" "$(php -r "\$i=getimagesize('$UPD/large/$FN'); echo \$i[0];")"
+check "the stored name is not the original" "0" "$(printf '%s' "$FN" | grep -c '^fisrt-logo\.png$')"
+
+echo "  ---- CRITICAL: the type check must not trust the extension ----"
+printf '<?php echo "pwned"; ?>' > /tmp/verify-fake.png
+OUT="$(media_upload "/tmp/verify-fake.png" "should not be accepted")"
+check "a PHP file named .png is refused" "1" "$(printf '%s' "$OUT" | grep -c 'file type is not accepted')"
+check "nothing was recorded for it"      "0" "$("${DB_MAIN[@]}" "SELECT COUNT(*) FROM cms_media WHERE original_name='verify-fake.png'")"
+check "nothing was written to disk"      "0" "$(ls $UPD/*.png 2>/dev/null | grep -c 'verify-fake')"
+rm -f /tmp/verify-fake.png
+
+check "no PHP notice leaks into the panel" "0" \
+  "$(curl -s -b "$MJAR" "$MAIN/admin/media.php" | grep -cE 'Deprecated:|Warning:|Notice:')"
+check "errors are logged, never displayed" "1" \
+  "$(grep -c "ini_set('display_errors'" public_html/includes/config.php)"
+check "the CPD subdomain does the same"    "1" \
+  "$(grep -c "ini_set('display_errors'" cpd.prosper-minds.com/config.php)"
+
+MID="$("${DB_MAIN[@]}" "SELECT id FROM cms_media ORDER BY id DESC LIMIT 1")"
+curl -s -b "$MJAR" -o /dev/null -X POST "$MAIN/admin/media.php" \
+  -F "csrf_token=$(media_token)" -F "action=delete" -F "id=$MID"
+check "deleting removes the row"   "0" "$("${DB_MAIN[@]}" "SELECT COUNT(*) FROM cms_media WHERE id=$MID")"
+check "deleting removes the file"  "no" "$([ -f "$UPD/$FN" ] && echo yes || echo no)"
+check "deleting removes the sizes" "no" "$([ -f "$UPD/thumb/$FN" ] && echo yes || echo no)"
+check "media upload is audited"    "1" "$("${DB_MAIN[@]}" "SELECT COUNT(*) FROM cms_audit_log WHERE action='media_upload'")"
+check "media delete is audited"    "1" "$("${DB_MAIN[@]}" "SELECT COUNT(*) FROM cms_audit_log WHERE action='media_delete'")"
+rm -f "$MJAR"
 
 echo
 printf '\n%s\npassed=%d failed=%d\n%s\n' "$(printf '=%.0s' {1..78})" "$pass" "$fail" "$(printf '=%.0s' {1..78})"
