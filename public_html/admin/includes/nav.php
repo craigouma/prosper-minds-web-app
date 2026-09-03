@@ -38,7 +38,7 @@ function pmAdminNav(): array {
             ['key' => 'banners',   'label' => 'Banner library',     'href' => 'banners.php',   'module' => 'media',     'crumb' => 'Programme', 'built' => false],
         ]],
         ['label' => 'Content', 'items' => [
-            ['key' => 'pages',       'label' => 'Pages',           'href' => 'pages.php',       'module' => 'content',     'crumb' => 'Content', 'built' => false],
+            ['key' => 'pages',       'label' => 'Pages',           'href' => 'pages.php',       'module' => 'content',     'crumb' => 'Content', 'built' => true],
             ['key' => 'media',       'label' => 'Media library',   'href' => 'media.php',       'module' => 'media',       'crumb' => 'Content', 'built' => true],
             ['key' => 'menus',       'label' => 'Menus',           'href' => 'menus.php',       'module' => 'menus',       'crumb' => 'Content', 'built' => true],
             ['key' => 'submissions', 'label' => 'Submissions',     'href' => 'submissions.php', 'module' => 'submissions', 'crumb' => 'Content', 'built' => true],

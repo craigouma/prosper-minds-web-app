@@ -14,6 +14,13 @@ ErrorDocument 404 /404.php
 RewriteEngine On
 RewriteRule ^sitemap\.xml$ sitemap.php [L]
 
+# CMS pages are served by slug, but only as a last resort: a request that
+# matches a real file or directory is left alone, so nothing here can shadow an
+# existing page, an asset or the admin panel.
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteCond %{REQUEST_FILENAME} !-d
+RewriteRule ^([a-z0-9][a-z0-9-]{0,120})/?$ cms-page.php?slug=$1 [L,QSA]
+
 # php -- BEGIN cPanel-generated handler, do not edit
 # Set the “ea-php82” package as the default “PHP” programming language.
 <IfModule mime_module>
