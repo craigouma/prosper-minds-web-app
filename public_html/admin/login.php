@@ -3,6 +3,7 @@ require_once '../includes/auth.php';
 startAdminSession();
 require_once '../includes/config.php';
 require_once '../includes/audit.php';
+require_once '../includes/adminsession.php';
 
 // Already logged in – go to dashboard
 if (!empty($_SESSION['admin_logged_in'])) {
@@ -32,15 +33,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             if ($user && password_verify($password, $user['password'])) {
                 // Regenerate session ID on login to prevent session fixation
-                session_regenerate_id(true);
-                $_SESSION['admin_logged_in']      = true;
-                $_SESSION['admin_id']             = $user['id'];
-                $_SESSION['admin_username']       = $user['username'];
-                $_SESSION['admin_full_name']      = trim(($user['first_name'] ?? '') . ' ' . ($user['last_name'] ?? ''));
-                $_SESSION['admin_role']           = $user['role'] ?? 'editor';
-                $_SESSION['admin_is_administrator'] = (bool)($user['is_administrator'] ?? ($user['role'] === 'super_admin'));
-                $_SESSION['admin_permissions']    = json_decode($user['permissions'] ?? '{}', true) ?? [];
-                $_SESSION['admin_profile_image']  = $user['profile_image'] ?? '';
+                pmAdminSignIn($user);
+
+                if (!empty($_POST['remember'])) {
+                    pmRememberIssue($pdo, (int) $user['id']);
+                }
+
                 pmAudit($pdo, 'login', 'Signed in to the admin panel', 'admin_user', $user['id']);
                 header('Location: dashboard.php');
                 exit;
@@ -88,6 +86,10 @@ $csrfToken = generateCsrfToken();
                 <dt>Session</dt>
                 <dd>Ends on browser close</dd>
             </div>
+            <div>
+                <dt>Or kept</dt>
+                <dd><?php echo PM_REMEMBER_DAYS; ?> days, if you ask</dd>
+            </div>
         </dl>
     </div>
 
@@ -121,6 +123,14 @@ $csrfToken = generateCsrfToken();
                 <input type="checkbox" id="showPwd" style="width:15px;height:15px">
                 Show password
             </label>
+
+            <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap">
+                <label style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--pma-body)">
+                    <input type="checkbox" name="remember" value="1" style="width:15px;height:15px">
+                    Keep me signed in for <?php echo PM_REMEMBER_DAYS; ?> days
+                </label>
+                <a href="forgot-password.php" style="font-size:13px">Reset password</a>
+            </div>
 
             <button type="submit" class="btn btn-primary">Sign in</button>
 

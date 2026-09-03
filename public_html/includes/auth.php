@@ -17,10 +17,28 @@ function startAdminSession(): void {
 }
 
 function requireAdminAuth(): void {
-    if (!isset($_SESSION['admin_logged_in']) || $_SESSION['admin_logged_in'] !== true) {
-        header('Location: login.php');
-        exit;
+    if (isset($_SESSION['admin_logged_in']) && $_SESSION['admin_logged_in'] === true) {
+        return;
     }
+
+    // No session, but the browser may still hold a valid remember-me cookie.
+    global $pdo;
+    if ($pdo instanceof PDO && is_file(__DIR__ . '/adminsession.php')) {
+        require_once __DIR__ . '/adminsession.php';
+        $resumed = pmRememberResume($pdo);
+
+        if ($resumed !== null) {
+            if (is_file(__DIR__ . '/audit.php')) {
+                require_once __DIR__ . '/audit.php';
+                pmAudit($pdo, 'login_resumed', 'Signed in again from a remembered browser');
+            }
+
+            return;
+        }
+    }
+
+    header('Location: login.php');
+    exit;
 }
 
 // ── Roles ──────────────────────────────────────────────────
