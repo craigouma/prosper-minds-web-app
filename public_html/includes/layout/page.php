@@ -21,6 +21,14 @@ if (is_file(__DIR__ . '/../content.php')) {
     }
 }
 
+if (is_file(__DIR__ . '/../menus.php')) {
+    try {
+        require_once __DIR__ . '/../menus.php';
+    } catch (Throwable $pmMenuLoadError) {
+        error_log('Menu layer unavailable: ' . $pmMenuLoadError->getMessage());
+    }
+}
+
 if (!function_exists('pmContent')) {
     // Stand-ins with identical signatures. Every one returns the caller's own
     // default, which is exactly what a working content layer returns when a key
@@ -167,7 +175,7 @@ function pmEsc(?string $value): string
  */
 function pmNavItems(): array
 {
-    return [
+    $default = [
         'home'        => ['label' => 'Home',        'href' => '/index.php'],
         'events'      => ['label' => 'Events',      'href' => '/events.php'],
         'services'    => ['label' => 'Services',    'href' => '/services.php'],
@@ -175,6 +183,36 @@ function pmNavItems(): array
         'sponsorship' => ['label' => 'Sponsorship', 'href' => '/sponsorship.php'],
         'contact'     => ['label' => 'Contact',     'href' => '/contact.php'],
     ];
+
+    if (!function_exists('pmMenu')) {
+        return $default;
+    }
+
+    global $pdo;
+    $items = pmMenu($pdo ?? null, 'header', $default);
+
+    // Keys are re-derived from the href rather than kept as row ids, because
+    // every page marks its own tab with pmPageBegin's 'nav' option and those
+    // values are slugs like 'events'. A row id here would silently stop the
+    // current page being highlighted.
+    $keyed = [];
+    foreach ($items as $key => $item) {
+        $keyed[pmNavKeyFor($key, $item['href'])] = $item;
+    }
+
+    return $keyed ?: $default;
+}
+
+function pmNavKeyFor(string $fallback, string $href): string
+{
+    $path = parse_url($href, PHP_URL_PATH) ?? '';
+    $base = strtolower(pathinfo($path, PATHINFO_FILENAME));
+
+    if ($base === '' || $base === 'index') {
+        return $base === 'index' ? 'home' : $fallback;
+    }
+
+    return $base;
 }
 
 /**
