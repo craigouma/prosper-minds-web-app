@@ -139,7 +139,21 @@ $pmInitials = substr($pmInitials, 0, 2) ?: strtoupper(substr($pmUser, 0, 2));
           </div>
         </div>
 
-        <div class="pma-body">
+<?php $pmPhoneReady = pmAdminPhoneReady($pmScreenKey); ?>
+<?php if (!$pmPhoneReady): ?>
+        <div class="pma-desktoponly">
+          <div class="pma-gate">
+            <h2><?php echo htmlspecialchars($pmTitle); ?> is a desktop screen</h2>
+            <p>Six screens have a phone layout: the dashboard, registrations, the page editor, the media
+               library, submissions and sign in. Those are the tasks staff genuinely do away from a desk.
+               This one is a dense comparison screen, and shrinking it would make it unusable rather than
+               mobile.</p>
+            <a class="btn btn-primary btn-sm" href="dashboard.php">Go to the dashboard</a>
+          </div>
+        </div>
+<?php endif; ?>
+
+        <div class="pma-body<?php echo $pmPhoneReady ? '' : ' is-desktop-only'; ?>">
 <?php if (!empty($_SESSION['perm_error'])): ?>
             <div class="alert alert-danger">
                 <?php echo htmlspecialchars($_SESSION['perm_error']); unset($_SESSION['perm_error']); ?>

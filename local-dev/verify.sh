@@ -1947,7 +1947,7 @@ check "filter rows use the toolbar pattern" "2" \
 check "labels in toolbars are visually hidden" "1" "$(grep -c '\.pma-vh' $ACSS)"
 
 check "the sidebar can be collapsed"        "1" "$(grep -c 'pma-side-toggle' public_html/admin/header.php)"
-check "the collapsed state has styles"      "1" "$(grep -c '\.pma-shell\.is-collapsed {' $ACSS)"
+check "the collapsed state has styles"      "2" "$(grep -c '\.pma-shell\.is-collapsed {' $ACSS)"
 check "the toggle script is loaded"         "1" "$(grep -c 'pm-admin.js' public_html/admin/header.php)"
 check "pm-admin.js lints"                   "0" \
   "$(command -v node >/dev/null 2>&1 && { node --check public_html/assets/js/pm-admin.js >/dev/null 2>&1; echo $?; } || echo 0)"
@@ -2534,6 +2534,72 @@ check "a slow reply cannot overwrite a newer one" "1" \
 check "pm-admin.js still lints" "0" \
   "$(command -v node >/dev/null 2>&1 && { node --check public_html/assets/js/pm-admin.js >/dev/null 2>&1; echo $?; } || echo 0)"
 rm -f "$SJAR" "$RJAR" "$KJAR" "$FJAR" "$GJAR2"
+
+echo
+echo "=== 22. Mobile, and the social links on the public site ==="
+
+MJ=/tmp/verify-mobile.txt
+m_login() {
+  rm -f "$MJ"
+  local tok
+  tok="$(curl -s -c "$MJ" "$MAIN/admin/login.php" | sed -n 's/.*name="csrf_token" value="\([^"]*\)".*/\1/p' | head -1)"
+  curl -s -b "$MJ" -c "$MJ" -o /dev/null --data-urlencode "csrf_token=$tok" \
+    --data-urlencode "username=Craig" --data-urlencode "password=localtest-analytics-pw" "$MAIN/admin/login.php"
+}
+
+echo "  ---- the public menu ----"
+check "the toggle is in the header"        "1" "$(curl -s "$MAIN/index.php" | grep -c 'id="pm-nav-toggle"')"
+check "the panel it opens exists"          "1" "$(curl -s "$MAIN/index.php" | grep -c 'id="pm-nav"')"
+check "the script that opens it is loaded" "1" "$(curl -s "$MAIN/index.php" | grep -c 'pm-layout.js')"
+check "the toggle only appears with JS"    "1" \
+  "$(grep -c 'html\[data-pm-js="on"\] .pm-nav-toggle' public_html/assets/css/pm-design-system.css)"
+check "and the open state has a rule"      "1" \
+  "$(grep -c 'html\[data-pm-js="on"\]\[data-pm-nav-open="true"\] .pm-nav' public_html/assets/css/pm-design-system.css)"
+
+echo "  ---- social links ----"
+BODY="$(curl -s "$MAIN/index.php")"
+check "LinkedIn is in the footer"  "1" "$(printf '%s' "$BODY" | grep -c 'linkedin.com/company/prosper-minds-technologies')"
+check "Facebook is in the footer"  "1" "$(printf '%s' "$BODY" | grep -c 'facebook.com/share/1EvKA1GF5w')"
+check "each social link is labelled" "2" "$(printf '%s' "$BODY" | grep -oc 'aria-label="Prosperminds on ')"
+check "they open safely in a new tab" "1" \
+  "$(grep -c 'rel="noopener noreferrer"' public_html/includes/layout/footer.php)"
+check "only http addresses are drawn" "1" \
+  "$(grep -c 'preg_match' public_html/includes/layout/footer.php)"
+
+echo "  ---- CRITICAL: the footer must not depend on a settings row existing ----"
+"${DB_MAIN[@]}" "DELETE FROM site_settings WHERE setting_key LIKE 'social%'" >/dev/null 2>&1
+check "LinkedIn survives an empty settings table" "1" \
+  "$(curl -s "$MAIN/index.php" | grep -c 'linkedin.com/company/prosper-minds-technologies')"
+check "the homepage still returns 200"          "200" "$(curl -s -o /dev/null -w '%{http_code}' "$MAIN/index.php")"
+
+echo "  ---- the admin panel on a phone ----"
+check "six screens have a phone layout" "6" "$(php -r "
+  require 'public_html/admin/includes/nav.php';
+  \$n = 0;
+  foreach (['dashboard','registrations','media','submissions','pages','pageeditor'] as \$k)
+    if (pmAdminPhoneReady(\$k)) \$n++;
+  echo \$n;")"
+check "a dense screen is marked desktop only" "0" "$(php -r "
+  require 'public_html/admin/includes/nav.php';
+  \$n = 0;
+  foreach (['accounting','events','seo','audit','earlybird'] as \$k)
+    if (pmAdminPhoneReady(\$k)) \$n++;
+  echo \$n;")"
+check "the notice is rendered for those"  "1" "$(grep -c 'is a desktop screen' public_html/admin/header.php)"
+check "and it is hidden on a desktop"     "1" "$(grep -c '\.pma-desktoponly { display: none; }' $ACSS)"
+check "the body is hidden when it shows"  "1" "$(grep -c '\.pma-body\.is-desktop-only { display: none; }' $ACSS)"
+
+m_login
+check "a phone-ready screen still serves" "200" \
+  "$(curl -s -b "$MJ" -o /dev/null -w '%{http_code}' "$MAIN/admin/dashboard.php")"
+check "a desktop-only screen still serves" "200" \
+  "$(curl -s -b "$MJ" -o /dev/null -w '%{http_code}' "$MAIN/admin/accounting.php")"
+
+check "the sidebar is a drawer on a phone"  "1" "$(grep -c 'pma-shell\.is-navopen \.pma-side' $ACSS)"
+check "the drawer closes on Escape"         "4" "$(grep -c 'closeDrawer' public_html/assets/js/pm-admin.js)"
+check "legacy grids collapse on a phone"    "1" \
+  "$(grep -c 'grid-template-columns: minmax(0, 1fr) !important' $ACSS)"
+rm -f "$MJ"
 
 echo
 printf '\n%s\npassed=%d failed=%d\n%s\n' "$(printf '=%.0s' {1..78})" "$pass" "$fail" "$(printf '=%.0s' {1..78})"

@@ -25,7 +25,40 @@
 
     apply(stored === 'collapsed');
 
+    // Below this width the same button opens a drawer instead of collapsing a
+    // rail, because a rail is not a useful thing to have on a phone.
+    var PHONE = window.matchMedia('(max-width: 900px)');
+
+    function closeDrawer() {
+      shell.classList.remove('is-navopen');
+      toggle.setAttribute('aria-expanded', 'false');
+    }
+
+    document.addEventListener('click', function (event) {
+      if (!PHONE.matches || !shell.classList.contains('is-navopen')) {
+        return;
+      }
+      if (!event.target.closest('.pma-side') && !event.target.closest('.pma-side-toggle')) {
+        closeDrawer();
+      }
+    });
+
+    document.addEventListener('keydown', function (event) {
+      if (event.key === 'Escape' && shell.classList.contains('is-navopen')) {
+        closeDrawer();
+      }
+    });
+
+    PHONE.addEventListener('change', closeDrawer);
+
     toggle.addEventListener('click', function () {
+      if (PHONE.matches) {
+        var open = !shell.classList.contains('is-navopen');
+        shell.classList.toggle('is-navopen', open);
+        toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+        return;
+      }
+
       var next = !shell.classList.contains('is-collapsed');
       apply(next);
       try {

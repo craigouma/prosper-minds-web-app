@@ -28,9 +28,9 @@ function pmAdminIcons(): array {
 function pmAdminNav(): array {
     return [
         ['label' => 'Operations', 'items' => [
-            ['key' => 'dashboard',     'label' => 'Overview',      'href' => 'dashboard.php',     'module' => 'dashboard',     'crumb' => 'Dashboard',            'built' => true],
+            ['key' => 'dashboard',     'label' => 'Overview',      'href' => 'dashboard.php',     'module' => 'dashboard',     'crumb' => 'Dashboard',            'built' => true, 'phone' => true],
             ['key' => 'analytics',     'label' => 'Analytics',     'href' => 'analytics.php',     'module' => 'dashboard',     'crumb' => 'Dashboard',            'built' => true, 'icon' => 'analytics'],
-            ['key' => 'registrations', 'label' => 'Registrations', 'href' => 'registrations.php', 'module' => 'registrations', 'crumb' => 'Delegate operations',  'built' => true],
+            ['key' => 'registrations', 'label' => 'Registrations', 'href' => 'registrations.php', 'module' => 'registrations', 'crumb' => 'Delegate operations',  'built' => true, 'phone' => true],
             ['key' => 'accounting',    'label' => 'Accounting',    'href' => 'accounting.php',    'module' => 'accounting',    'crumb' => 'Finance',              'built' => true, 'superOnly' => true],
         ]],
         ['label' => 'Programme', 'items' => [
@@ -39,10 +39,10 @@ function pmAdminNav(): array {
             ['key' => 'banners',   'label' => 'Banner library',     'href' => 'banners.php',   'module' => 'media',     'crumb' => 'Programme', 'built' => true],
         ]],
         ['label' => 'Content', 'items' => [
-            ['key' => 'pages',       'label' => 'Pages',           'href' => 'pages.php',       'module' => 'content',     'crumb' => 'Content', 'built' => true],
-            ['key' => 'media',       'label' => 'Media library',   'href' => 'media.php',       'module' => 'media',       'crumb' => 'Content', 'built' => true],
+            ['key' => 'pages',       'label' => 'Pages',           'href' => 'pages.php',       'module' => 'content',     'crumb' => 'Content', 'built' => true, 'phone' => true],
+            ['key' => 'media',       'label' => 'Media library',   'href' => 'media.php',       'module' => 'media',       'crumb' => 'Content', 'built' => true, 'phone' => true],
             ['key' => 'menus',       'label' => 'Menus',           'href' => 'menus.php',       'module' => 'menus',       'crumb' => 'Content', 'built' => true],
-            ['key' => 'submissions', 'label' => 'Submissions',     'href' => 'submissions.php', 'module' => 'submissions', 'crumb' => 'Content', 'built' => true],
+            ['key' => 'submissions', 'label' => 'Submissions',     'href' => 'submissions.php', 'module' => 'submissions', 'crumb' => 'Content', 'built' => true, 'phone' => true],
             ['key' => 'seo',         'label' => 'SEO and schema',  'href' => 'seo.php',         'module' => 'seo',         'crumb' => 'Content', 'built' => true],
             ['key' => 'trash',       'label' => 'Trash',           'href' => 'trash.php',       'module' => 'content',     'crumb' => 'Content', 'built' => true],
             ['key' => 'templates',   'label' => 'Reusable blocks', 'href' => '#',               'module' => 'content',     'crumb' => 'Content', 'built' => false, 'soon' => true],
@@ -73,4 +73,19 @@ function pmAdminCanSee(array $item): bool {
         return false;
     }
     return hasPermission($item['module'], 'view');
+}
+
+function pmAdminPhoneReady(string $key): bool
+{
+    // The prototype gives a phone layout to six screens only: the dashboard,
+    // registrations, the page editor, the media library, submissions and sign
+    // in. The rest are dense comparison screens, and shrinking them would make
+    // them unusable rather than mobile.
+    if (in_array($key, ['pageeditor', 'login'], true)) {
+        return true;
+    }
+
+    $screen = pmAdminScreen($key);
+
+    return $screen !== null && !empty($screen['phone']);
 }

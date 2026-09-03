@@ -50,3 +50,15 @@ VALUES
    '$2y$12$giO77eJa0QkaVtgtZmQMReV/wzHhY/8DeY5yo9XNMDshpMf5R7aZW',
    'super_admin', 'Craig', 'Ouma', 'craig@example.test',
    'QA', 1, 1, NULL);
+
+-- Real site identity, so a local rebuild does not leave the footer and the
+-- Settings screen looking empty. These are public details, not credentials.
+INSERT INTO `site_settings` (`setting_key`, `setting_value`) VALUES
+  ('site_title',      'Prosperminds'),
+  ('site_tagline',    'Public finance training for the people who sign the accounts'),
+  ('contact_email',   'info@prosper-minds.com'),
+  ('contact_phone',   '+254 740 582302'),
+  ('contact_address', 'Nairobi, Kenya'),
+  ('social_linkedin', 'https://www.linkedin.com/company/prosper-minds-technologies/'),
+  ('social_facebook', 'https://www.facebook.com/share/1EvKA1GF5w/?mibextid=wwXIfr')
+ON DUPLICATE KEY UPDATE `setting_value` = VALUES(`setting_value`);

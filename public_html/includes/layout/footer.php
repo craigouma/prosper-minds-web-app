@@ -116,6 +116,43 @@ $pmNewsletterFailed = $pmNewsletterStatus !== '' && $pmNewsletterStatus !== 'ok'
           <a href="tel:+254740582302">+254 740 582302</a><br>
           <a href="tel:+254741174909">+254 741 174909</a>
         </p>
+
+<?php
+// Read from site_settings so Settings can change them. A link with no address
+// set is not drawn at all, rather than pointing at nothing.
+// Same contract as the content layer: a real default, so the link is right
+// before anyone opens Settings and survives an empty settings table.
+$pmSocials = [
+    'social_linkedin' => ['label' => 'LinkedIn',
+        'default' => 'https://www.linkedin.com/company/prosper-minds-technologies/',
+        'path' => 'M4.98 3.5A2.5 2.5 0 1 1 0 3.5a2.5 2.5 0 0 1 4.98 0zM.22 8.02h4.53V24H.22zM8.34 8.02h4.34v2.18h.06c.6-1.14 2.08-2.34 4.28-2.34 4.58 0 5.42 3.01 5.42 6.92V24h-4.52v-7.31c0-1.74-.03-3.98-2.43-3.98-2.43 0-2.8 1.9-2.8 3.86V24H8.34z'],
+    'social_x' => ['label' => 'X',
+        'path' => 'M18.9 2h3.68l-8.04 9.19L24 22h-7.4l-5.8-7.58L4.16 22H.47l8.6-9.83L0 2h7.59l5.24 6.93zm-1.29 17.8h2.04L6.48 4.09H4.29z'],
+    'social_facebook' => ['label' => 'Facebook',
+        'default' => 'https://www.facebook.com/share/1EvKA1GF5w/?mibextid=wwXIfr',
+        'path' => 'M24 12.07C24 5.4 18.63 0 12 0S0 5.4 0 12.07C0 18.1 4.39 23.1 10.13 24v-8.44H7.08v-3.49h3.05V9.41c0-3.02 1.79-4.69 4.53-4.69 1.31 0 2.68.24 2.68.24v2.96h-1.51c-1.49 0-1.96.93-1.96 1.89v2.26h3.33l-.53 3.49h-2.8V24C19.61 23.1 24 18.1 24 12.07z'],
+];
+
+$pmSocialLinks = [];
+foreach ($pmSocials as $pmKey => $pmMeta) {
+    $pmHref = trim((string) getSetting($pmKey, $pmMeta['default'] ?? ''));
+    if ($pmHref !== '' && preg_match('#^https?://#i', $pmHref) === 1) {
+        $pmSocialLinks[$pmKey] = $pmMeta + ['href' => $pmHref];
+    }
+}
+
+if ($pmSocialLinks): ?>
+        <div class="pm-footer__social">
+<?php   foreach ($pmSocialLinks as $pmLink): ?>
+          <a href="<?php echo pmEsc($pmLink['href']); ?>" target="_blank" rel="noopener noreferrer"
+             aria-label="Prosperminds on <?php echo pmEsc($pmLink['label']); ?>">
+            <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+              <path d="<?php echo $pmLink['path']; ?>" fill="currentColor"></path>
+            </svg>
+          </a>
+<?php   endforeach; ?>
+        </div>
+<?php endif; ?>
       </div>
 
     </div>
