@@ -1725,7 +1725,9 @@ admin_login() {
 admin_get() { curl -s -b "$JAR" "$MAIN/admin/$1"; }
 
 check "pm-admin.css exists"                  "yes" "$([ -s $CSS ] && echo yes || echo no)"
-check "pm-admin.css carries no comments"     "0"   "$(grep -c '/\*' $CSS)"
+check "pm-admin.css carries one comment only" "1"  "$(grep -c '/\*' $CSS)"
+check "and it is the one that stops a real break" "1" \
+  "$(grep -c 'outranks the user agent' $CSS)"
 check "IBM Plex Mono is self-hosted"         "yes" "$([ -s public_html/assets/fonts/IBMPlexMono-Regular.woff2 ] && echo yes || echo no)"
 check "its OFL licence ships with it"        "yes" "$([ -s public_html/assets/fonts/OFL-IBMPlexMono.txt ] && echo yes || echo no)"
 check "no Google Fonts call in the admin CSS" "0"  "$(grep -c 'fonts.googleapis' $CSS)"
@@ -2410,6 +2412,126 @@ check "it carries the price and currency"  "1" "$(printf '%s' "$EV" | grep -c '"
 check "a date-less event publishes nothing" "1" "$(grep -c 'is worse than none' public_html/includes/schema.php)"
 check "the JSON cannot close the script tag" "1" "$(grep -c "str_replace('</'" public_html/includes/schema.php)"
 rm -f "$GJAR"
+
+echo
+echo "=== 21. Staying signed in, resetting a password, and admin search ==="
+
+SJAR=/tmp/verify-sess-a.txt
+RJAR=/tmp/verify-sess-b.txt
+KJAR=/tmp/verify-sess-c.txt
+CRED_PW='localtest-analytics-pw'
+CRED_HASH='$2y$12$giO77eJa0QkaVtgtZmQMReV/wzHhY/8DeY5yo9XNMDshpMf5R7aZW'
+
+s_token() { curl -s -c "$1" "$2" | sed -n 's/.*name="csrf_token" value="\([^"]*\)".*/\1/p' | head -1; }
+
+check "the session migration has both halves" "2" \
+  "$(ls public_html/database/migrations/2026-09-03-08-create-admin-session-tables.*.sql 2>/dev/null | wc -l | tr -d ' ')"
+
+"${DB_MAIN[@]}" "DELETE FROM login_attempts" >/dev/null 2>&1
+rm -f "$SJAR" "$RJAR" "$KJAR"
+TOK="$(s_token "$SJAR" "$MAIN/admin/login.php")"
+check "the login page offers to keep you signed in" "1" \
+  "$(curl -s "$MAIN/admin/login.php" | grep -c 'name="remember"')"
+check "and offers a password reset" "1" \
+  "$(curl -s "$MAIN/admin/login.php" | grep -c 'forgot-password.php')"
+
+curl -s -b "$SJAR" -c "$SJAR" -o /dev/null --data-urlencode "csrf_token=$TOK" \
+  --data-urlencode "username=Craig" --data-urlencode "password=$CRED_PW" \
+  -d "remember=1" "$MAIN/admin/login.php"
+check "a remembered sign-in stores a token" "1" "$("${DB_MAIN[@]}" "SELECT COUNT(*) FROM admin_remember_tokens")"
+check "and sets a cookie" "1" "$(grep -c 'pm_admin_remember' "$SJAR")"
+check "only the hash is stored, never the validator" "1" \
+  "$("${DB_MAIN[@]}" "SELECT COUNT(*) FROM admin_remember_tokens WHERE CHAR_LENGTH(validator_hash)=64")"
+
+grep 'pm_admin_remember' "$SJAR" > "$RJAR"
+S1="$("${DB_MAIN[@]}" "SELECT selector FROM admin_remember_tokens LIMIT 1")"
+check "the cookie alone signs you back in" "200" \
+  "$(curl -s -b "$RJAR" -c "$KJAR" -o /dev/null -w '%{http_code}' "$MAIN/admin/dashboard.php")"
+S2="$("${DB_MAIN[@]}" "SELECT selector FROM admin_remember_tokens LIMIT 1")"
+check "the token is replaced on use" "yes" "$([ "$S1" != "$S2" ] && echo yes || echo no)"
+check "and there is still only one" "1" "$("${DB_MAIN[@]}" "SELECT COUNT(*) FROM admin_remember_tokens")"
+
+echo "  ---- CRITICAL: a used cookie must not work a second time ----"
+check "replaying the old cookie is refused" "302" \
+  "$(curl -s -b "$RJAR" -o /dev/null -w '%{http_code}' "$MAIN/admin/dashboard.php")"
+check "a made-up cookie is refused" "302" \
+  "$(curl -s -H "Cookie: pm_admin_remember=$(printf 'a%.0s' $(seq 24)):$(printf 'b%.0s' $(seq 64))" \
+     -o /dev/null -w '%{http_code}' "$MAIN/admin/dashboard.php")"
+check "a malformed cookie is refused" "302" \
+  "$(curl -s -H 'Cookie: pm_admin_remember=nonsense' -o /dev/null -w '%{http_code}' "$MAIN/admin/dashboard.php")"
+check "resuming is audited" "1" \
+  "$("${DB_MAIN[@]}" "SELECT COUNT(*) FROM cms_audit_log WHERE action='login_resumed'")"
+
+curl -s -b "$KJAR" -o /dev/null "$MAIN/admin/logout.php"
+check "signing out drops the remembered token" "0" "$("${DB_MAIN[@]}" "SELECT COUNT(*) FROM admin_remember_tokens")"
+
+echo "  ---- password reset ----"
+"${DB_MAIN[@]}" "DELETE FROM admin_password_resets; DELETE FROM login_attempts;" >/dev/null 2>&1
+clearmail
+FJAR=/tmp/verify-forgot.txt; rm -f "$FJAR"
+FTOK="$(s_token "$FJAR" "$MAIN/admin/forgot-password.php")"
+REAL="$(curl -s -b "$FJAR" -c "$FJAR" -X POST "$MAIN/admin/forgot-password.php" \
+        --data-urlencode "csrf_token=$FTOK" -d "account=Craig")"
+check "a reset link is issued" "1" "$("${DB_MAIN[@]}" "SELECT COUNT(*) FROM admin_password_resets")"
+check "and emailed" "1" "$(mailcount)"
+check "requesting one is audited" "1" \
+  "$("${DB_MAIN[@]}" "SELECT COUNT(*) FROM cms_audit_log WHERE action='password_reset_requested'")"
+
+echo "  ---- CRITICAL: the form must not reveal who has an account ----"
+GJAR2=/tmp/verify-forgot2.txt; rm -f "$GJAR2"
+GTOK="$(s_token "$GJAR2" "$MAIN/admin/forgot-password.php")"
+FAKE="$(curl -s -b "$GJAR2" -c "$GJAR2" -X POST "$MAIN/admin/forgot-password.php" \
+        --data-urlencode "csrf_token=$GTOK" -d "account=nobody-has-this-name")"
+REAL_MSG="$(printf '%s' "$REAL" | grep -o 'If that account exists[^<]*' | head -1)"
+FAKE_MSG="$(printf '%s' "$FAKE" | grep -o 'If that account exists[^<]*' | head -1)"
+check "both answers are the same sentence" "yes" \
+  "$([ -n "$REAL_MSG" ] && [ "$REAL_MSG" = "$FAKE_MSG" ] && echo yes || echo no)"
+check "and no token was made for the fake one" "1" "$("${DB_MAIN[@]}" "SELECT COUNT(*) FROM admin_password_resets")"
+
+SEL="$("${DB_MAIN[@]}" "SELECT selector FROM admin_password_resets LIMIT 1")"
+check "the reset token stores only a hash" "1" \
+  "$("${DB_MAIN[@]}" "SELECT COUNT(*) FROM admin_password_resets WHERE CHAR_LENGTH(validator_hash)=64")"
+check "a wrong validator is rejected" "1" \
+  "$(curl -s "$MAIN/admin/reset-password.php?s=$SEL&v=$(printf 'c%.0s' $(seq 64))" | grep -c 'cannot be used')"
+check "a made-up selector is rejected" "1" \
+  "$(curl -s "$MAIN/admin/reset-password.php?s=$(printf 'd%.0s' $(seq 24))&v=$(printf 'e%.0s' $(seq 64))" \
+     | grep -c 'cannot be used')"
+"${DB_MAIN[@]}" "UPDATE admin_password_resets SET expires_at = DATE_SUB(NOW(), INTERVAL 1 MINUTE)" >/dev/null 2>&1
+check "an expired link is rejected" "1" \
+  "$(curl -s "$MAIN/admin/reset-password.php?s=$SEL&v=$(printf 'c%.0s' $(seq 64))" | grep -c 'cannot be used')"
+check "setting a password clears remembered browsers" "2" \
+  "$(grep -c 'pmRememberForgetAll' public_html/includes/adminsession.php)"
+check "a reset link is single use" "1" "$(grep -c 'used_at IS NULL' public_html/includes/adminsession.php)"
+"${DB_MAIN[@]}" "DELETE FROM admin_password_resets; DELETE FROM login_attempts;" >/dev/null 2>&1
+"${DB_MAIN[@]}" "UPDATE admin_users SET password='$CRED_HASH' WHERE username='Craig'" >/dev/null 2>&1
+
+echo "  ---- admin search ----"
+rm -f "$SJAR"
+STOK="$(s_token "$SJAR" "$MAIN/admin/login.php")"
+curl -s -b "$SJAR" -c "$SJAR" -o /dev/null --data-urlencode "csrf_token=$STOK" \
+  --data-urlencode "username=Craig" --data-urlencode "password=$CRED_PW" "$MAIN/admin/login.php"
+check "search needs a signed-in session" "302" \
+  "$(curl -s -o /dev/null -w '%{http_code}' "$MAIN/admin/search.php?q=ipsas")"
+check "search returns JSON" "application/json" \
+  "$(curl -s -b "$SJAR" -o /dev/null -w '%{content_type}' "$MAIN/admin/search.php?q=ipsas" | cut -d';' -f1)"
+check "one character returns nothing" "1" \
+  "$(curl -s -b "$SJAR" "$MAIN/admin/search.php?q=a" | grep -c '{"results":\[\]}')"
+check "it finds an event"  "1" \
+  "$(curl -s -b "$SJAR" "$MAIN/admin/search.php?q=ipsas" | grep -c '"kind":"Event"')"
+check "it finds a screen" "1" \
+  "$(curl -s -b "$SJAR" "$MAIN/admin/search.php?q=media" | grep -c '"kind":"Screen"')"
+check "a section that fails cannot empty the palette" "1" \
+  "$(grep -c 'must not empty the whole palette' public_html/admin/search.php)"
+check "the palette is in the shell" "1" "$(grep -c 'id="pm-palette"' public_html/admin/header.php)"
+check "and stays hidden until opened" "1" "$(grep -c '\.pma-palette\[hidden\]' public_html/assets/css/pm-admin.css)"
+check "Ctrl K opens it" "1" "$(grep -c "key.toLowerCase() === 'k'" public_html/assets/js/pm-admin.js)"
+check "Escape is caught before the input eats it" "1" \
+  "$(grep -c 'consumes Escape for its' public_html/assets/js/pm-admin.js)"
+check "a slow reply cannot overwrite a newer one" "1" \
+  "$(grep -c 'Only the newest response is rendered' public_html/assets/js/pm-admin.js)"
+check "pm-admin.js still lints" "0" \
+  "$(command -v node >/dev/null 2>&1 && { node --check public_html/assets/js/pm-admin.js >/dev/null 2>&1; echo $?; } || echo 0)"
+rm -f "$SJAR" "$RJAR" "$KJAR" "$FJAR" "$GJAR2"
 
 echo
 printf '\n%s\npassed=%d failed=%d\n%s\n' "$(printf '=%.0s' {1..78})" "$pass" "$fail" "$(printf '=%.0s' {1..78})"
