@@ -1705,5 +1705,86 @@ check "pm-register.js still lints" "0" \
 rm -f /tmp/verify-reg-page.html
 
 echo
+echo "=== 13. Phase 5A: admin shell, permissions registry and audit log ==="
+
+CSS=public_html/assets/css/pm-admin.css
+HDR=public_html/admin/header.php
+JAR=/tmp/verify-admin-cookies.txt
+
+admin_login() {
+  rm -f "$JAR"
+  local tok
+  tok="$(curl -s -c "$JAR" "$MAIN/admin/login.php" \
+        | sed -n 's/.*name="csrf_token" value="\([^"]*\)".*/\1/p' | head -1)"
+  curl -s -b "$JAR" -c "$JAR" -o /dev/null -w '%{http_code}' \
+    --data-urlencode "csrf_token=$tok" \
+    --data-urlencode "username=localtest" \
+    --data-urlencode "password=localtest-analytics-pw" \
+    "$MAIN/admin/login.php"
+}
+admin_get() { curl -s -b "$JAR" "$MAIN/admin/$1"; }
+
+check "pm-admin.css exists"                  "yes" "$([ -s $CSS ] && echo yes || echo no)"
+check "pm-admin.css carries no comments"     "0"   "$(grep -c '/\*' $CSS)"
+check "IBM Plex Mono is self-hosted"         "yes" "$([ -s public_html/assets/fonts/IBMPlexMono-Regular.woff2 ] && echo yes || echo no)"
+check "its OFL licence ships with it"        "yes" "$([ -s public_html/assets/fonts/OFL-IBMPlexMono.txt ] && echo yes || echo no)"
+check "no Google Fonts call in the admin CSS" "0"  "$(grep -c 'fonts.googleapis' $CSS)"
+check "figures are set in tabular numerals"  "3"   "$(grep -c 'tabular-nums' $CSS)"
+
+check "the shell loads pm-admin.css"         "1"   "$(grep -c 'pm-admin.css' $HDR)"
+check "the shell no longer loads admin.css"  "0"   "$(grep -c 'css/admin.css' $HDR)"
+check "no Google Fonts call in the shell"    "0"   "$(grep -c 'fonts.googleapis' $HDR)"
+check "Font Awesome is still on loan to old bodies" "1" "$(grep -c 'font-awesome' $HDR)"
+check "the shell uses the real logo file"    "1"   "$(grep -c 'favicon-512.png' $HDR)"
+check "login uses the real logo file"        "1"   "$(grep -c 'favicon-512.png' public_html/admin/login.php)"
+check "login is marked noindex"              "1"   "$(grep -c 'noindex' public_html/admin/login.php)"
+check "the shell is marked noindex"          "1"   "$(grep -c 'noindex' $HDR)"
+
+check "nav registry lists four groups"       "4"   "$(php -r "
+  require 'public_html/admin/includes/nav.php'; echo count(pmAdminNav());")"
+check "nav registry covers 18 screens"       "18"  "$(php -r "
+  require 'public_html/admin/includes/nav.php';
+  \$n=0; foreach (pmAdminNav() as \$g) { \$n += count(\$g['items']); } echo \$n;")"
+check "seven screens are built so far"       "7"   "$(php -r "
+  require 'public_html/admin/includes/nav.php';
+  \$n=0; foreach (pmAdminNav() as \$g) foreach (\$g['items'] as \$i) if (!empty(\$i['built'])) \$n++; echo \$n;")"
+check "the CMS permission modules exist"     "8"   "$(php -r "
+  require 'public_html/includes/auth.php';
+  \$f=getPermissionFeatures(); \$n=0;
+  foreach (['content','media','menus','submissions','seo','redirects','audit','health'] as \$m)
+    if (isset(\$f[\$m])) \$n++;
+  echo \$n;")"
+
+check "cms_audit_log exists"                 "1"   "$(table_exists cms_audit_log)"
+check "the audit helper catches Throwable"   "2"   "$(grep -c 'catch (Throwable' public_html/includes/audit.php)"
+check "the audit helper catches no Exception" "0"  "$(grep -c 'catch (Exception' public_html/includes/audit.php)"
+check "pmAudit returns void"                 "1"   "$(grep -c '): void {' public_html/includes/audit.php)"
+
+"${DB_MAIN[@]}" "DELETE FROM cms_audit_log" >/dev/null 2>&1
+check "signing in redirects"                 "302" "$(admin_login)"
+check "signing in wrote an audit row"        "1"   "$("${DB_MAIN[@]}" "SELECT COUNT(*) FROM cms_audit_log WHERE action='login' AND actor_username='localtest'")"
+check "the audit row names the actor"        "localtest" "$("${DB_MAIN[@]}" "SELECT actor_username FROM cms_audit_log ORDER BY id DESC LIMIT 1")"
+check "the audit row records an address"     "1"   "$("${DB_MAIN[@]}" "SELECT COUNT(*) FROM cms_audit_log WHERE ip_address IS NOT NULL")"
+
+for s in dashboard analytics registrations events accounting users settings; do
+  check "re-skinned $s.php still returns 200" "200" \
+    "$(curl -s -b "$JAR" -o /dev/null -w '%{http_code}' "$MAIN/admin/$s.php")"
+done
+check "the shell renders the sidebar"        "1"   "$(admin_get dashboard.php | grep -c 'class="pma-side"')"
+check "the sidebar shows the account"        "1"   "$(admin_get dashboard.php | grep -c 'localtest')"
+check "unbuilt screens are not linked"       "0"   "$(admin_get dashboard.php | grep -c 'href="pages.php"')"
+check "the tier 3 placeholder is marked"     "1"   "$(admin_get dashboard.php | grep -c 'pma-chip-later')"
+
+echo "  ---- CRITICAL: a failing audit log must never block a sign-in ----"
+"${DB_MAIN[@]}" "RENAME TABLE cms_audit_log TO cms_audit_log_parked" >/dev/null 2>&1
+check "sign-in still redirects with the log gone" "302" "$(admin_login)"
+check "the panel still serves with the log gone" "200" \
+  "$(curl -s -b "$JAR" -o /dev/null -w '%{http_code}' "$MAIN/admin/dashboard.php")"
+"${DB_MAIN[@]}" "DROP TABLE IF EXISTS cms_audit_log" >/dev/null 2>&1
+"${DB_MAIN[@]}" "RENAME TABLE cms_audit_log_parked TO cms_audit_log" >/dev/null 2>&1
+check "the audit table is back"              "1"   "$(table_exists cms_audit_log)"
+rm -f "$JAR"
+
+echo
 printf '\n%s\npassed=%d failed=%d\n%s\n' "$(printf '=%.0s' {1..78})" "$pass" "$fail" "$(printf '=%.0s' {1..78})"
 exit $((fail > 0 ? 1 : 0))
