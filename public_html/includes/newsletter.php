@@ -47,9 +47,24 @@ function ensureNewsletterSubscriberSchema(PDO $pdo): void
                 source VARCHAR(64) DEFAULT NULL,
                 created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
                 UNIQUE KEY uq_newsletter_subscribers_email (email),
+                unsubscribed_at TIMESTAMP NULL DEFAULT NULL,
                 KEY idx_newsletter_subscribers_created (created_at)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci"
         );
+
+        // CREATE TABLE IF NOT EXISTS does nothing to a table that already
+        // exists, so an install that predates this column still needs it added.
+        $hasColumn = (int) $pdo->query(
+            "SELECT COUNT(*) FROM information_schema.columns
+              WHERE table_schema = DATABASE()
+                AND table_name   = 'newsletter_subscribers'
+                AND column_name  = 'unsubscribed_at'"
+        )->fetchColumn();
+
+        if ($hasColumn === 0) {
+            $pdo->exec('ALTER TABLE newsletter_subscribers
+                          ADD COLUMN unsubscribed_at TIMESTAMP NULL DEFAULT NULL AFTER source');
+        }
     } catch (Throwable $e) {
         error_log('Could not create newsletter_subscribers table: ' . $e->getMessage());
     }
