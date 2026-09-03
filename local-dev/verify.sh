@@ -1913,5 +1913,43 @@ check "submissions is now built in the registry" "1" \
 rm -f "$JAR"
 
 echo
+echo "=== 15. Phase 5 design fidelity: the rules the prototype is built on ==="
+
+ACSS=public_html/assets/css/pm-admin.css
+APHP="public_html/admin/dashboard.php public_html/admin/analytics.php public_html/admin/registrations.php public_html/admin/events.php public_html/admin/accounting.php public_html/admin/users.php public_html/admin/settings.php public_html/admin/submissions.php public_html/admin/header.php public_html/admin/login.php"
+
+check "no gradients anywhere in the panel"  "0" "$(grep -rhc 'linear-gradient\|radial-gradient' $ACSS $APHP | paste -sd+ - | bc)"
+check "no glassmorphism"                    "0" "$(grep -rhc 'backdrop-filter' $ACSS $APHP | paste -sd+ - | bc)"
+check "every radius in the pages is 2px"    "0" \
+  "$(grep -rhoE 'border-radius: ?[0-9]+(px|%)' $APHP | grep -vc 'border-radius:2px')"
+check "no radius above 2px in the CSS"      "0" \
+  "$(grep -ohE 'border-radius: ?[0-9]+px' $ACSS | grep -vcE 'border-radius: ?(0|2)px')"
+
+# The palette is closed. Anything not on this list is a colour the brand does
+# not have, which is how the old template look crept back in as inline styles.
+PALETTE='#000000|#00bf63|#007a41|#0d0d0d|#3d3d3d|#6b6b6b|#8a5a00|#9a9a9a|#b02a17|#b8b8b8|#d8bb7a|#dcdcdc|#e8e8e8|#f6f6f4|#ffffff'
+check "the page bodies use only palette colours" "0" \
+  "$(grep -rhoE '#[0-9a-fA-F]{6}' $APHP | tr 'A-F' 'a-f' | grep -vcE "^($PALETTE)$")"
+check "the stylesheet uses only palette colours" "0" \
+  "$(grep -ohE '#[0-9a-fA-F]{6}' $ACSS | tr 'A-F' 'a-f' | grep -vcE "^($PALETTE)$")"
+
+check "content is capped to the prototype frame" "1" "$(grep -c '\-\-pma-content: 1254px' $ACSS)"
+check "the top bar and body both respect it"     "2" "$(grep -c 'var(--pma-content)' $ACSS)"
+
+check "buttons carry no icon glyphs"        "1" "$(grep -c '\.pma \.btn i,' $ACSS)"
+check "selects are styled, not native"      "2" "$(grep -c 'appearance: none' $ACSS)"
+check "filter rows use the toolbar pattern" "2" \
+  "$(grep -l 'class="pma-toolbar"' public_html/admin/analytics.php public_html/admin/submissions.php | wc -l | tr -d ' ')"
+check "labels in toolbars are visually hidden" "1" "$(grep -c '\.pma-vh' $ACSS)"
+
+check "the sidebar can be collapsed"        "1" "$(grep -c 'pma-side-toggle' public_html/admin/header.php)"
+check "the collapsed state has styles"      "1" "$(grep -c '\.pma-shell\.is-collapsed {' $ACSS)"
+check "the toggle script is loaded"         "1" "$(grep -c 'pm-admin.js' public_html/admin/header.php)"
+check "pm-admin.js lints"                   "0" \
+  "$(command -v node >/dev/null 2>&1 && { node --check public_html/assets/js/pm-admin.js >/dev/null 2>&1; echo $?; } || echo 0)"
+check "the toggle choice survives a reload" "1" "$(grep -c 'localStorage.setItem' public_html/assets/js/pm-admin.js)"
+check "blocked site data does not break it" "2" "$(grep -c 'catch (error)' public_html/assets/js/pm-admin.js)"
+
+echo
 printf '\n%s\npassed=%d failed=%d\n%s\n' "$(printf '=%.0s' {1..78})" "$pass" "$fail" "$(printf '=%.0s' {1..78})"
 exit $((fail > 0 ? 1 : 0))
