@@ -1,5 +1,6 @@
 <?php
 require_once 'includes/config.php';
+require_once 'includes/sponsorship.php';
 
 header('Content-Type: application/json');
 
@@ -34,6 +35,25 @@ if (empty($events)) {
 
 $eventsList = implode(', ', array_map('htmlspecialchars', $events));
 $fullName   = "$firstName $lastName";
+
+$enquiryId = pmSponsorshipStore($pdo, [
+    'first_name'   => $firstName,
+    'last_name'    => $lastName,
+    'organisation' => $organisation,
+    'email'        => $email,
+    'phone'        => $phone,
+    'country'      => $country,
+    'tier'         => $tier,
+    'message'      => $message,
+], is_array($events) ? $events : [$events]);
+
+if ($enquiryId === 0) {
+    echo json_encode([
+        'success' => false,
+        'message' => 'We could not record your enquiry. Please email info@prosper-minds.com and we will pick it up from there.',
+    ]);
+    exit;
+}
 
 // ── Email to admin ──────────────────────────────────────────
 $adminBody = "
@@ -91,7 +111,22 @@ $adminBody = "
     </div>
 </div>";
 
-sendEmail(ADMIN_EMAIL, "New Sponsorship Appeal – $organisation ($tier)", $adminBody);
+$adminSubject = "New Sponsorship Appeal \u{2013} $organisation ($tier)";
+try {
+    // sendEmail() reports failure by returning false, so the return value has
+    // to be checked as well as caught: a ParseError in the mailer is an Error.
+    $sent = sendEmailMessages([
+        ['to' => ADMIN_EMAIL, 'subject' => $adminSubject, 'message' => $adminBody],
+    ]);
+    if (!empty($sent[0]['success'])) {
+        pmSponsorshipMarkNotified($pdo, $enquiryId);
+    } else {
+        recordFailedNotification($pdo, null, ADMIN_EMAIL, $adminSubject,
+            (string) ($sent[0]['error'] ?? 'send reported failure'));
+    }
+} catch (Throwable $e) {
+    recordFailedNotification($pdo, null, ADMIN_EMAIL, $adminSubject, $e->getMessage());
+}
 
 // ── Confirmation email to sponsor ──────────────────────────
 $confirmBody = "
@@ -135,6 +170,21 @@ $confirmBody = "
     </div>
 </div>";
 
-sendEmail($email, "Sponsorship Appeal Received – Prosperminds 2026 Events", $confirmBody);
+$confirmSubject = "Sponsorship Appeal Received \u{2013} Prosperminds 2026 Events";
+try {
+    $sent = sendEmailMessages([
+        ['to' => $email, 'subject' => $confirmSubject, 'message' => $confirmBody],
+    ]);
+    if (empty($sent[0]['success'])) {
+        recordFailedNotification($pdo, null, $email, $confirmSubject,
+            (string) ($sent[0]['error'] ?? 'send reported failure'));
+    }
+} catch (Throwable $e) {
+    recordFailedNotification($pdo, null, $email, $confirmSubject, $e->getMessage());
+}
 
-echo json_encode(['success' => true, 'message' => 'Thank you! We will be in touch within 48 hours.']);
+echo json_encode([
+    'success'    => true,
+    'message'    => 'Thank you! We will be in touch within 48 hours.',
+    'enquiry_id' => $enquiryId,
+]);
