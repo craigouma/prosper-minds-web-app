@@ -1,0 +1,9 @@
+# Uploads are data, never code. The MIME check on upload already refuses
+# anything that is not an image or a PDF, but a web root that will execute a
+# file it was tricked into storing is one bug away from remote code execution.
+php_flag engine off
+RemoveHandler .php .phtml .php3 .php4 .php5 .php7 .php8 .phar
+RemoveType .php .phtml .php3 .php4 .php5 .php7 .php8 .phar
+<FilesMatch "\.(?i:php|phtml|phar|cgi|pl|py|sh|htaccess)$">
+  Require all denied
+</FilesMatch>

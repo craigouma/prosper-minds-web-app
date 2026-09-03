@@ -43,3 +43,38 @@
     init();
   }
 }());
+
+(function () {
+  'use strict';
+
+  function init() {
+    var frame = document.querySelector('[data-focal]');
+    var dot = document.querySelector('[data-focal-dot]');
+    var fx = document.querySelector('[data-focal-x]');
+    var fy = document.querySelector('[data-focal-y]');
+
+    if (!frame || !dot || !fx || !fy) {
+      return;
+    }
+
+    frame.addEventListener('click', function (event) {
+      var box = frame.getBoundingClientRect();
+      var x = Math.round(((event.clientX - box.left) / box.width) * 100);
+      var y = Math.round(((event.clientY - box.top) / box.height) * 100);
+
+      x = Math.max(0, Math.min(100, x));
+      y = Math.max(0, Math.min(100, y));
+
+      dot.style.left = x + '%';
+      dot.style.top = y + '%';
+      fx.value = x;
+      fy.value = y;
+    });
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', init);
+  } else {
+    init();
+  }
+}());
