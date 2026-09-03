@@ -1745,7 +1745,7 @@ check "nav registry lists four groups"       "4"   "$(php -r "
 check "nav registry covers 18 screens"       "18"  "$(php -r "
   require 'public_html/admin/includes/nav.php';
   \$n=0; foreach (pmAdminNav() as \$g) { \$n += count(\$g['items']); } echo \$n;")"
-check "nine screens are built so far"        "9"   "$(php -r "
+check "ten screens are built so far"         "10"   "$(php -r "
   require 'public_html/admin/includes/nav.php';
   \$n=0; foreach (pmAdminNav() as \$g) foreach (\$g['items'] as \$i) if (!empty(\$i['built'])) \$n++; echo \$n;")"
 check "the CMS permission modules exist"     "8"   "$(php -r "
@@ -2027,6 +2027,73 @@ check "deleting removes the sizes" "no" "$([ -f "$UPD/thumb/$FN" ] && echo yes |
 check "media upload is audited"    "1" "$("${DB_MAIN[@]}" "SELECT COUNT(*) FROM cms_audit_log WHERE action='media_upload'")"
 check "media delete is audited"    "1" "$("${DB_MAIN[@]}" "SELECT COUNT(*) FROM cms_audit_log WHERE action='media_delete'")"
 rm -f "$MJAR"
+
+echo
+echo "=== 17. Phase 5D: site identity and menus ==="
+
+NJAR=/tmp/verify-menu-cookies.txt
+menu_login() {
+  rm -f "$NJAR"
+  local tok
+  tok="$(curl -s -c "$NJAR" "$MAIN/admin/login.php" \
+        | sed -n 's/.*name="csrf_token" value="\([^"]*\)".*/\1/p' | head -1)"
+  curl -s -b "$NJAR" -c "$NJAR" -o /dev/null \
+    --data-urlencode "csrf_token=$tok" --data-urlencode "username=localtest" \
+    --data-urlencode "password=localtest-analytics-pw" "$MAIN/admin/login.php"
+}
+menu_token() {
+  curl -s -b "$NJAR" "$MAIN/admin/menus.php" \
+    | sed -n 's/.*name="csrf_token" value="\([^"]*\)".*/\1/p' | head -1
+}
+nav_labels() { curl -s "$MAIN/index.php" | grep -c 'class="pm-nav__link"'; }
+
+menu_login
+check "menus.php returns 200" "200" "$(curl -s -b "$NJAR" -o /dev/null -w '%{http_code}' "$MAIN/admin/menus.php")"
+check "cms_menu_items was created on demand" "1" "$(table_exists cms_menu_items)"
+check "the header menu was seeded from the built-in list" "6" \
+  "$("${DB_MAIN[@]}" "SELECT COUNT(*) FROM cms_menu_items WHERE location='header'")"
+check "the menu migration has both halves" "2" \
+  "$(ls public_html/database/migrations/2026-09-03-05-create-cms-menu-items.*.sql 2>/dev/null | wc -l | tr -d ' ')"
+check "the public nav renders six links" "6" "$(nav_labels)"
+check "the current page is still marked" "2" "$(curl -s "$MAIN/events.php" | grep -c 'aria-current="page"')"
+
+MID="$("${DB_MAIN[@]}" "SELECT id FROM cms_menu_items WHERE label='Services' LIMIT 1")"
+curl -s -b "$NJAR" -o /dev/null -X POST "$MAIN/admin/menus.php" \
+  --data-urlencode "csrf_token=$(menu_token)" -d "action=update" -d "location=header" \
+  -d "id=$MID" -d "label=Programmes" -d "link_type=page" -d "target=services.php" -d "is_active=1"
+check "renaming an item changes the live site" "2" "$(curl -s "$MAIN/index.php" | grep -c '>Programmes<')"
+check "renaming a menu item is audited"        "1" \
+  "$("${DB_MAIN[@]}" "SELECT COUNT(*) FROM cms_audit_log WHERE action='menu_update'")"
+
+curl -s -b "$NJAR" -o /dev/null -X POST "$MAIN/admin/menus.php" \
+  --data-urlencode "csrf_token=$(menu_token)" -d "action=update" -d "location=header" \
+  -d "id=$MID" -d "label=Programmes" -d "link_type=page" -d "target=services.php"
+check "an item can be hidden from the site" "5" "$(nav_labels)"
+
+OUT="$(curl -s -b "$NJAR" -X POST "$MAIN/admin/menus.php" \
+  --data-urlencode "csrf_token=$(menu_token)" -d "action=add" -d "location=header" \
+  -d "label=Bad" -d "link_type=external" --data-urlencode "target=javascript:alert(1)")"
+check "a javascript: destination is refused" "1" "$(printf '%s' "$OUT" | grep -c 'not usable')"
+check "and nothing was stored for it"        "0" \
+  "$("${DB_MAIN[@]}" "SELECT COUNT(*) FROM cms_menu_items WHERE label='Bad'")"
+
+echo "  ---- CRITICAL: an empty or missing menu table must not empty the navigation ----"
+"${DB_MAIN[@]}" "DELETE FROM cms_menu_items" >/dev/null 2>&1
+check "an empty menu falls back to the built-in nav" "6" "$(nav_labels)"
+"${DB_MAIN[@]}" "RENAME TABLE cms_menu_items TO cms_menu_items_parked" >/dev/null 2>&1
+check "a missing menu table falls back too"          "6" "$(nav_labels)"
+check "the homepage still returns 200"             "200" "$(curl -s -o /dev/null -w '%{http_code}' "$MAIN/index.php")"
+"${DB_MAIN[@]}" "RENAME TABLE cms_menu_items_parked TO cms_menu_items" >/dev/null 2>&1
+
+check "settings saves the site identity keys" "1" \
+  "$(grep -c "'site_title', 'site_tagline'" public_html/admin/settings.php)"
+check "settings can replace the logo"         "2" \
+  "$(grep -c "save_identity_image" public_html/admin/settings.php)"
+check "the logo is previewed on both grounds" "1" \
+  "$(grep -c 'pma-identity-preview is-dark' public_html/admin/settings.php)"
+check "settings.php still returns 200"      "200" \
+  "$(curl -s -b "$NJAR" -o /dev/null -w '%{http_code}' "$MAIN/admin/settings.php")"
+rm -f "$NJAR"
 
 echo
 printf '\n%s\npassed=%d failed=%d\n%s\n' "$(printf '=%.0s' {1..78})" "$pass" "$fail" "$(printf '=%.0s' {1..78})"
