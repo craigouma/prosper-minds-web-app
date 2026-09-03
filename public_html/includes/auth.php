@@ -47,6 +47,19 @@ function getPermissionFeatures(): array {
                             'delete' => 'Delete', 'toggle' => 'Toggle Active'],
         'users'         => ['view'   => 'View', 'create' => 'Create', 'edit'   => 'Edit', 'delete' => 'Delete'],
         'settings'      => ['view'   => 'View', 'edit'   => 'Save Changes'],
+
+        // Phase 5. Listed from the start so a screen's permissions are settled
+        // in one place before the screen itself exists.
+        'content'       => ['view'   => 'View', 'create' => 'Create', 'edit' => 'Edit',
+                            'publish' => 'Publish', 'delete' => 'Move to Trash'],
+        'media'         => ['view'   => 'View', 'upload' => 'Upload', 'edit' => 'Edit Details',
+                            'delete' => 'Delete'],
+        'menus'         => ['view'   => 'View', 'edit'   => 'Edit'],
+        'submissions'   => ['view'   => 'View', 'handle' => 'Mark Handled', 'export' => 'Export CSV'],
+        'seo'           => ['view'   => 'View', 'edit'   => 'Edit'],
+        'redirects'     => ['view'   => 'View', 'edit'   => 'Manage Redirects'],
+        'audit'         => ['view'   => 'View'],
+        'health'        => ['view'   => 'View'],
     ];
 }
 
