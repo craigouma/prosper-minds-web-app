@@ -4,6 +4,7 @@ startAdminSession();
 require_once '../includes/config.php';
 require_once '../includes/audit.php';
 require_once '../includes/pages.php';
+require_once '../includes/trash.php';
 requireAdminAuth();
 requirePermission('content', 'view');
 
@@ -154,11 +155,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
 
         if ($action === 'delete_block' && $blockId > 0) {
-            pmRevisionStore($pdo, 'page', $pageId, pmPageSnapshot($pdo, $pageId), 'Before removing a block', $who);
-            $pdo->prepare('DELETE FROM cms_page_blocks WHERE id = ? AND page_id = ?')->execute([$blockId, $pageId]);
-            pmAudit($pdo, 'block_delete', 'Removed a block from "' . $page['title'] . '"', 'cms_pages', $pageId);
-            $notice   = 'Block removed.';
-            $selected = 0;
+            $stmt = $pdo->prepare('SELECT * FROM cms_page_blocks WHERE id = ? AND page_id = ?');
+            $stmt->execute([$blockId, $pageId]);
+            $doomed = $stmt->fetch();
+
+            if ($doomed && pmTrashPut($pdo, 'block', $blockId,
+                    (PM_BLOCK_TYPES[$doomed['block_type']] ?? $doomed['block_type']) . ' block',
+                    $doomed, $who, 'On the page "' . $page['title'] . '"')) {
+                pmRevisionStore($pdo, 'page', $pageId, pmPageSnapshot($pdo, $pageId), 'Before removing a block', $who);
+                $pdo->prepare('DELETE FROM cms_page_blocks WHERE id = ? AND page_id = ?')->execute([$blockId, $pageId]);
+                pmAudit($pdo, 'block_delete', 'Moved a block from "' . $page['title'] . '" to the trash', 'cms_pages', $pageId);
+                $notice   = 'Block moved to the trash. It can be restored for the next 30 days.';
+                $selected = 0;
+            } else {
+                $error = 'That block could not be removed.';
+            }
         }
 
         if ($action === 'save_settings') {
@@ -376,7 +387,8 @@ require_once 'header.php';
       <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrfToken); ?>">
       <input type="hidden" name="action" value="delete_block">
       <input type="hidden" name="block_id" value="<?php echo (int) $current['id']; ?>">
-      <button type="submit" class="btn btn-danger btn-sm">Remove this block</button>
+      <button type="submit" class="btn btn-danger btn-sm"
+              data-confirm="Move this block to the trash? You can restore it for 30 days.">Remove this block</button>
     </form>
 <?php elseif (!$current): ?>
     <div class="empty-state" style="padding:24px 16px">Add a block, then select it to edit.</div>

@@ -4,6 +4,7 @@ startAdminSession();
 require_once '../includes/config.php';
 require_once '../includes/audit.php';
 require_once '../includes/menus.php';
+require_once '../includes/trash.php';
 require_once '../includes/layout/page.php';
 requireAdminAuth();
 requirePermission('menus', 'view');
@@ -72,9 +73,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
 
         if ($action === 'delete' && $id > 0) {
-            $pdo->prepare('DELETE FROM cms_menu_items WHERE id = ?')->execute([$id]);
-            pmAudit($pdo, 'menu_delete', 'Removed menu item #' . $id, 'cms_menu_items', $id);
-            $notice = 'Removed.';
+            $stmt = $pdo->prepare('SELECT * FROM cms_menu_items WHERE id = ?');
+            $stmt->execute([$id]);
+            $row = $stmt->fetch();
+
+            if ($row && pmTrashPut($pdo, 'menu_item', $id, $row['label'], $row,
+                                   (string) ($_SESSION['admin_username'] ?? 'unknown'),
+                                   ucfirst($row['location']) . ' menu')) {
+                $pdo->prepare('DELETE FROM cms_menu_items WHERE id = ?')->execute([$id]);
+                pmAudit($pdo, 'menu_delete', 'Moved menu item "' . $row['label'] . '" to the trash', 'cms_menu_items', $id);
+                $notice = 'Moved to the trash. It can be restored for the next 30 days.';
+            } else {
+                $error = 'That item could not be removed.';
+            }
         }
 
         if (($action === 'up' || $action === 'down') && $id > 0) {
@@ -257,7 +268,8 @@ require_once 'header.php';
         <input type="hidden" name="location" value="<?php echo htmlspecialchars($location); ?>">
         <input type="hidden" name="action" value="delete">
         <input type="hidden" name="id" value="<?php echo (int) $editing['id']; ?>">
-        <button type="submit" class="btn btn-danger btn-sm">Remove this item</button>
+        <button type="submit" class="btn btn-danger btn-sm"
+                data-confirm="Move this menu item to the trash? You can restore it for 30 days.">Remove this item</button>
       </form>
 <?php endif; ?>
     </div>

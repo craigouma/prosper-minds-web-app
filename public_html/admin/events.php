@@ -28,7 +28,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_id'])) {
         exit;
     }
     if (validateCsrfToken($_POST['csrf_token'] ?? '')) {
-        $pdo->prepare("DELETE FROM events WHERE id = ?")->execute([(int)$_POST['delete_id']]);
+        require_once '../includes/trash.php';
+        $doomedId = (int) $_POST['delete_id'];
+        $stmt = $pdo->prepare("SELECT * FROM events WHERE id = ?");
+        $stmt->execute([$doomedId]);
+        $doomed = $stmt->fetch();
+
+        if ($doomed && pmTrashPut($pdo, 'event', $doomedId, (string) $doomed['title'], $doomed,
+                                  (string) ($_SESSION['admin_username'] ?? 'unknown'), 'Programme')) {
+            $pdo->prepare("DELETE FROM events WHERE id = ?")->execute([$doomedId]);
+        }
     }
     header('Location: events.php?msg=deleted');
     exit;
@@ -252,7 +261,7 @@ include 'header.php';
                             </a>
                             <?php if (isSuper()): ?>
                             <form method="POST" style="display:inline;"
-                                  onsubmit="return confirm('Delete this event? Existing registration records are kept.');">
+                                  onsubmit="return confirm('Move this event to the trash? Registrations are kept, and you can restore it for 30 days.');">
                                 <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrfToken); ?>">
                                 <input type="hidden" name="delete_id" value="<?php echo $ev['id']; ?>">
                                 <button type="submit" class="btn btn-danger btn-sm btn-icon" title="Delete">

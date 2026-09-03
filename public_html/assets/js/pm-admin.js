@@ -78,3 +78,34 @@
     init();
   }
 }());
+
+(function () {
+  'use strict';
+
+  // Everything destructive is recoverable for 30 days, so this dialog is a
+  // courtesy rather than the safety mechanism. Without JavaScript the form
+  // still submits and the item still lands in the trash.
+  function init() {
+    document.addEventListener('submit', function (event) {
+      var form = event.target;
+      if (!(form instanceof HTMLFormElement)) {
+        return;
+      }
+
+      var trigger = form.querySelector('[data-confirm]');
+      if (!trigger) {
+        return;
+      }
+
+      if (!window.confirm(trigger.getAttribute('data-confirm'))) {
+        event.preventDefault();
+      }
+    });
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', init);
+  } else {
+    init();
+  }
+}());

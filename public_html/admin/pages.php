@@ -4,6 +4,7 @@ startAdminSession();
 require_once '../includes/config.php';
 require_once '../includes/audit.php';
 require_once '../includes/pages.php';
+require_once '../includes/trash.php';
 requireAdminAuth();
 requirePermission('content', 'view');
 
@@ -50,9 +51,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         if ($action === 'trash' && $id > 0) {
             requirePermission('content', 'delete');
-            $pdo->prepare('UPDATE cms_pages SET trashed_at = NOW() WHERE id = ?')->execute([$id]);
-            pmAudit($pdo, 'page_trash', 'Moved page #' . $id . ' to the trash', 'cms_pages', $id);
-            $notice = 'Moved to the trash. It can be restored for 30 days.';
+            $doomed = pmPageFind($pdo, $id);
+
+            if ($doomed && pmTrashPut($pdo, 'page', $id, $doomed['title'], $doomed, $who, '/' . $doomed['slug'])) {
+                $pdo->prepare('UPDATE cms_pages SET trashed_at = NOW() WHERE id = ?')->execute([$id]);
+                pmAudit($pdo, 'page_trash', 'Moved the page "' . $doomed['title'] . '" to the trash', 'cms_pages', $id);
+                $notice = 'Moved to the trash. It can be restored for the next 30 days.';
+            } else {
+                $error = 'That page could not be moved to the trash.';
+            }
         }
 
         if ($action === 'restore' && $id > 0) {
@@ -145,7 +152,8 @@ require_once 'header.php';
                   <input type="hidden" name="id" value="<?php echo (int) $row['id']; ?>">
                   <button type="submit" name="action" value="restore" class="btn btn-outline btn-sm">Restore</button>
 <?php   if (isSuper()): ?>
-                  <button type="submit" name="action" value="purge" class="btn btn-danger btn-sm">Delete for good</button>
+                  <button type="submit" name="action" value="purge" class="btn btn-danger btn-sm"
+                          data-confirm="Delete this page permanently? This one cannot be undone.">Delete for good</button>
 <?php   endif; ?>
                 </form>
 <?php else: ?>
@@ -159,7 +167,8 @@ require_once 'header.php';
                   <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrfToken); ?>">
                   <input type="hidden" name="action" value="trash">
                   <input type="hidden" name="id" value="<?php echo (int) $row['id']; ?>">
-                  <button type="submit" class="btn btn-outline btn-sm">Trash</button>
+                  <button type="submit" class="btn btn-outline btn-sm"
+                          data-confirm="Move this page to the trash? It stops being public immediately and you can restore it for 30 days.">Trash</button>
                 </form>
 <?php   endif; ?>
 <?php endif; ?>

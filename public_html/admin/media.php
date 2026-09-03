@@ -4,6 +4,7 @@ startAdminSession();
 require_once '../includes/config.php';
 require_once '../includes/audit.php';
 require_once '../includes/media.php';
+require_once '../includes/trash.php';
 requireAdminAuth();
 requirePermission('media', 'view');
 
@@ -63,9 +64,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if ($use && empty($_POST['confirm_in_use'])) {
                 $error = 'That file is used in ' . count($use) . ' place(s). Confirm below to delete it anyway.';
                 $selId = $id;
-            } elseif (pmMediaDelete($pdo, $id)) {
-                pmAudit($pdo, 'media_delete', 'Deleted ' . ($row['filename'] ?? ('#' . $id)), 'cms_media', $id);
-                $notice = 'Deleted.';
+            } elseif ($row && pmTrashPut($pdo, 'media', $id, $row['original_name'], $row,
+                                         (string) ($_SESSION['admin_username'] ?? 'unknown'), 'Media library')) {
+                // The files stay on disk until the 30 days are up, which is
+                // what makes restoring possible at all.
+                $pdo->prepare('DELETE FROM cms_media WHERE id = ?')->execute([$id]);
+                $pdo->prepare('DELETE FROM cms_media_usage WHERE media_id = ?')->execute([$id]);
+                pmAudit($pdo, 'media_delete', 'Moved ' . $row['original_name'] . ' to the trash', 'cms_media', $id);
+                $notice = 'Moved to the trash. It can be restored for the next 30 days.';
                 $selId  = 0;
             } else {
                 $error = 'That file could not be deleted.';
@@ -333,7 +339,8 @@ require_once 'header.php';
                 places will show nothing.</span>
         </label>
 <?php endif; ?>
-        <button type="submit" class="btn btn-danger btn-sm">Delete this file</button>
+        <button type="submit" class="btn btn-danger btn-sm"
+                data-confirm="Move this file to the trash? You can restore it for 30 days.">Delete this file</button>
       </form>
 <?php endif; ?>
     </div>

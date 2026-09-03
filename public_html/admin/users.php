@@ -49,7 +49,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_id'])) {
             if ($tr && $tr['is_administrator'] && $superCnt <= 1) {
                 $error = 'Cannot delete the last Administrator account.';
             } else {
-                $pdo->prepare("DELETE FROM admin_users WHERE id=?")->execute([$did]);
+                require_once '../includes/trash.php';
+                $snap = $pdo->prepare("SELECT * FROM admin_users WHERE id = ?");
+                $snap->execute([$did]);
+                $doomedUser = $snap->fetch();
+
+                if ($doomedUser && pmTrashPut($pdo, 'admin_user', $did, (string) $doomedUser['username'],
+                                              $doomedUser, (string) ($_SESSION['admin_username'] ?? 'unknown'), 'Accounts')) {
+                    $pdo->prepare("DELETE FROM admin_users WHERE id = ?")->execute([$did]);
+                }
                 header('Location: users.php?msg=deleted');
                 exit;
             }
@@ -311,7 +319,7 @@ include 'header.php';
                     <?php endif; ?>
                     <?php if ($canDel): ?>
                     <form method="POST" style="display:inline;"
-                          onsubmit="return confirm('Delete <?=htmlspecialchars(addslashes($u['username']))?> permanently?');">
+                          onsubmit="return confirm('Move <?=htmlspecialchars(addslashes($u['username']))?> to the trash? You can restore the account for 30 days.');">
                         <?=csrfField()?>
                         <input type="hidden" name="delete_id" value="<?=$u['id']?>">
                         <button type="submit" class="btn btn-danger btn-sm btn-icon" title="Delete">
