@@ -110,10 +110,34 @@ $pmInitials = substr($pmInitials, 0, 2) ?: strtoupper(substr($pmUser, 0, 2));
                 <h1><?php echo htmlspecialchars($pmTitle); ?></h1>
             </div>
             <div class="pma-top-actions">
+                <button type="button" class="pma-search-trigger" data-palette-open>
+                    <svg width="14" height="14" viewBox="0 0 16 16" aria-hidden="true">
+                        <path d="M7.2 3a4.2 4.2 0 110 8.4 4.2 4.2 0 010-8.4zM10.4 10.4 13.5 13.5"
+                              fill="none" stroke="currentColor" stroke-width="1.3"></path>
+                    </svg>
+                    <span>Search pages, events, delegates</span>
+                    <kbd>Ctrl K</kbd>
+                </button>
                 <a href="../index.php" target="_blank" rel="noopener" class="btn btn-outline btn-sm">View site</a>
             </div>
           </div>
         </header>
+
+        <div class="pma-palette" id="pm-palette" hidden>
+          <div class="pma-palette-panel" role="dialog" aria-modal="true" aria-label="Search the panel">
+            <label class="pma-palette-field">
+              <svg width="15" height="15" viewBox="0 0 16 16" aria-hidden="true">
+                <path d="M7.2 3a4.2 4.2 0 110 8.4 4.2 4.2 0 010-8.4zM10.4 10.4 13.5 13.5"
+                      fill="none" stroke="#6b6b6b" stroke-width="1.3"></path>
+              </svg>
+              <span class="pma-vh">Search the panel</span>
+              <input type="text" data-palette-input autocomplete="off"
+                     placeholder="Screens, delegates, events, pages, files, enquiries">
+            </label>
+            <div class="pma-palette-status" data-palette-status role="status"></div>
+            <div class="pma-palette-results" data-palette-results></div>
+          </div>
+        </div>
 
         <div class="pma-body">
 <?php if (!empty($_SESSION['perm_error'])): ?>

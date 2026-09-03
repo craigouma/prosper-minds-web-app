@@ -143,3 +143,148 @@
     init();
   }
 }());
+
+(function () {
+  'use strict';
+
+  function init() {
+    var root = document.getElementById('pm-palette');
+    if (!root) {
+      return;
+    }
+
+    var input = root.querySelector('[data-palette-input]');
+    var list = root.querySelector('[data-palette-results]');
+    var status = root.querySelector('[data-palette-status]');
+    var index = -1;
+    var timer = null;
+    var seq = 0;
+
+    function open() {
+      root.hidden = false;
+      input.value = '';
+      list.innerHTML = '';
+      status.textContent = 'Type at least two characters.';
+      index = -1;
+      input.focus();
+    }
+
+    function close() {
+      root.hidden = true;
+      index = -1;
+    }
+
+    function rows() {
+      return Array.prototype.slice.call(list.querySelectorAll('a'));
+    }
+
+    function highlight(next) {
+      var items = rows();
+      if (!items.length) {
+        return;
+      }
+      index = (next + items.length) % items.length;
+      items.forEach(function (el, i) { el.classList.toggle('is-active', i === index); });
+      items[index].scrollIntoView({ block: 'nearest' });
+    }
+
+    function render(results) {
+      list.innerHTML = '';
+      if (!results.length) {
+        status.textContent = 'Nothing matched.';
+        return;
+      }
+      status.textContent = results.length + ' result' + (results.length === 1 ? '' : 's');
+      results.forEach(function (r) {
+        var a = document.createElement('a');
+        a.href = r.href;
+        a.className = 'pma-palette-row';
+        var kind = document.createElement('span');
+        kind.className = 'pma-palette-kind';
+        kind.textContent = r.kind;
+        var title = document.createElement('span');
+        title.className = 'pma-palette-title';
+        title.textContent = r.title;
+        var detail = document.createElement('span');
+        detail.className = 'pma-palette-detail';
+        detail.textContent = r.detail || '';
+        a.appendChild(kind);
+        a.appendChild(title);
+        a.appendChild(detail);
+        list.appendChild(a);
+      });
+    }
+
+    function search() {
+      var q = input.value.trim();
+      if (q.length < 2) {
+        list.innerHTML = '';
+        status.textContent = 'Type at least two characters.';
+        return;
+      }
+
+      // Only the newest response is rendered, so a slow earlier request cannot
+      // overwrite the results for what is currently typed.
+      var mine = ++seq;
+      status.textContent = 'Searching';
+
+      fetch('search.php?q=' + encodeURIComponent(q), { credentials: 'same-origin' })
+        .then(function (r) { return r.ok ? r.json() : { results: [] }; })
+        .then(function (data) {
+          if (mine !== seq) {
+            return;
+          }
+          render(data.results || []);
+        })
+        .catch(function () {
+          if (mine === seq) {
+            status.textContent = 'Search is unavailable just now.';
+          }
+        });
+    }
+
+    // Capture phase, because a search input in Chromium consumes Escape for its
+    // own clear behaviour before a bubbling listener ever sees it.
+    document.addEventListener('keydown', function (event) {
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') {
+        event.preventDefault();
+        root.hidden ? open() : close();
+        return;
+      }
+
+      if (root.hidden) {
+        return;
+      }
+
+      if (event.key === 'Escape') { close(); }
+      if (event.key === 'ArrowDown') { event.preventDefault(); highlight(index + 1); }
+      if (event.key === 'ArrowUp') { event.preventDefault(); highlight(index - 1); }
+      if (event.key === 'Enter' && index >= 0) {
+        var items = rows();
+        if (items[index]) { event.preventDefault(); window.location.href = items[index].href; }
+      }
+    }, true);
+
+    document.addEventListener('click', function (event) {
+      if (event.target.closest('[data-palette-open]')) {
+        event.preventDefault();
+        open();
+        return;
+      }
+      if (!root.hidden && event.target === root) {
+        close();
+      }
+    });
+
+    input.addEventListener('input', function () {
+      window.clearTimeout(timer);
+      timer = window.setTimeout(search, 180);
+    });
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', init);
+  } else {
+    init();
+  }
+}());
