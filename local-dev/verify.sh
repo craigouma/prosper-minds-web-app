@@ -1745,7 +1745,7 @@ check "nav registry lists four groups"       "4"   "$(php -r "
 check "nav registry covers 18 screens"       "18"  "$(php -r "
   require 'public_html/admin/includes/nav.php';
   \$n=0; foreach (pmAdminNav() as \$g) { \$n += count(\$g['items']); } echo \$n;")"
-check "seven screens are built so far"       "7"   "$(php -r "
+check "eight screens are built so far"       "8"   "$(php -r "
   require 'public_html/admin/includes/nav.php';
   \$n=0; foreach (pmAdminNav() as \$g) foreach (\$g['items'] as \$i) if (!empty(\$i['built'])) \$n++; echo \$n;")"
 check "the CMS permission modules exist"     "8"   "$(php -r "
@@ -1783,6 +1783,133 @@ check "the panel still serves with the log gone" "200" \
 "${DB_MAIN[@]}" "DROP TABLE IF EXISTS cms_audit_log" >/dev/null 2>&1
 "${DB_MAIN[@]}" "RENAME TABLE cms_audit_log_parked TO cms_audit_log" >/dev/null 2>&1
 check "the audit table is back"              "1"   "$(table_exists cms_audit_log)"
+rm -f "$JAR"
+
+echo
+echo "=== 14. Phase 5B: submissions inbox, and sponsorship enquiries that persist ==="
+
+MIG=public_html/database/migrations
+JAR=/tmp/verify-sub-cookies.txt
+
+sub_login() {
+  rm -f "$JAR"
+  local tok
+  tok="$(curl -s -c "$JAR" "$MAIN/admin/login.php" \
+        | sed -n 's/.*name="csrf_token" value="\([^"]*\)".*/\1/p' | head -1)"
+  curl -s -b "$JAR" -c "$JAR" -o /dev/null \
+    --data-urlencode "csrf_token=$tok" \
+    --data-urlencode "username=localtest" \
+    --data-urlencode "password=localtest-analytics-pw" \
+    "$MAIN/admin/login.php"
+}
+sub_token() {
+  curl -s -b "$JAR" "$MAIN/admin/submissions.php?tab=$1" \
+    | sed -n 's/.*name="csrf_token" value="\([^"]*\)".*/\1/p' | head -1
+}
+spons_post() {
+  curl -s -X POST "$MAIN/process-sponsorship.php" \
+    -d "first_name=Ver" -d "last_name=Ifier" -d "organisation=$1" \
+    -d "email=$2" -d "tier=Gold" -d "message=verify" -d "events[]=IPSAS Clean-Audit"
+}
+
+check "sponsorship migration has an up and a down" "2" \
+  "$(ls $MIG/2026-09-03-02-create-sponsorship-enquiries.*.sql 2>/dev/null | wc -l | tr -d ' ')"
+check "newsletter migration has an up and a down" "2" \
+  "$(ls $MIG/2026-09-03-03-newsletter-unsubscribe.*.sql 2>/dev/null | wc -l | tr -d ' ')"
+check "sponsorship_enquiries exists"          "1" "$(table_exists sponsorship_enquiries)"
+check "newsletter has an unsubscribed_at"     "1" \
+  "$("${DB_MAIN[@]}" "SELECT COUNT(*) FROM information_schema.columns WHERE table_schema=DATABASE() AND table_name='newsletter_subscribers' AND column_name='unsubscribed_at'")"
+
+"${DB_MAIN[@]}" "DELETE FROM sponsorship_enquiries" >/dev/null 2>&1
+"${DB_MAIN[@]}" "DELETE FROM failed_notifications WHERE subject LIKE '%Sponsorship%'" >/dev/null 2>&1
+clearmail
+
+OUT="$(spons_post "Verify Ministry" "spons-ok@example.test")"
+check "sponsorship returns success"           "true" "$(json_success "$OUT")"
+check "the enquiry is stored"                 "1" \
+  "$("${DB_MAIN[@]}" "SELECT COUNT(*) FROM sponsorship_enquiries WHERE email='spons-ok@example.test'")"
+check "the tier is stored"                    "Gold" \
+  "$("${DB_MAIN[@]}" "SELECT tier FROM sponsorship_enquiries WHERE email='spons-ok@example.test'")"
+check "the events are stored as JSON"         "1" \
+  "$("${DB_MAIN[@]}" "SELECT COUNT(*) FROM sponsorship_enquiries WHERE email='spons-ok@example.test' AND events LIKE '[%]'")"
+check "both sponsorship emails went out"      "2" "$(mailcount)"
+check "the enquiry is flagged as notified"    "1" \
+  "$("${DB_MAIN[@]}" "SELECT notified FROM sponsorship_enquiries WHERE email='spons-ok@example.test'")"
+
+echo "  ---- CRITICAL: a sponsorship enquiry must outlive a mail failure ----"
+cp public_html/.env /tmp/verify-env-spons.bak
+sed -i '' 's/^SMTP_PORT=.*/SMTP_PORT=1099/' public_html/.env
+OUT="$(spons_post "Dead Mail Treasury" "spons-dead@example.test")"
+cp /tmp/verify-env-spons.bak public_html/.env
+check "dead mail still returns success"       "true" "$(json_success "$OUT")"
+check "the enquiry survived the mail failure" "1" \
+  "$("${DB_MAIN[@]}" "SELECT COUNT(*) FROM sponsorship_enquiries WHERE email='spons-dead@example.test'")"
+check "it is honestly marked as not notified" "0" \
+  "$("${DB_MAIN[@]}" "SELECT notified FROM sponsorship_enquiries WHERE email='spons-dead@example.test'")"
+check "both failures were recorded"           "2" \
+  "$("${DB_MAIN[@]}" "SELECT COUNT(*) FROM failed_notifications WHERE subject LIKE '%Sponsorship%'")"
+check "the handler checks the stored row"     "1" \
+  "$(grep -c 'if (\$enquiryId === 0)' public_html/process-sponsorship.php)"
+check "the handler no longer ignores sends"   "2" \
+  "$(grep -c 'sendEmailMessages(' public_html/process-sponsorship.php)"
+
+sub_login
+for t in enquiries sponsorship newsletter; do
+  check "submissions tab $t returns 200" "200" \
+    "$(curl -s -b "$JAR" -o /dev/null -w '%{http_code}' "$MAIN/admin/submissions.php?tab=$t")"
+done
+check "the inbox names all three sources" "3" \
+  "$(curl -s -b "$JAR" "$MAIN/admin/submissions.php" \
+     | grep -oE 'tab=(enquiries|sponsorship|newsletter)"' | sort -u | wc -l | tr -d ' ')"
+
+SID="$("${DB_MAIN[@]}" "SELECT id FROM sponsorship_enquiries WHERE email='spons-ok@example.test'")"
+TOK="$(sub_token sponsorship)"
+curl -s -b "$JAR" -o /dev/null -X POST "$MAIN/admin/submissions.php?tab=sponsorship" \
+  --data-urlencode "csrf_token=$TOK" -d "action=handle" -d "scope=sponsorship" \
+  -d "id=$SID" -d "state=handled"
+check "marking handled updates the row" "handled" \
+  "$("${DB_MAIN[@]}" "SELECT status FROM sponsorship_enquiries WHERE id=$SID")"
+check "marking handled is audited"      "1" \
+  "$("${DB_MAIN[@]}" "SELECT COUNT(*) FROM cms_audit_log WHERE action='submission_status' AND entity_id='$SID'")"
+
+curl -s -b "$JAR" -o /dev/null -X POST "$MAIN/admin/submissions.php?tab=sponsorship" \
+  --data-urlencode "csrf_token=$TOK" -d "action=handle" -d "scope=sponsorship" \
+  -d "id=$SID" -d "state=new"
+check "a handled row can be reopened"   "new" \
+  "$("${DB_MAIN[@]}" "SELECT status FROM sponsorship_enquiries WHERE id=$SID")"
+
+curl -s -b "$JAR" -o /dev/null -X POST "$MAIN/admin/submissions.php?tab=sponsorship" \
+  -d "csrf_token=not-the-token" -d "action=handle" -d "scope=sponsorship" \
+  -d "id=$SID" -d "state=handled"
+check "a bad CSRF token changes nothing" "new" \
+  "$("${DB_MAIN[@]}" "SELECT status FROM sponsorship_enquiries WHERE id=$SID")"
+
+"${DB_MAIN[@]}" "INSERT IGNORE INTO newsletter_subscribers (email, source) VALUES ('unsub-me@example.test','verify')" >/dev/null 2>&1
+NID="$("${DB_MAIN[@]}" "SELECT id FROM newsletter_subscribers WHERE email='unsub-me@example.test'")"
+TOK="$(sub_token newsletter)"
+curl -s -b "$JAR" -o /dev/null -X POST "$MAIN/admin/submissions.php?tab=newsletter" \
+  --data-urlencode "csrf_token=$TOK" -d "action=unsubscribe" -d "id=$NID"
+check "unsubscribing stamps a time"      "1" \
+  "$("${DB_MAIN[@]}" "SELECT COUNT(*) FROM newsletter_subscribers WHERE id=$NID AND unsubscribed_at IS NOT NULL")"
+check "the address is kept, not deleted" "1" \
+  "$("${DB_MAIN[@]}" "SELECT COUNT(*) FROM newsletter_subscribers WHERE id=$NID")"
+check "unsubscribing is audited"         "1" \
+  "$("${DB_MAIN[@]}" "SELECT COUNT(*) FROM cms_audit_log WHERE action='newsletter_unsubscribe' AND entity_id='$NID'")"
+
+CSV="$(curl -s -b "$JAR" "$MAIN/admin/submissions.php?export=newsletter")"
+check "the newsletter export is CSV"          "1" "$(printf '%s' "$CSV" | grep -c '^EMAIL,SUBSCRIBED_AT,SOURCE')"
+check "the export leaves out the opted-out"   "0" "$(printf '%s' "$CSV" | grep -c 'unsub-me@example.test')"
+CSV="$(curl -s -b "$JAR" "$MAIN/admin/submissions.php?export=sponsorship")"
+check "the sponsorship export has a header"   "1" "$(printf '%s' "$CSV" | grep -c 'Organisation')"
+check "the sponsorship export has the row"    "1" "$(printf '%s' "$CSV" | grep -c 'spons-ok@example.test')"
+check "exporting is audited"                  "2" \
+  "$("${DB_MAIN[@]}" "SELECT COUNT(*) FROM cms_audit_log WHERE action='submission_export'")"
+
+check "submissions is now built in the registry" "1" \
+  "$(php -r "
+    require 'public_html/admin/includes/nav.php';
+    foreach (pmAdminNav() as \$g) foreach (\$g['items'] as \$i)
+      if (\$i['key']==='submissions') echo (int) !empty(\$i['built']);")"
 rm -f "$JAR"
 
 echo
