@@ -284,11 +284,11 @@ echo "=== 8e. admin/analytics.php ==="
 AJAR="$(mktemp)"
 ALOGIN="$(curl -s -c "$AJAR" "$MAIN/admin/login.php")"
 ATOK="$(printf '%s' "$ALOGIN" | sed -n 's/.*name="csrf_token" value="\([a-f0-9]*\)".*/\1/p' | head -1)"
-# The localtest account is inserted by local-dev/main-local-overrides.sql into
+# The Craig account is inserted by local-dev/main-local-overrides.sql into
 # the throwaway container only. It does not exist in production.
 check "admin login succeeds" "302" \
   "$(curl -s -b "$AJAR" -c "$AJAR" -o /dev/null -w '%{http_code}' -X POST "$MAIN/admin/login.php" \
-      -d "csrf_token=$ATOK" -d "username=localtest" -d "password=localtest-analytics-pw")"
+      -d "csrf_token=$ATOK" -d "username=Craig" -d "password=localtest-analytics-pw")"
 check "analytics.php requires auth" "302" \
   "$(curl -s -o /dev/null -w '%{http_code}' "$MAIN/admin/analytics.php")"
 
@@ -1718,7 +1718,7 @@ admin_login() {
         | sed -n 's/.*name="csrf_token" value="\([^"]*\)".*/\1/p' | head -1)"
   curl -s -b "$JAR" -c "$JAR" -o /dev/null -w '%{http_code}' \
     --data-urlencode "csrf_token=$tok" \
-    --data-urlencode "username=localtest" \
+    --data-urlencode "username=Craig" \
     --data-urlencode "password=localtest-analytics-pw" \
     "$MAIN/admin/login.php"
 }
@@ -1762,8 +1762,8 @@ check "pmAudit returns void"                 "1"   "$(grep -c '): void {' public
 
 "${DB_MAIN[@]}" "DELETE FROM cms_audit_log" >/dev/null 2>&1
 check "signing in redirects"                 "302" "$(admin_login)"
-check "signing in wrote an audit row"        "1"   "$("${DB_MAIN[@]}" "SELECT COUNT(*) FROM cms_audit_log WHERE action='login' AND actor_username='localtest'")"
-check "the audit row names the actor"        "localtest" "$("${DB_MAIN[@]}" "SELECT actor_username FROM cms_audit_log ORDER BY id DESC LIMIT 1")"
+check "signing in wrote an audit row"        "1"   "$("${DB_MAIN[@]}" "SELECT COUNT(*) FROM cms_audit_log WHERE action='login' AND actor_username='Craig'")"
+check "the audit row names the actor"        "Craig" "$("${DB_MAIN[@]}" "SELECT actor_username FROM cms_audit_log ORDER BY id DESC LIMIT 1")"
 check "the audit row records an address"     "1"   "$("${DB_MAIN[@]}" "SELECT COUNT(*) FROM cms_audit_log WHERE ip_address IS NOT NULL")"
 
 for s in dashboard analytics registrations events accounting users settings; do
@@ -1771,7 +1771,7 @@ for s in dashboard analytics registrations events accounting users settings; do
     "$(curl -s -b "$JAR" -o /dev/null -w '%{http_code}' "$MAIN/admin/$s.php")"
 done
 check "the shell renders the sidebar"        "1"   "$(admin_get dashboard.php | grep -c 'class="pma-side"')"
-check "the sidebar shows the account"        "1"   "$(admin_get dashboard.php | grep -c 'localtest')"
+check "the sidebar shows the account"        "1"   "$(admin_get dashboard.php | grep -c 'Craig')"
 check "the tier 3 placeholder is not a link" "0"   "$(admin_get dashboard.php | grep -c 'href="#"')"
 check "the tier 3 placeholder is marked"     "1"   "$(admin_get dashboard.php | grep -c 'pma-chip-later')"
 
@@ -1798,7 +1798,7 @@ sub_login() {
         | sed -n 's/.*name="csrf_token" value="\([^"]*\)".*/\1/p' | head -1)"
   curl -s -b "$JAR" -c "$JAR" -o /dev/null \
     --data-urlencode "csrf_token=$tok" \
-    --data-urlencode "username=localtest" \
+    --data-urlencode "username=Craig" \
     --data-urlencode "password=localtest-analytics-pw" \
     "$MAIN/admin/login.php"
 }
@@ -1962,7 +1962,7 @@ media_login() {
   tok="$(curl -s -c "$MJAR" "$MAIN/admin/login.php" \
         | sed -n 's/.*name="csrf_token" value="\([^"]*\)".*/\1/p' | head -1)"
   curl -s -b "$MJAR" -c "$MJAR" -o /dev/null \
-    --data-urlencode "csrf_token=$tok" --data-urlencode "username=localtest" \
+    --data-urlencode "csrf_token=$tok" --data-urlencode "username=Craig" \
     --data-urlencode "password=localtest-analytics-pw" "$MAIN/admin/login.php"
 }
 media_token() {
@@ -2040,7 +2040,7 @@ menu_login() {
   tok="$(curl -s -c "$NJAR" "$MAIN/admin/login.php" \
         | sed -n 's/.*name="csrf_token" value="\([^"]*\)".*/\1/p' | head -1)"
   curl -s -b "$NJAR" -c "$NJAR" -o /dev/null \
-    --data-urlencode "csrf_token=$tok" --data-urlencode "username=localtest" \
+    --data-urlencode "csrf_token=$tok" --data-urlencode "username=Craig" \
     --data-urlencode "password=localtest-analytics-pw" "$MAIN/admin/login.php"
 }
 menu_token() {
@@ -2107,7 +2107,7 @@ pg_login() {
   tok="$(curl -s -c "$PJAR" "$MAIN/admin/login.php" \
         | sed -n 's/.*name="csrf_token" value="\([^"]*\)".*/\1/p' | head -1)"
   curl -s -b "$PJAR" -c "$PJAR" -o /dev/null \
-    --data-urlencode "csrf_token=$tok" --data-urlencode "username=localtest" \
+    --data-urlencode "csrf_token=$tok" --data-urlencode "username=Craig" \
     --data-urlencode "password=localtest-analytics-pw" "$MAIN/admin/login.php"
 }
 pg_token() { curl -s -b "$PJAR" "$1" | sed -n 's/.*name="csrf_token" value="\([^"]*\)".*/\1/p' | head -1; }
@@ -2223,7 +2223,7 @@ tr_login() {
   tok="$(curl -s -c "$TJAR" "$MAIN/admin/login.php" \
         | sed -n 's/.*name="csrf_token" value="\([^"]*\)".*/\1/p' | head -1)"
   curl -s -b "$TJAR" -c "$TJAR" -o /dev/null \
-    --data-urlencode "csrf_token=$tok" --data-urlencode "username=localtest" \
+    --data-urlencode "csrf_token=$tok" --data-urlencode "username=Craig" \
     --data-urlencode "password=localtest-analytics-pw" "$MAIN/admin/login.php"
 }
 tr_token() { curl -s -b "$TJAR" "$1" | sed -n 's/.*name="csrf_token" value="\([^"]*\)".*/\1/p' | head -1; }
@@ -2244,7 +2244,7 @@ curl -s -b "$TJAR" -o /dev/null -X POST "$MU" --data-urlencode "csrf_token=$(tr_
   -d "action=delete" -d "location=header" -d "id=$MID"
 check "deleting a menu item keeps a snapshot" "1" \
   "$("${DB_MAIN[@]}" "SELECT COUNT(*) FROM cms_trash WHERE entity_type='menu_item' AND label='$MLABEL'")"
-check "the trash records who did it" "localtest" \
+check "the trash records who did it" "Craig" \
   "$("${DB_MAIN[@]}" "SELECT deleted_by FROM cms_trash ORDER BY id DESC LIMIT 1")"
 check "and where it came from" "Header menu" \
   "$("${DB_MAIN[@]}" "SELECT context FROM cms_trash ORDER BY id DESC LIMIT 1")"
@@ -2308,7 +2308,7 @@ g_login() {
   tok="$(curl -s -c "$GJAR" "$MAIN/admin/login.php" \
         | sed -n 's/.*name="csrf_token" value="\([^"]*\)".*/\1/p' | head -1)"
   curl -s -b "$GJAR" -c "$GJAR" -o /dev/null \
-    --data-urlencode "csrf_token=$tok" --data-urlencode "username=localtest" \
+    --data-urlencode "csrf_token=$tok" --data-urlencode "username=Craig" \
     --data-urlencode "password=localtest-analytics-pw" "$MAIN/admin/login.php"
 }
 g_token() { curl -s -b "$GJAR" "$1" | sed -n 's/.*name="csrf_token" value="\([^"]*\)".*/\1/p' | head -1; }
