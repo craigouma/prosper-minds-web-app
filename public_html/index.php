@@ -230,7 +230,8 @@ pmPageBegin([
 // A real inline default, not [], per the content layer's contract: what a
 // delegate sees if page_content is unreachable should be the same sentences the
 // seeded row holds, not an empty credibility section.
-$pmTestimonials = pmContentJson($pdo, 'home', 'testimonials', [
+require_once __DIR__ . '/includes/testimonials.php';
+$pmTestimonials = pmTestimonials($pdo, pmContentJson($pdo, 'home', 'testimonials', [
     [
         'quote' => 'The reconciliation workflow we built during the automation module cut our monthly reporting time by nine days. It is still running two years later.',
         'role'  => 'Chief Accountant',
@@ -251,7 +252,7 @@ $pmTestimonials = pmContentJson($pdo, 'home', 'testimonials', [
         'role'  => 'Strategy Director',
         'org'   => 'Ministry of Finance, Rwanda',
     ],
-]);
+]));
 ?>
 <?php if ($pmTestimonials !== []): ?>
 <section class="pm-section pm-section--surface">

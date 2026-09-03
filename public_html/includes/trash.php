@@ -8,6 +8,7 @@ const PM_TRASH_TYPES = [
     'media'      => 'File',
     'menu_item'  => 'Menu item',
     'event'      => 'Event',
+    'testimonial'=> 'Delegate review',
     'admin_user' => 'Account',
 ];
 
@@ -166,6 +167,13 @@ function pmTrashRestore(PDO $pdo, int $trashId): array
                                VALUES (?, ?, ?, ?, ?)')
                     ->execute([$data['page_id'], $data['block_type'], $data['appearance'],
                                $data['sort_order'], $data['payload']]);
+                break;
+
+            case 'testimonial':
+                $pdo->prepare('INSERT INTO cms_testimonials (quote, role, org, event_id, is_published, sort_order, added_by)
+                               VALUES (?, ?, ?, ?, ?, ?, ?)')
+                    ->execute([$data['quote'], $data['role'], $data['org'], $data['event_id'],
+                               $data['is_published'], $data['sort_order'], $data['added_by']]);
                 break;
 
             case 'menu_item':

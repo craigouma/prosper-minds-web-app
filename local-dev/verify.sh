@@ -1744,10 +1744,10 @@ check "the shell is marked noindex"          "1"   "$(grep -c 'noindex' $HDR)"
 
 check "nav registry lists four groups"       "4"   "$(php -r "
   require 'public_html/admin/includes/nav.php'; echo count(pmAdminNav());")"
-check "nav registry covers 19 screens"       "19"  "$(php -r "
+check "nav registry covers 20 screens"       "20"  "$(php -r "
   require 'public_html/admin/includes/nav.php';
   \$n=0; foreach (pmAdminNav() as \$g) { \$n += count(\$g['items']); } echo \$n;")"
-check "eighteen screens are built so far"    "18"   "$(php -r "
+check "nineteen screens are built so far"    "19"   "$(php -r "
   require 'public_html/admin/includes/nav.php';
   \$n=0; foreach (pmAdminNav() as \$g) foreach (\$g['items'] as \$i) if (!empty(\$i['built'])) \$n++; echo \$n;")"
 check "the CMS permission modules exist"     "8"   "$(php -r "
@@ -2322,7 +2322,7 @@ g_login
 for s in earlybird banners health audit redirects seo; do
   check "$s.php returns 200" "200" "$(curl -s -b "$GJAR" -o /dev/null -w '%{http_code}' "$MAIN/admin/$s.php")"
 done
-check "eighteen screens are built" "18" "$(php -r "
+check "nineteen screens are built" "19" "$(php -r "
   require 'public_html/admin/includes/nav.php';
   \$n=0; foreach (pmAdminNav() as \$g) foreach (\$g['items'] as \$i) if (!empty(\$i['built'])) \$n++; echo \$n;")"
 
@@ -2600,6 +2600,84 @@ check "the drawer closes on Escape"         "4" "$(grep -c 'closeDrawer' public_
 check "legacy grids collapse on a phone"    "1" \
   "$(grep -c 'grid-template-columns: minmax(0, 1fr) !important' $ACSS)"
 rm -f "$MJ"
+
+echo
+echo "=== 23. Delegate reviews ==="
+
+RJ=/tmp/verify-reviews.txt
+r_login() {
+  rm -f "$RJ"
+  local tok
+  tok="$(curl -s -c "$RJ" "$MAIN/admin/login.php" | sed -n 's/.*name="csrf_token" value="\([^"]*\)".*/\1/p' | head -1)"
+  curl -s -b "$RJ" -c "$RJ" -o /dev/null --data-urlencode "csrf_token=$tok" \
+    --data-urlencode "username=Craig" --data-urlencode "password=localtest-analytics-pw" "$MAIN/admin/login.php"
+}
+r_tok() { curl -s -b "$RJ" "$1" | sed -n 's/.*name="csrf_token" value="\([^"]*\)".*/\1/p' | head -1; }
+RU="$MAIN/admin/testimonials.php"
+
+check "the reviews migration has both halves" "2" \
+  "$(ls public_html/database/migrations/2026-09-04-01-create-cms-testimonials.*.sql 2>/dev/null | wc -l | tr -d ' ')"
+
+r_login
+check "the reviews screen returns 200" "200" "$(curl -s -b "$RJ" -o /dev/null -w '%{http_code}' "$RU")"
+check "cms_testimonials was created on demand" "1" "$(table_exists cms_testimonials)"
+check "the reviews the site shipped with were carried over" "4" \
+  "$("${DB_MAIN[@]}" "SELECT COUNT(*) FROM cms_testimonials")"
+
+echo "  ---- every staff member can manage reviews, not just super admins ----"
+cat > /tmp/verify-review-perm.php <<'PHPEOF'
+<?php
+require 'public_html/includes/testimonials.php';
+$_SESSION = $argv[1] === 'editor'
+    ? ['admin_logged_in' => true, 'admin_role' => 'editor', 'admin_is_administrator' => false, 'admin_permissions' => []]
+    : [];
+echo pmCanManageTestimonials() ? 'allowed' : 'denied';
+PHPEOF
+check "an editor with no content permission is allowed" "allowed" "$(php /tmp/verify-review-perm.php editor)"
+check "a signed out visitor is not"                     "denied"  "$(php /tmp/verify-review-perm.php out)"
+check "the sidebar does not padlock it" "1" "$(grep -c "everyone" public_html/admin/includes/nav.php | head -1)"
+
+curl -s -b "$RJ" -o /dev/null -X POST "$RU" --data-urlencode "csrf_token=$(r_tok "$RU")" -d "action=add" \
+  --data-urlencode "quote=A verified delegate review for the acceptance suite." \
+  --data-urlencode "role=Chief Accountant" --data-urlencode "org=Verify Ministry" -d "is_published=1"
+check "adding a review stores it" "1" \
+  "$("${DB_MAIN[@]}" "SELECT COUNT(*) FROM cms_testimonials WHERE org='Verify Ministry'")"
+check "and it reaches the homepage" "1" \
+  "$(curl -s "$MAIN/index.php" | grep -c 'A verified delegate review for the acceptance suite')"
+check "adding is audited" "1" "$("${DB_MAIN[@]}" "SELECT COUNT(*) FROM cms_audit_log WHERE action='review_add'")"
+
+RID="$("${DB_MAIN[@]}" "SELECT id FROM cms_testimonials WHERE org='Verify Ministry' LIMIT 1")"
+curl -s -b "$RJ" -o /dev/null -X POST "$RU" --data-urlencode "csrf_token=$(r_tok "$RU")" \
+  -d "action=update" -d "id=$RID" --data-urlencode "quote=A verified delegate review for the acceptance suite." \
+  --data-urlencode "role=Chief Accountant" --data-urlencode "org=Verify Ministry"
+check "a review can be held back without deleting" "0" \
+  "$(curl -s "$MAIN/index.php" | grep -c 'A verified delegate review for the acceptance suite')"
+check "and it is still on file" "1" \
+  "$("${DB_MAIN[@]}" "SELECT COUNT(*) FROM cms_testimonials WHERE org='Verify Ministry'")"
+
+curl -s -b "$RJ" -o /dev/null -X POST "$RU" --data-urlencode "csrf_token=$(r_tok "$RU")" -d "action=delete" -d "id=$RID"
+check "deleting a review keeps a snapshot" "1" \
+  "$("${DB_MAIN[@]}" "SELECT COUNT(*) FROM cms_trash WHERE entity_type='testimonial'")"
+check "and removes it from the list" "0" \
+  "$("${DB_MAIN[@]}" "SELECT COUNT(*) FROM cms_testimonials WHERE org='Verify Ministry'")"
+
+TU="$MAIN/admin/trash.php"
+TID="$("${DB_MAIN[@]}" "SELECT id FROM cms_trash WHERE entity_type='testimonial' AND restored_at IS NULL ORDER BY id DESC LIMIT 1")"
+curl -s -b "$RJ" -o /dev/null -X POST "$TU" --data-urlencode "csrf_token=$(r_tok "$TU")" -d "action=restore" -d "id=$TID"
+check "restoring brings the review back" "1" \
+  "$("${DB_MAIN[@]}" "SELECT COUNT(*) FROM cms_testimonials WHERE org='Verify Ministry'")"
+
+echo "  ---- CRITICAL: an empty or missing table must not empty the homepage ----"
+"${DB_MAIN[@]}" "DELETE FROM cms_testimonials" >/dev/null 2>&1
+check "an empty table falls back to the built-in reviews" "1" \
+  "$(curl -s "$MAIN/index.php" | grep -c 'cut our monthly reporting time by nine days')"
+"${DB_MAIN[@]}" "RENAME TABLE cms_testimonials TO cms_testimonials_parked" >/dev/null 2>&1
+check "a missing table falls back too" "1" \
+  "$(curl -s "$MAIN/index.php" | grep -c 'cut our monthly reporting time by nine days')"
+check "and the homepage still returns 200" "200" "$(curl -s -o /dev/null -w '%{http_code}' "$MAIN/index.php")"
+"${DB_MAIN[@]}" "DROP TABLE IF EXISTS cms_testimonials" >/dev/null 2>&1
+"${DB_MAIN[@]}" "RENAME TABLE cms_testimonials_parked TO cms_testimonials" >/dev/null 2>&1
+rm -f "$RJ"
 
 echo
 printf '\n%s\npassed=%d failed=%d\n%s\n' "$(printf '=%.0s' {1..78})" "$pass" "$fail" "$(printf '=%.0s' {1..78})"

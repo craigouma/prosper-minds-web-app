@@ -21,6 +21,7 @@ function pmAdminIcons(): array {
         'redirects'     => 'M3 5.5h8l-2-2M13 10.5H5l2 2',
         'audit'         => 'M8 2.5 13 4.3v4.2c0 3-2.2 5-5 6-2.8-1-5-3-5-6V4.3z',
         'health'        => 'M2.5 8h3l1.5-3.5L9 11.5l1.5-3.5h3',
+        'testimonials'  => 'M3 3.5h10v7H8l-3 2.5v-2.5H3zM5.5 6.5h5M5.5 8.5h3',
         'trash'         => 'M3 4.5h10M6.5 4.5V3h3v1.5M4.5 4.5l.7 9h5.6l.7-9M6.8 7v4M9.2 7v4',
     ];
 }
@@ -43,6 +44,7 @@ function pmAdminNav(): array {
             ['key' => 'media',       'label' => 'Media library',   'href' => 'media.php',       'module' => 'media',       'crumb' => 'Content', 'built' => true, 'phone' => true],
             ['key' => 'menus',       'label' => 'Menus',           'href' => 'menus.php',       'module' => 'menus',       'crumb' => 'Content', 'built' => true],
             ['key' => 'submissions', 'label' => 'Submissions',     'href' => 'submissions.php', 'module' => 'submissions', 'crumb' => 'Content', 'built' => true, 'phone' => true],
+            ['key' => 'testimonials','label' => 'Delegate reviews','href' => 'testimonials.php','module' => 'content',     'crumb' => 'Content', 'built' => true, 'phone' => true, 'everyone' => true],
             ['key' => 'seo',         'label' => 'SEO and schema',  'href' => 'seo.php',         'module' => 'seo',         'crumb' => 'Content', 'built' => true],
             ['key' => 'trash',       'label' => 'Trash',           'href' => 'trash.php',       'module' => 'content',     'crumb' => 'Content', 'built' => true],
             ['key' => 'templates',   'label' => 'Reusable blocks', 'href' => '#',               'module' => 'content',     'crumb' => 'Content', 'built' => false, 'soon' => true],
