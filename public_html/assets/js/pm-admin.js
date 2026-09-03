@@ -109,3 +109,37 @@
     init();
   }
 }());
+
+(function () {
+  'use strict';
+
+  function init() {
+    document.addEventListener('click', function (event) {
+      var button = event.target.closest('[data-copy]');
+      if (!button) {
+        return;
+      }
+
+      var value = button.getAttribute('data-copy');
+      var done = function () {
+        var was = button.textContent;
+        button.textContent = 'Copied';
+        window.setTimeout(function () { button.textContent = was; }, 1600);
+      };
+
+      if (navigator.clipboard && window.isSecureContext) {
+        navigator.clipboard.writeText(value).then(done, function () { window.prompt('Copy this link', value); });
+      } else {
+        // Clipboard access needs a secure context, which a staging host on
+        // plain http will not be. Showing the value still gets the job done.
+        window.prompt('Copy this link', value);
+      }
+    });
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', init);
+  } else {
+    init();
+  }
+}());

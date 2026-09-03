@@ -321,3 +321,49 @@ function generateInvoicePdf(array $invoicePayload, string $outputPath): array
         return ['success' => false, 'output' => 'Invoice generation error: ' . $e->getMessage()];
     }
 }
+
+/**
+ * Secret for signing invoice links. Read from the environment so it is not in
+ * the repository; falls back to a value derived from the database password so
+ * an install that has not set one still gets links that cannot be guessed from
+ * outside, rather than links signed with a constant.
+ */
+function pmInvoiceSigningKey(): string
+{
+    $key = (string) (getenv('INVOICE_LINK_SECRET') ?: '');
+
+    if ($key !== '') {
+        return $key;
+    }
+
+    return hash('sha256', 'pm-invoice-link|' . (defined('DB_PASS') ? DB_PASS : '') . '|' . (defined('DB_NAME') ? DB_NAME : ''));
+}
+
+function pmInvoiceSignature(int $registrationId, int $expires): string
+{
+    return hash_hmac('sha256', $registrationId . '|' . $expires, pmInvoiceSigningKey());
+}
+
+function pmInvoiceSignatureValid(int $registrationId, int $expires, string $signature): bool
+{
+    // hash_equals, not ===, so a wrong signature cannot be narrowed down by
+    // timing how long the comparison takes.
+    return hash_equals(pmInvoiceSignature($registrationId, $expires), $signature);
+}
+
+/** A link that works for $days and then stops. */
+function pmInvoiceLink(int $registrationId, int $days = 30, bool $absolute = true): string
+{
+    $expires = time() + $days * 86400;
+    $query   = 'r=' . $registrationId . '&e=' . $expires . '&s=' . pmInvoiceSignature($registrationId, $expires);
+    $path    = '/invoice.php?' . $query;
+
+    if (!$absolute) {
+        return $path;
+    }
+
+    $host = $_SERVER['HTTP_HOST'] ?? 'prosper-minds.com';
+    $sch  = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
+
+    return $sch . '://' . $host . $path;
+}

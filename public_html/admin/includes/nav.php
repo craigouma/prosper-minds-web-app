@@ -35,24 +35,24 @@ function pmAdminNav(): array {
         ]],
         ['label' => 'Programme', 'items' => [
             ['key' => 'events',    'label' => 'Events',             'href' => 'events.php',    'module' => 'events',    'crumb' => 'Programme', 'built' => true],
-            ['key' => 'earlybird', 'label' => 'Early bird control', 'href' => 'earlybird.php', 'module' => 'events',    'crumb' => 'Programme', 'built' => false],
-            ['key' => 'banners',   'label' => 'Banner library',     'href' => 'banners.php',   'module' => 'media',     'crumb' => 'Programme', 'built' => false],
+            ['key' => 'earlybird', 'label' => 'Early bird control', 'href' => 'earlybird.php', 'module' => 'events',    'crumb' => 'Programme', 'built' => true],
+            ['key' => 'banners',   'label' => 'Banner library',     'href' => 'banners.php',   'module' => 'media',     'crumb' => 'Programme', 'built' => true],
         ]],
         ['label' => 'Content', 'items' => [
             ['key' => 'pages',       'label' => 'Pages',           'href' => 'pages.php',       'module' => 'content',     'crumb' => 'Content', 'built' => true],
             ['key' => 'media',       'label' => 'Media library',   'href' => 'media.php',       'module' => 'media',       'crumb' => 'Content', 'built' => true],
             ['key' => 'menus',       'label' => 'Menus',           'href' => 'menus.php',       'module' => 'menus',       'crumb' => 'Content', 'built' => true],
             ['key' => 'submissions', 'label' => 'Submissions',     'href' => 'submissions.php', 'module' => 'submissions', 'crumb' => 'Content', 'built' => true],
-            ['key' => 'seo',         'label' => 'SEO and schema',  'href' => 'seo.php',         'module' => 'seo',         'crumb' => 'Content', 'built' => false],
+            ['key' => 'seo',         'label' => 'SEO and schema',  'href' => 'seo.php',         'module' => 'seo',         'crumb' => 'Content', 'built' => true],
             ['key' => 'trash',       'label' => 'Trash',           'href' => 'trash.php',       'module' => 'content',     'crumb' => 'Content', 'built' => true],
             ['key' => 'templates',   'label' => 'Reusable blocks', 'href' => '#',               'module' => 'content',     'crumb' => 'Content', 'built' => false, 'soon' => true],
         ]],
         ['label' => 'System', 'items' => [
             ['key' => 'users',     'label' => 'Users',              'href' => 'users.php',     'module' => 'users',     'crumb' => 'System', 'built' => true, 'superOnly' => true],
             ['key' => 'settings',  'label' => 'Settings',           'href' => 'settings.php',  'module' => 'settings',  'crumb' => 'System', 'built' => true, 'superOnly' => true],
-            ['key' => 'redirects', 'label' => 'Redirects and 404s', 'href' => 'redirects.php', 'module' => 'redirects', 'crumb' => 'System', 'built' => false],
-            ['key' => 'audit',     'label' => 'Audit log',          'href' => 'audit.php',     'module' => 'audit',     'crumb' => 'System', 'built' => false, 'superOnly' => true],
-            ['key' => 'health',    'label' => 'Site health',        'href' => 'health.php',    'module' => 'health',    'crumb' => 'System', 'built' => false],
+            ['key' => 'redirects', 'label' => 'Redirects and 404s', 'href' => 'redirects.php', 'module' => 'redirects', 'crumb' => 'System', 'built' => true],
+            ['key' => 'audit',     'label' => 'Audit log',          'href' => 'audit.php',     'module' => 'audit',     'crumb' => 'System', 'built' => true, 'superOnly' => true],
+            ['key' => 'health',    'label' => 'Site health',        'href' => 'health.php',    'module' => 'health',    'crumb' => 'System', 'built' => true],
         ]],
     ];
 }

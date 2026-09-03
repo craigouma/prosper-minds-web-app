@@ -230,6 +230,9 @@ include 'header.php';
                            title="Download Invoice PDF">
                             <i class="fas fa-file-pdf"></i>
                         </a>
+                        <button type="button" class="btn btn-outline btn-sm" data-copy="<?php
+                            echo htmlspecialchars(pmInvoiceLink((int) $r['id'])); ?>"
+                            title="Copy a link the delegate can use for 30 days">Link</button>
                         <?php else: ?>
                         <button class="btn btn-outline btn-sm btn-icon" disabled
                                 title="Invoice PDF not available">
