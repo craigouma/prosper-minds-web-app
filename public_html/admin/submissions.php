@@ -180,18 +180,20 @@ require_once 'header.php';
 <?php endforeach; ?>
     </div>
 
-    <form method="GET" action="submissions.php"
-          style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;padding:14px 16px;border-bottom:1px solid var(--pma-border)">
+    <form method="GET" action="submissions.php" class="pma-toolbar">
         <input type="hidden" name="tab" value="<?php echo htmlspecialchars($tab); ?>">
-        <div class="form-group" style="margin:0;flex:1 1 240px">
-            <label for="q">Search</label>
-            <input type="search" id="q" name="q" class="form-control"
-                   value="<?php echo htmlspecialchars($search); ?>"
+        <label class="pma-search">
+            <svg width="14" height="14" viewBox="0 0 16 16" aria-hidden="true">
+                <path d="M7.2 3a4.2 4.2 0 110 8.4 4.2 4.2 0 010-8.4zM10.4 10.4 13.5 13.5"
+                      fill="none" stroke="#6b6b6b" stroke-width="1.3"></path>
+            </svg>
+            <span class="pma-vh">Search submissions</span>
+            <input type="search" name="q" value="<?php echo htmlspecialchars($search); ?>"
                    placeholder="<?php echo $tab === 'newsletter' ? 'Email address' : 'Name, organisation, email or text'; ?>">
-        </div>
-        <div class="form-group" style="margin:0;flex:0 0 190px">
-            <label for="only">Show</label>
-            <select id="only" name="only" class="form-control">
+        </label>
+        <label>
+            <span class="pma-vh">Show</span>
+            <select name="only">
 <?php
 $options = $tab === 'newsletter'
     ? ['' => 'Everyone', 'active' => 'Subscribed only', 'unsubscribed' => 'Unsubscribed only']
@@ -201,7 +203,7 @@ foreach ($options as $value => $label): ?>
                     <?php echo $only === $value ? 'selected' : ''; ?>><?php echo htmlspecialchars($label); ?></option>
 <?php endforeach; ?>
             </select>
-        </div>
+        </label>
         <button type="submit" class="btn btn-outline btn-sm">Apply</button>
 <?php if ($search !== '' || $only !== ''): ?>
         <a class="btn btn-outline btn-sm" href="<?php echo htmlspecialchars('submissions.php?tab=' . $tab); ?>">Clear</a>

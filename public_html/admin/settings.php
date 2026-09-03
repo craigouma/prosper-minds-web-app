@@ -114,11 +114,11 @@ include 'header.php';
                 <label>Brand Color</label>
                 <div style="display:flex;align-items:center;gap:10px;">
                     <input type="color" id="colorPicker" name="company_color"
-                           style="width:50px;padding:2px;height:38px;cursor:pointer;border:1.5px solid var(--gray-200);border-radius:6px;"
-                           value="<?php echo sv($settings, 'company_color', '#00B140'); ?>">
+                           style="width:50px;padding:2px;height:38px;cursor:pointer;border:1.5px solid var(--gray-200);border-radius:2px;"
+                           value="<?php echo sv($settings, 'company_color', '#00BF63'); ?>">
                     <input type="text" id="colorHex" class="form-control" style="flex:1;"
-                           value="<?php echo sv($settings, 'company_color', '#00B140'); ?>"
-                           placeholder="#00B140" readonly>
+                           value="<?php echo sv($settings, 'company_color', '#00BF63'); ?>"
+                           placeholder="#00BF63" readonly>
                 </div>
             </div>
         </div>
@@ -217,15 +217,15 @@ include 'header.php';
             </div>
             <table style="width:100%;font-size:13px;">
                 <tr>
-                    <td style="padding:6px 0;color:#94a3b8;border:none;">PHP Version</td>
+                    <td style="padding:6px 0;color:#6b6b6b;border:none;">PHP Version</td>
                     <td style="padding:6px 0;font-weight:600;border:none;"><?php echo PHP_VERSION; ?></td>
                 </tr>
                 <tr>
-                    <td style="padding:6px 0;color:#94a3b8;border:none;">Database</td>
+                    <td style="padding:6px 0;color:#6b6b6b;border:none;">Database</td>
                     <td style="padding:6px 0;font-weight:600;border:none;"><?php echo DB_NAME; ?> @ <?php echo DB_HOST; ?></td>
                 </tr>
                 <tr>
-                    <td style="padding:6px 0;color:#94a3b8;border:none;">Logged in as</td>
+                    <td style="padding:6px 0;color:#6b6b6b;border:none;">Logged in as</td>
                     <td style="padding:6px 0;font-weight:600;border:none;">
                         <?php echo htmlspecialchars($_SESSION['admin_username']); ?>
                         <span class="badge <?php echo isSuper() ? 'badge-green' : 'badge-gray'; ?>" style="margin-left:6px;">
@@ -234,7 +234,7 @@ include 'header.php';
                     </td>
                 </tr>
                 <tr>
-                    <td style="padding:6px 0;color:#94a3b8;border:none;">Server Time</td>
+                    <td style="padding:6px 0;color:#6b6b6b;border:none;">Server Time</td>
                     <td style="padding:6px 0;font-weight:600;border:none;"><?php echo date('Y-m-d H:i:s'); ?></td>
                 </tr>
             </table>
@@ -254,10 +254,10 @@ function showSettingsToast(msg, ok) {
     if (!t) {
         t = document.createElement('div');
         t.id = 'settingsToast';
-        t.style.cssText = 'position:fixed;bottom:28px;right:28px;z-index:9999;padding:14px 22px;border-radius:10px;font-size:14px;font-weight:600;box-shadow:0 4px 18px rgba(0,0,0,.18);transition:opacity .3s;max-width:420px;';
+        t.style.cssText = 'position:fixed;bottom:28px;right:28px;z-index:9999;padding:14px 22px;border-radius:2px;font-size:14px;font-weight:600;box-shadow:0 4px 18px rgba(0,0,0,.18);transition:opacity .3s;max-width:420px;';
         document.body.appendChild(t);
     }
-    t.style.background = ok ? '#00B140' : '#dc2626';
+    t.style.background = ok ? '#00BF63' : '#B02A17';
     t.style.color = '#fff';
     t.style.opacity = '1';
     t.textContent = msg;

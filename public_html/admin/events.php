@@ -225,14 +225,14 @@ include 'header.php';
                         <td>
                             <?php if ($ev['image_path']): ?>
                                 <img src="../<?php echo htmlspecialchars($ev['image_path']); ?>"
-                                     style="width:50px;height:36px;object-fit:cover;border-radius:4px;margin-right:10px;vertical-align:middle;">
+                                     style="width:50px;height:36px;object-fit:cover;border-radius:2px;margin-right:10px;vertical-align:middle;">
                             <?php endif; ?>
                             <strong><?php echo htmlspecialchars($ev['title']); ?></strong><br>
-                            <span style="font-size:12px;color:#94a3b8;"><?php echo htmlspecialchars($ev['tagline']); ?></span>
+                            <span style="font-size:12px;color:#6b6b6b;"><?php echo htmlspecialchars($ev['tagline']); ?></span>
                         </td>
                         <td>
                             <span style="font-size:13px;"><?php echo htmlspecialchars($ev['date_display']); ?></span><br>
-                            <span style="font-size:12px;color:#94a3b8;"><i class="fas fa-map-marker-alt"></i> <?php echo htmlspecialchars($ev['location']); ?></span>
+                            <span style="font-size:12px;color:#6b6b6b;"><i class="fas fa-map-marker-alt"></i> <?php echo htmlspecialchars($ev['location']); ?></span>
                         </td>
                         <td style="white-space:nowrap;"><?php echo htmlspecialchars($ev['price']); ?></td>
                         <td>
@@ -476,7 +476,7 @@ include 'header.php';
                 <div class="form-hint">JPG, PNG, WEBP – max 5 MB</div>
                 <?php if (!empty($editEvent['image_path'])): ?>
                     <img src="../<?php echo htmlspecialchars($editEvent['image_path']); ?>"
-                         style="width:100%;max-height:120px;object-fit:cover;border-radius:6px;margin-top:10px;border:1.5px solid var(--gray-200);">
+                         style="width:100%;max-height:120px;object-fit:cover;border-radius:2px;margin-top:10px;border:1.5px solid var(--gray-200);">
                     <div class="form-hint">Current image — upload new to replace</div>
                 <?php endif; ?>
                 <img id="imgPreview" class="img-preview">

@@ -31,6 +31,7 @@
   --pma-mono:  'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   --pma-sans:  system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
   --pma-sidebar: 226px;
+  --pma-content: 1254px;
 }
 
 *, *::before, *::after { box-sizing: border-box; }
@@ -218,16 +219,20 @@ body.pma {
 .pma-main { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; }
 
 .pma-top {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  flex-wrap: wrap;
-  padding: 14px 22px;
   border-bottom: 1px solid var(--pma-border);
   background: var(--pma-white);
   position: sticky;
   top: 0;
   z-index: 40;
+}
+
+.pma-top-inner {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+  padding: 14px 22px;
+  max-width: var(--pma-content);
 }
 
 .pma-crumb {
@@ -247,7 +252,7 @@ body.pma {
 
 .pma-top-actions { display: flex; align-items: center; gap: 8px; margin-left: auto; }
 
-.pma-body { padding: 22px; }
+.pma-body { padding: 22px; max-width: var(--pma-content); width: 100%; }
 
 .pma .card,
 .pma .table-card {
@@ -711,3 +716,115 @@ body.pma {
   .pma-side, .pma-top-actions { display: none; }
   .pma-shell { display: block; }
 }
+
+.pma-vh {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+.pma-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--pma-border);
+}
+
+.pma-toolbar > form { display: contents; }
+
+.pma-search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1 1 260px;
+  min-width: 0;
+  border: 1px solid var(--pma-field);
+  border-radius: 2px;
+  padding: 0 11px;
+  min-height: 38px;
+  background: var(--pma-white);
+}
+
+.pma-search svg { flex: 0 0 auto; }
+
+.pma-search input {
+  flex: 1 1 auto;
+  min-width: 0;
+  border: 0;
+  padding: 9px 0;
+  background: none;
+  font: inherit;
+  font-size: 13px;
+  color: var(--pma-black);
+}
+
+.pma-search input:focus { outline: none; }
+.pma-search:focus-within { border-color: var(--pma-black); }
+
+.pma select,
+.pma .form-control,
+.pma-toolbar select {
+  border-radius: 2px;
+}
+
+.pma select {
+  appearance: none;
+  -webkit-appearance: none;
+  border: 1px solid var(--pma-field);
+  padding: 9px 30px 9px 11px;
+  min-height: 38px;
+  background-color: var(--pma-white);
+  background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='7' viewBox='0 0 10 7'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%236b6b6b' stroke-width='1.4'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 10px center;
+  font: inherit;
+  font-size: 13px;
+  color: var(--pma-black);
+  cursor: pointer;
+  max-width: 100%;
+}
+
+.pma-toolbar select { width: auto; max-width: 260px; text-overflow: ellipsis; }
+.pma-toolbar .btn { flex: 0 0 auto; }
+
+.pma .btn i,
+.pma .btn .fas,
+.pma .btn .far,
+.pma .btn .fab { display: none; }
+
+.pma-side-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  width: 34px;
+  height: 34px;
+  background: none;
+  border: 1px solid var(--pma-border);
+  border-radius: 2px;
+  cursor: pointer;
+  color: var(--pma-body);
+  margin-right: 4px;
+}
+
+.pma-side-toggle:hover { border-color: var(--pma-black); color: var(--pma-black); }
+
+.pma-shell.is-collapsed { --pma-sidebar: 58px; }
+.pma-shell.is-collapsed .pma-navgroup-label,
+.pma-shell.is-collapsed .pma-nav-item span,
+.pma-shell.is-collapsed .pma-chip-later,
+.pma-shell.is-collapsed .pma-brand span,
+.pma-shell.is-collapsed .pma-side-user > div,
+.pma-shell.is-collapsed .pma-signout { display: none; }
+
+.pma-shell.is-collapsed .pma-side { padding-top: 14px; gap: 10px; }
+.pma-shell.is-collapsed .pma-brand { justify-content: center; padding: 0 0 12px; }
+.pma-shell.is-collapsed .pma-nav-item { justify-content: center; padding: 8px 0; border-left-width: 0; }
+.pma-shell.is-collapsed .pma-nav-item.is-active { box-shadow: inset 2px 0 0 var(--pma-green); }
+.pma-shell.is-collapsed .pma-side-foot { padding: 12px 0 0; }
+.pma-shell.is-collapsed .pma-side-user { justify-content: center; margin-bottom: 0; }

@@ -27,6 +27,7 @@ $pmInitials = substr($pmInitials, 0, 2) ?: strtoupper(substr($pmUser, 0, 2));
     <link rel="icon" href="../assets/images/favicon-32.png" sizes="32x32">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="../assets/css/pm-admin.css">
+    <script src="../assets/js/pm-admin.js" defer></script>
 </head>
 <body class="pma">
 <div class="pma-shell">
@@ -94,6 +95,14 @@ $pmInitials = substr($pmInitials, 0, 2) ?: strtoupper(substr($pmUser, 0, 2));
 
     <main class="pma-main">
         <header class="pma-top">
+          <div class="pma-top-inner">
+            <button type="button" class="pma-side-toggle" aria-expanded="true"
+                    aria-label="Show or hide the sidebar">
+                <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true">
+                    <path d="M2.5 4.5h11M2.5 8h11M2.5 11.5h11" fill="none"
+                          stroke="currentColor" stroke-width="1.4"></path>
+                </svg>
+            </button>
             <div style="min-width:0">
 <?php if ($pmCrumb !== ''): ?>
                 <div class="pma-crumb"><?php echo htmlspecialchars($pmCrumb); ?></div>
@@ -103,6 +112,7 @@ $pmInitials = substr($pmInitials, 0, 2) ?: strtoupper(substr($pmUser, 0, 2));
             <div class="pma-top-actions">
                 <a href="../index.php" target="_blank" rel="noopener" class="btn btn-outline btn-sm">View site</a>
             </div>
+          </div>
         </header>
 
         <div class="pma-body">

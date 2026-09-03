@@ -237,7 +237,7 @@ include 'header.php';
 <div class="page-sub-header">
     <div>
         <h2 style="font-size:18px;">Staff Members</h2>
-        <p style="color:#94a3b8;font-size:13px;"><?=count($allUsers)?> account<?=count($allUsers)!==1?'s':''?></p>
+        <p style="color:#6b6b6b;font-size:13px;"><?=count($allUsers)?> account<?=count($allUsers)!==1?'s':''?></p>
     </div>
     <?php if (isSuper()): ?>
     <a href="users.php?action=add" class="btn btn-primary">
@@ -282,11 +282,11 @@ include 'header.php';
                                     <span class="badge badge-orange" style="margin-left:4px;">You</span>
                                 <?php endif; ?>
                             </div>
-                            <div style="font-size:12px;color:#94a3b8;">@<?=htmlspecialchars($u['username'])?></div>
+                            <div style="font-size:12px;color:#6b6b6b;">@<?=htmlspecialchars($u['username'])?></div>
                         </div>
                     </div>
                 </td>
-                <td style="color:#475569;"><?=htmlspecialchars($u['email']??'—')?></td>
+                <td style="color:#3d3d3d;"><?=htmlspecialchars($u['email']??'—')?></td>
                 <td><?=htmlspecialchars($u['department']??'—')?></td>
                 <td>
                     <?php if (!empty($u['is_administrator'])): ?>
@@ -335,7 +335,7 @@ include 'header.php';
 <div class="page-sub-header">
     <div>
         <h2><?=$editUser ? 'Edit Staff Member' : 'Add New Staff Member'?></h2>
-        <p style="color:#94a3b8;font-size:13px;">
+        <p style="color:#6b6b6b;font-size:13px;">
             <?=$editUser ? htmlspecialchars(trim(($editUser['first_name']??'').' '.($editUser['last_name']??''))) ?: htmlspecialchars($editUser['username']) : 'Fill in the details below'?>
         </p>
     </div>
@@ -377,7 +377,7 @@ include 'header.php';
                     <input type="checkbox" name="is_staff" value="1"
                            <?=!isset($editUser)||!empty($editUser['is_staff'])?'checked':''?>>
                     <div>
-                        <div class="check-group-label"><i class="fas fa-id-badge" style="color:#94a3b8;margin-right:5px;"></i>Active Staff Member</div>
+                        <div class="check-group-label"><i class="fas fa-id-badge" style="color:#6b6b6b;margin-right:5px;"></i>Active Staff Member</div>
                         <div class="check-group-sub">Uncheck to deactivate this account</div>
                     </div>
                 </label>
@@ -395,7 +395,7 @@ include 'header.php';
                         $ini = strtoupper(substr($editUser['first_name']??'',0,1).substr($editUser['last_name']??'',0,1));
                         if (!$ini) $ini = strtoupper(substr($editUser['username']??'U',0,2));
                         ?>
-                        <div style="width:80px;height:80px;border-radius:50%;background:var(--gray-200);display:flex;align-items:center;justify-content:center;font-size:28px;font-weight:700;color:var(--gray-600);"><?=$ini?></div>
+                        <div style="width:80px;height:80px;border-radius:2px;background:var(--gray-200);display:flex;align-items:center;justify-content:center;font-size:28px;font-weight:700;color:var(--gray-600);"><?=$ini?></div>
                     <?php endif; ?>
                     <div>
                         <input type="file" name="profile_image" accept="image/*" class="form-control"
@@ -448,7 +448,7 @@ include 'header.php';
             <hr class="divider">
             <div style="font-size:13.5px;font-weight:700;color:var(--gray-800);margin-bottom:14px;">
                 <i class="fas fa-key" style="color:var(--primary);margin-right:6px;"></i>
-                <?=$editUser ? 'Password <span style="font-weight:400;color:#94a3b8;font-size:12.5px;">(leave blank to keep current)</span>' : 'Password'?>
+                <?=$editUser ? 'Password <span style="font-weight:400;color:#6b6b6b;font-size:12.5px;">(leave blank to keep current)</span>' : 'Password'?>
             </div>
 
             <div class="form-grid">
@@ -460,7 +460,7 @@ include 'header.php';
                                style="padding-right:42px;"
                                placeholder="<?=$editUser?'Leave blank to keep current':'Min. 8 characters'?>">
                         <button type="button" onclick="togglePwd('pwdField',this)"
-                                style="position:absolute;right:10px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;color:#94a3b8;font-size:15px;">
+                                style="position:absolute;right:10px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;color:#6b6b6b;font-size:15px;">
                             <i class="fas fa-eye"></i>
                         </button>
                     </div>
@@ -499,7 +499,7 @@ include 'header.php';
                 </div>
             </div>
             <?php else: ?>
-            <p style="font-size:13px;color:#94a3b8;margin-bottom:20px;">
+            <p style="font-size:13px;color:#6b6b6b;margin-bottom:20px;">
                 Check the capabilities this staff member is allowed to perform.
                 Unchecked items will be hidden or blocked.
             </p>
@@ -596,7 +596,7 @@ function previewAvatar(input) {
     const reader = new FileReader();
     reader.onload = e => {
         let img = input.closest('.form-group').querySelector('img.user-avatar-lg');
-        let ph  = input.closest('.form-group').querySelector('div[style*="border-radius:50%"]');
+        let ph  = input.closest('.form-group').querySelector('div[style*="border-radius:2px"]');
         if (!img) {
             img = document.createElement('img');
             img.className = 'user-avatar-lg';

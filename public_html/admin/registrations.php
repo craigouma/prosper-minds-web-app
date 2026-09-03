@@ -160,8 +160,8 @@ include 'header.php';
             <?php if ($registrations): ?>
                 <?php foreach ($registrations as $r): ?>
                 <tr>
-                    <td style="color:#94a3b8;"><?php echo $r['id']; ?></td>
-                    <td style="white-space:nowrap;color:#94a3b8;font-size:12.5px;">
+                    <td style="color:#6b6b6b;"><?php echo $r['id']; ?></td>
+                    <td style="white-space:nowrap;color:#6b6b6b;font-size:12.5px;">
                         <?php echo date('M d, Y', strtotime($r['created_at'])); ?><br>
                         <?php echo date('H:i', strtotime($r['created_at'])); ?>
                     </td>
@@ -173,15 +173,15 @@ include 'header.php';
                     </td>
                     <td>
                         <?php echo htmlspecialchars($r['email']); ?><br>
-                        <span style="color:#94a3b8;font-size:12px;"><?php echo htmlspecialchars($r['phone']); ?></span>
+                        <span style="color:#6b6b6b;font-size:12px;"><?php echo htmlspecialchars($r['phone']); ?></span>
                     </td>
                     <td>
                         <?php echo htmlspecialchars($r['organization'] ?: '-'); ?><br>
-                        <span style="color:#94a3b8;font-size:12px;"><?php echo htmlspecialchars($r['country'] ?: '-'); ?></span>
+                        <span style="color:#6b6b6b;font-size:12px;"><?php echo htmlspecialchars($r['country'] ?: '-'); ?></span>
                     </td>
                     <td style="white-space:nowrap;">
                         <strong><?php echo htmlspecialchars($r['invoice_number'] ?: 'Pending'); ?></strong><br>
-                        <span style="color:#94a3b8;font-size:12px;">
+                        <span style="color:#6b6b6b;font-size:12px;">
                             <?php echo htmlspecialchars(($r['currency_code'] ?? 'USD') . ' ' . number_format((float) ($r['total_amount'] ?? 0), 2)); ?>
                         </span><br>
                         <span class="badge badge-gray" style="margin-top:4px;">
@@ -352,10 +352,10 @@ function showToast(msg, isSuccess) {
     if (!toast) {
         toast = document.createElement('div');
         toast.id = 'adminToast';
-        toast.style.cssText = 'position:fixed;bottom:28px;right:28px;z-index:9999;padding:14px 22px;border-radius:10px;font-size:14px;font-weight:600;box-shadow:0 4px 18px rgba(0,0,0,.18);transition:opacity .3s;max-width:380px;';
+        toast.style.cssText = 'position:fixed;bottom:28px;right:28px;z-index:9999;padding:14px 22px;border-radius:2px;font-size:14px;font-weight:600;box-shadow:0 4px 18px rgba(0,0,0,.18);transition:opacity .3s;max-width:380px;';
         document.body.appendChild(toast);
     }
-    toast.style.background = isSuccess ? '#00B140' : '#dc2626';
+    toast.style.background = isSuccess ? '#00BF63' : '#B02A17';
     toast.style.color = '#fff';
     toast.style.opacity = '1';
     toast.textContent = msg;
