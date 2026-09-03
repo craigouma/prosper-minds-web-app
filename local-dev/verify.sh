@@ -1745,7 +1745,7 @@ check "nav registry lists four groups"       "4"   "$(php -r "
 check "nav registry covers 18 screens"       "18"  "$(php -r "
   require 'public_html/admin/includes/nav.php';
   \$n=0; foreach (pmAdminNav() as \$g) { \$n += count(\$g['items']); } echo \$n;")"
-check "ten screens are built so far"         "10"   "$(php -r "
+check "eleven screens are built so far"      "11"   "$(php -r "
   require 'public_html/admin/includes/nav.php';
   \$n=0; foreach (pmAdminNav() as \$g) foreach (\$g['items'] as \$i) if (!empty(\$i['built'])) \$n++; echo \$n;")"
 check "the CMS permission modules exist"     "8"   "$(php -r "
@@ -1772,7 +1772,7 @@ for s in dashboard analytics registrations events accounting users settings; do
 done
 check "the shell renders the sidebar"        "1"   "$(admin_get dashboard.php | grep -c 'class="pma-side"')"
 check "the sidebar shows the account"        "1"   "$(admin_get dashboard.php | grep -c 'localtest')"
-check "unbuilt screens are not linked"       "0"   "$(admin_get dashboard.php | grep -c 'href="pages.php"')"
+check "unbuilt screens are not linked"       "0"   "$(admin_get dashboard.php | grep -c 'href="health.php"')"
 check "the tier 3 placeholder is marked"     "1"   "$(admin_get dashboard.php | grep -c 'pma-chip-later')"
 
 echo "  ---- CRITICAL: a failing audit log must never block a sign-in ----"
@@ -2094,6 +2094,122 @@ check "the logo is previewed on both grounds" "1" \
 check "settings.php still returns 200"      "200" \
   "$(curl -s -b "$NJAR" -o /dev/null -w '%{http_code}' "$MAIN/admin/settings.php")"
 rm -f "$NJAR"
+
+echo
+echo "=== 18. Phase 5E: pages, blocks, revisions and publishing ==="
+
+PJAR=/tmp/verify-pages-cookies.txt
+pg_login() {
+  rm -f "$PJAR"
+  local tok
+  tok="$(curl -s -c "$PJAR" "$MAIN/admin/login.php" \
+        | sed -n 's/.*name="csrf_token" value="\([^"]*\)".*/\1/p' | head -1)"
+  curl -s -b "$PJAR" -c "$PJAR" -o /dev/null \
+    --data-urlencode "csrf_token=$tok" --data-urlencode "username=localtest" \
+    --data-urlencode "password=localtest-analytics-pw" "$MAIN/admin/login.php"
+}
+pg_token() { curl -s -b "$PJAR" "$1" | sed -n 's/.*name="csrf_token" value="\([^"]*\)".*/\1/p' | head -1; }
+
+pg_login
+"${DB_MAIN[@]}" "DELETE FROM cms_page_blocks" >/dev/null 2>&1
+"${DB_MAIN[@]}" "DELETE FROM cms_revisions" >/dev/null 2>&1
+"${DB_MAIN[@]}" "DELETE FROM cms_pages" >/dev/null 2>&1
+
+check "pages.php returns 200" "200" "$(curl -s -b "$PJAR" -o /dev/null -w '%{http_code}' "$MAIN/admin/pages.php")"
+check "cms_pages was created on demand"   "1" "$(table_exists cms_pages)"
+check "cms_page_blocks exists"            "1" "$(table_exists cms_page_blocks)"
+check "cms_revisions exists"              "1" "$(table_exists cms_revisions)"
+check "cms_preview_tokens exists"         "1" "$(table_exists cms_preview_tokens)"
+check "the pages migration has both halves" "2" \
+  "$(ls public_html/database/migrations/2026-09-03-06-create-cms-pages.*.sql 2>/dev/null | wc -l | tr -d ' ')"
+
+curl -s -b "$PJAR" -o /dev/null -X POST "$MAIN/admin/pages.php" \
+  --data-urlencode "csrf_token=$(pg_token "$MAIN/admin/pages.php")" \
+  -d "action=create" -d "title=Verify Page" -d "slug="
+PID="$("${DB_MAIN[@]}" "SELECT id FROM cms_pages ORDER BY id DESC LIMIT 1")"
+ED="$MAIN/admin/page-editor.php?id=$PID"
+check "a new page is created"        "1" "$("${DB_MAIN[@]}" "SELECT COUNT(*) FROM cms_pages WHERE slug='verify-page'")"
+check "and it starts as a draft" "draft" "$("${DB_MAIN[@]}" "SELECT status FROM cms_pages WHERE id=$PID")"
+check "creating it kept a version"   "1" "$("${DB_MAIN[@]}" "SELECT COUNT(*) FROM cms_revisions WHERE entity_id=$PID AND note='Created'")"
+
+OUT="$(curl -s -b "$PJAR" -X POST "$MAIN/admin/pages.php" \
+  --data-urlencode "csrf_token=$(pg_token "$MAIN/admin/pages.php")" \
+  -d "action=create" -d "title=Events" -d "slug=events")"
+check "a slug cannot shadow a real page" "1" "$(printf '%s' "$OUT" | grep -c 'already used by a built-in page')"
+
+check "the editor returns 200" "200" "$(curl -s -b "$PJAR" -o /dev/null -w '%{http_code}' "$ED")"
+curl -s -b "$PJAR" -o /dev/null -X POST "$ED" --data-urlencode "csrf_token=$(pg_token "$ED")" -d "action=add_block" -d "block_type=hero"
+curl -s -b "$PJAR" -o /dev/null -X POST "$ED" --data-urlencode "csrf_token=$(pg_token "$ED")" -d "action=add_block" -d "block_type=stats"
+check "blocks are added in order" "2" "$("${DB_MAIN[@]}" "SELECT COUNT(*) FROM cms_page_blocks WHERE page_id=$PID")"
+BID="$("${DB_MAIN[@]}" "SELECT id FROM cms_page_blocks WHERE page_id=$PID ORDER BY sort_order LIMIT 1")"
+
+curl -s -b "$PJAR" -o /dev/null -X POST "$ED" --data-urlencode "csrf_token=$(pg_token "$ED")" \
+  -d "action=save_block" -d "block_id=$BID" -d "appearance=dark" \
+  --data-urlencode "f_heading=A verified heading" --data-urlencode "f_body=Body copy."
+check "a block stores its content"    "1" "$("${DB_MAIN[@]}" "SELECT COUNT(*) FROM cms_page_blocks WHERE id=$BID AND payload LIKE '%A verified heading%'")"
+check "a block stores its appearance" "dark" "$("${DB_MAIN[@]}" "SELECT appearance FROM cms_page_blocks WHERE id=$BID")"
+check "editing kept another version"  "1" "$("${DB_MAIN[@]}" "SELECT COUNT(*) FROM cms_revisions WHERE entity_id=$PID AND note='Before editing a block'")"
+
+echo "  ---- CRITICAL: a page that is not published must not be public ----"
+check "an unpublished page is a 404" "404" "$(curl -s -o /dev/null -w '%{http_code}' "$MAIN/cms-page.php?slug=verify-page")"
+curl -s -b "$PJAR" -o /dev/null -X POST "$ED" --data-urlencode "csrf_token=$(pg_token "$ED")" -d "action=publish"
+check "publishing makes it public"   "200" "$(curl -s -o /dev/null -w '%{http_code}' "$MAIN/cms-page.php?slug=verify-page")"
+check "the heading reaches the page"   "1" "$(curl -s "$MAIN/cms-page.php?slug=verify-page" | grep -c 'A verified heading')"
+check "the dark appearance is applied" "1" "$(curl -s "$MAIN/cms-page.php?slug=verify-page" | grep -c 'pm-section--dark')"
+curl -s -b "$PJAR" -o /dev/null -X POST "$ED" --data-urlencode "csrf_token=$(pg_token "$ED")" -d "action=unpublish"
+check "unpublishing hides it again"  "404" "$(curl -s -o /dev/null -w '%{http_code}' "$MAIN/cms-page.php?slug=verify-page")"
+
+TOKEN="$(curl -s -b "$PJAR" -X POST "$ED" --data-urlencode "csrf_token=$(pg_token "$ED")" \
+        -d "action=preview_link" | grep -oE 'preview=[a-f0-9]{48}' | head -1 | cut -d= -f2)"
+check "a preview link reaches a draft" "200" \
+  "$(curl -s -o /dev/null -w '%{http_code}' "$MAIN/cms-page.php?slug=verify-page&preview=$TOKEN")"
+check "and it says so on the page"       "1" \
+  "$(curl -s "$MAIN/cms-page.php?slug=verify-page&preview=$TOKEN" | grep -c 'previewing a page that is not published')"
+check "a preview is never indexed"       "1" \
+  "$(curl -s "$MAIN/cms-page.php?slug=verify-page&preview=$TOKEN" | grep -c 'noindex')"
+check "a made-up token does not"       "404" \
+  "$(curl -s -o /dev/null -w '%{http_code}' "$MAIN/cms-page.php?slug=verify-page&preview=$(printf 'a%.0s' $(seq 48))")"
+
+REV="$("${DB_MAIN[@]}" "SELECT id FROM cms_revisions WHERE entity_id=$PID ORDER BY id ASC LIMIT 1")"
+BEFORE="$("${DB_MAIN[@]}" "SELECT COUNT(*) FROM cms_revisions WHERE entity_id=$PID")"
+curl -s -b "$PJAR" -o /dev/null -X POST "$ED" --data-urlencode "csrf_token=$(pg_token "$ED")" \
+  -d "action=restore_revision" -d "revision_id=$REV"
+AFTER="$("${DB_MAIN[@]}" "SELECT COUNT(*) FROM cms_revisions WHERE entity_id=$PID")"
+check "restoring adds versions rather than overwriting" "yes" "$([ "$AFTER" -gt "$BEFORE" ] && echo yes || echo no)"
+check "the restore is itself recorded" "1" \
+  "$("${DB_MAIN[@]}" "SELECT COUNT(*) FROM cms_revisions WHERE entity_id=$PID AND note LIKE 'Restored revision%'")"
+
+echo "  ---- CRITICAL: an editor must not be able to inject markup or third-party script ----"
+curl -s -b "$PJAR" -o /dev/null -X POST "$ED" --data-urlencode "csrf_token=$(pg_token "$ED")" -d "action=publish"
+HERO="$("${DB_MAIN[@]}" "SELECT id FROM cms_page_blocks WHERE page_id=$PID ORDER BY sort_order LIMIT 1")"
+curl -s -b "$PJAR" -o /dev/null -X POST "$ED" --data-urlencode "csrf_token=$(pg_token "$ED")" \
+  -d "action=save_block" -d "block_id=$HERO" -d "appearance=light" \
+  --data-urlencode "f_heading=Clean" --data-urlencode "f_body=<b>hero body is plain text</b>"
+check "a plain text field escapes all markup" "0" \
+  "$(curl -s "$MAIN/cms-page.php?slug=verify-page" | grep -c '<b>hero body is plain text</b>')"
+
+curl -s -b "$PJAR" -o /dev/null -X POST "$ED" --data-urlencode "csrf_token=$(pg_token "$ED")" \
+  -d "action=add_block" -d "block_type=richtext"
+RT="$("${DB_MAIN[@]}" "SELECT id FROM cms_page_blocks WHERE page_id=$PID AND block_type='richtext' LIMIT 1")"
+curl -s -b "$PJAR" -o /dev/null -X POST "$ED" --data-urlencode "csrf_token=$(pg_token "$ED")" \
+  -d "action=save_block" -d "block_id=$RT" -d "appearance=light" \
+  --data-urlencode "f_heading=Rich" --data-urlencode "f_body=<script>alert(1)</script><p>kept</p><img src=x onerror=alert(1)>"
+check "a script tag never reaches the page" "0" \
+  "$(curl -s "$MAIN/cms-page.php?slug=verify-page" | grep -c '<script>alert')"
+check "an img with a handler is stripped"   "0" \
+  "$(curl -s "$MAIN/cms-page.php?slug=verify-page" | grep -c 'onerror')"
+check "the permitted markup survives"       "1" \
+  "$(curl -s "$MAIN/cms-page.php?slug=verify-page" | grep -c '<p>kept</p>')"
+check "the rich text whitelist has no script" "0" "$(grep -c '<script>' public_html/includes/blocks.php)"
+check "an embed only accepts known hosts"     "1" "$(grep -c 'player.vimeo.com' public_html/includes/blocks.php)"
+check "and refuses anything else"             "1" "$(grep -c 'not from a permitted source' public_html/includes/blocks.php)"
+check "one bad block cannot take a page down" "1" "$(grep -c 'block render failed' public_html/includes/blocks.php)"
+
+curl -s -b "$PJAR" -o /dev/null -X POST "$MAIN/admin/pages.php" \
+  --data-urlencode "csrf_token=$(pg_token "$MAIN/admin/pages.php")" -d "action=trash" -d "id=$PID"
+check "trashing hides it from the public" "404" "$(curl -s -o /dev/null -w '%{http_code}' "$MAIN/cms-page.php?slug=verify-page")"
+check "and the page is recoverable"         "1" "$("${DB_MAIN[@]}" "SELECT COUNT(*) FROM cms_pages WHERE id=$PID AND trashed_at IS NOT NULL")"
+rm -f "$PJAR"
 
 echo
 printf '\n%s\npassed=%d failed=%d\n%s\n' "$(printf '=%.0s' {1..78})" "$pass" "$fail" "$(printf '=%.0s' {1..78})"
