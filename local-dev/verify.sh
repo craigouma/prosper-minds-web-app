@@ -1742,10 +1742,10 @@ check "the shell is marked noindex"          "1"   "$(grep -c 'noindex' $HDR)"
 
 check "nav registry lists four groups"       "4"   "$(php -r "
   require 'public_html/admin/includes/nav.php'; echo count(pmAdminNav());")"
-check "nav registry covers 18 screens"       "18"  "$(php -r "
+check "nav registry covers 19 screens"       "19"  "$(php -r "
   require 'public_html/admin/includes/nav.php';
   \$n=0; foreach (pmAdminNav() as \$g) { \$n += count(\$g['items']); } echo \$n;")"
-check "eleven screens are built so far"      "11"   "$(php -r "
+check "twelve screens are built so far"      "12"   "$(php -r "
   require 'public_html/admin/includes/nav.php';
   \$n=0; foreach (pmAdminNav() as \$g) foreach (\$g['items'] as \$i) if (!empty(\$i['built'])) \$n++; echo \$n;")"
 check "the CMS permission modules exist"     "8"   "$(php -r "
@@ -2021,9 +2021,11 @@ check "the CPD subdomain does the same"    "1" \
 MID="$("${DB_MAIN[@]}" "SELECT id FROM cms_media ORDER BY id DESC LIMIT 1")"
 curl -s -b "$MJAR" -o /dev/null -X POST "$MAIN/admin/media.php" \
   -F "csrf_token=$(media_token)" -F "action=delete" -F "id=$MID"
-check "deleting removes the row"   "0" "$("${DB_MAIN[@]}" "SELECT COUNT(*) FROM cms_media WHERE id=$MID")"
-check "deleting removes the file"  "no" "$([ -f "$UPD/$FN" ] && echo yes || echo no)"
-check "deleting removes the sizes" "no" "$([ -f "$UPD/thumb/$FN" ] && echo yes || echo no)"
+check "deleting removes the row"        "0" "$("${DB_MAIN[@]}" "SELECT COUNT(*) FROM cms_media WHERE id=$MID")"
+check "but the file is kept for restoring" "yes" "$([ -f "$UPD/$FN" ] && echo yes || echo no)"
+check "and so are its sizes"               "yes" "$([ -f "$UPD/thumb/$FN" ] && echo yes || echo no)"
+check "and a snapshot went to the trash"     "1" \
+  "$("${DB_MAIN[@]}" "SELECT COUNT(*) FROM cms_trash WHERE entity_type='media'")"
 check "media upload is audited"    "1" "$("${DB_MAIN[@]}" "SELECT COUNT(*) FROM cms_audit_log WHERE action='media_upload'")"
 check "media delete is audited"    "1" "$("${DB_MAIN[@]}" "SELECT COUNT(*) FROM cms_audit_log WHERE action='media_delete'")"
 rm -f "$MJAR"
@@ -2210,6 +2212,91 @@ curl -s -b "$PJAR" -o /dev/null -X POST "$MAIN/admin/pages.php" \
 check "trashing hides it from the public" "404" "$(curl -s -o /dev/null -w '%{http_code}' "$MAIN/cms-page.php?slug=verify-page")"
 check "and the page is recoverable"         "1" "$("${DB_MAIN[@]}" "SELECT COUNT(*) FROM cms_pages WHERE id=$PID AND trashed_at IS NOT NULL")"
 rm -f "$PJAR"
+
+echo
+echo "=== 19. Trash: nothing is deleted without an undo ==="
+
+TJAR=/tmp/verify-trash-cookies.txt
+tr_login() {
+  rm -f "$TJAR"
+  local tok
+  tok="$(curl -s -c "$TJAR" "$MAIN/admin/login.php" \
+        | sed -n 's/.*name="csrf_token" value="\([^"]*\)".*/\1/p' | head -1)"
+  curl -s -b "$TJAR" -c "$TJAR" -o /dev/null \
+    --data-urlencode "csrf_token=$tok" --data-urlencode "username=localtest" \
+    --data-urlencode "password=localtest-analytics-pw" "$MAIN/admin/login.php"
+}
+tr_token() { curl -s -b "$TJAR" "$1" | sed -n 's/.*name="csrf_token" value="\([^"]*\)".*/\1/p' | head -1; }
+
+tr_login
+curl -s -b "$TJAR" -o /dev/null "$MAIN/admin/trash.php"
+check "trash.php returns 200" "200" "$(curl -s -b "$TJAR" -o /dev/null -w '%{http_code}' "$MAIN/admin/trash.php")"
+check "cms_trash was created on demand" "1" "$(table_exists cms_trash)"
+check "the trash migration has both halves" "2" \
+  "$(ls public_html/database/migrations/2026-09-03-07-create-cms-trash.*.sql 2>/dev/null | wc -l | tr -d ' ')"
+
+"${DB_MAIN[@]}" "DELETE FROM cms_trash" >/dev/null 2>&1
+MU="$MAIN/admin/menus.php"
+curl -s -b "$TJAR" -o /dev/null "$MU"
+MID="$("${DB_MAIN[@]}" "SELECT id FROM cms_menu_items ORDER BY id DESC LIMIT 1")"
+MLABEL="$("${DB_MAIN[@]}" "SELECT label FROM cms_menu_items WHERE id=$MID")"
+curl -s -b "$TJAR" -o /dev/null -X POST "$MU" --data-urlencode "csrf_token=$(tr_token "$MU")" \
+  -d "action=delete" -d "location=header" -d "id=$MID"
+check "deleting a menu item keeps a snapshot" "1" \
+  "$("${DB_MAIN[@]}" "SELECT COUNT(*) FROM cms_trash WHERE entity_type='menu_item' AND label='$MLABEL'")"
+check "the trash records who did it" "localtest" \
+  "$("${DB_MAIN[@]}" "SELECT deleted_by FROM cms_trash ORDER BY id DESC LIMIT 1")"
+check "and where it came from" "Header menu" \
+  "$("${DB_MAIN[@]}" "SELECT context FROM cms_trash ORDER BY id DESC LIMIT 1")"
+check "the live menu is one shorter" "5" \
+  "$("${DB_MAIN[@]}" "SELECT COUNT(*) FROM cms_menu_items WHERE location='header'")"
+
+TU="$MAIN/admin/trash.php"
+TID="$("${DB_MAIN[@]}" "SELECT id FROM cms_trash ORDER BY id DESC LIMIT 1")"
+curl -s -b "$TJAR" -o /dev/null -X POST "$TU" --data-urlencode "csrf_token=$(tr_token "$TU")" \
+  -d "action=restore" -d "id=$TID"
+check "restoring puts the menu item back" "6" \
+  "$("${DB_MAIN[@]}" "SELECT COUNT(*) FROM cms_menu_items WHERE location='header'")"
+check "and the trash row is marked restored" "1" \
+  "$("${DB_MAIN[@]}" "SELECT COUNT(*) FROM cms_trash WHERE id=$TID AND restored_at IS NOT NULL")"
+check "restoring is audited" "1" \
+  "$("${DB_MAIN[@]}" "SELECT COUNT(*) FROM cms_audit_log WHERE action='trash_restore'")"
+
+echo "  ---- CRITICAL: if the undo cannot be written, nothing may be deleted ----"
+BEFORE="$("${DB_MAIN[@]}" "SELECT COUNT(*) FROM cms_menu_items")"
+"${DB_MAIN[@]}" "RENAME TABLE cms_trash TO cms_trash_parked" >/dev/null 2>&1
+"${DB_MAIN[@]}" "CREATE TABLE cms_trash (id INT PRIMARY KEY)" >/dev/null 2>&1
+MID2="$("${DB_MAIN[@]}" "SELECT id FROM cms_menu_items ORDER BY id DESC LIMIT 1")"
+curl -s -b "$TJAR" -o /dev/null -X POST "$MU" --data-urlencode "csrf_token=$(tr_token "$MU")" \
+  -d "action=delete" -d "location=header" -d "id=$MID2"
+check "the item survives when the undo cannot be written" "$BEFORE" "$("${DB_MAIN[@]}" "SELECT COUNT(*) FROM cms_menu_items")"
+check "and the panel still serves" "200" "$(curl -s -b "$TJAR" -o /dev/null -w '%{http_code}' "$MU")"
+"${DB_MAIN[@]}" "DROP TABLE cms_trash" >/dev/null 2>&1
+"${DB_MAIN[@]}" "RENAME TABLE cms_trash_parked TO cms_trash" >/dev/null 2>&1
+
+check "media delete keeps the file for restoring" "1" \
+  "$(grep -c 'The files stay on disk until the 30 days are up' public_html/admin/media.php)"
+check "expiry removes the files for good"          "2" \
+  "$(grep -c 'pmMediaUnlinkFiles' public_html/includes/trash.php)"
+check "an event restores under its original id"    "1" \
+  "$(grep -c 'The id is written back deliberately' public_html/includes/trash.php)"
+
+echo "  ---- every destructive control asks first ----"
+for f in media menus pages page-editor trash; do
+  check "$f.php confirms before deleting" "yes" \
+    "$(grep -q 'data-confirm' public_html/admin/$f.php && echo yes || echo no)"
+done
+for f in users events; do
+  check "$f.php confirms before deleting" "yes" \
+    "$(grep -q 'return confirm(' public_html/admin/$f.php && echo yes || echo no)"
+done
+check "the confirmation says where it goes" "5" \
+  "$(grep -rhc 'restore it for 30 days\|restore the account for 30 days\|restore it for 30\|for 30 days' public_html/admin/media.php public_html/admin/menus.php public_html/admin/pages.php public_html/admin/page-editor.php public_html/admin/users.php | paste -sd+ - | bc)"
+check "the confirm handler survives no JavaScript" "1" \
+  "$(grep -c 'still lands in the trash' public_html/assets/js/pm-admin.js)"
+check "pm-admin.js still lints" "0" \
+  "$(command -v node >/dev/null 2>&1 && { node --check public_html/assets/js/pm-admin.js >/dev/null 2>&1; echo $?; } || echo 0)"
+rm -f "$TJAR"
 
 echo
 printf '\n%s\npassed=%d failed=%d\n%s\n' "$(printf '=%.0s' {1..78})" "$pass" "$fail" "$(printf '=%.0s' {1..78})"
