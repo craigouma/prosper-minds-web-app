@@ -2,6 +2,7 @@
 require_once '../includes/auth.php';
 startAdminSession();
 require_once '../includes/config.php';
+require_once '../includes/audit.php';
 
 // Already logged in – go to dashboard
 if (!empty($_SESSION['admin_logged_in'])) {
@@ -40,6 +41,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $_SESSION['admin_is_administrator'] = (bool)($user['is_administrator'] ?? ($user['role'] === 'super_admin'));
                 $_SESSION['admin_permissions']    = json_decode($user['permissions'] ?? '{}', true) ?? [];
                 $_SESSION['admin_profile_image']  = $user['profile_image'] ?? '';
+                pmAudit($pdo, 'login', 'Signed in to the admin panel', 'admin_user', $user['id']);
                 header('Location: dashboard.php');
                 exit;
             } else {
@@ -58,71 +60,85 @@ $csrfToken = generateCsrfToken();
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Admin Login – Prosperminds</title>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <link rel="stylesheet" href="../assets/css/admin.css">
+    <meta name="robots" content="noindex, nofollow">
+    <title>Sign in | Prosperminds Admin</title>
+    <link rel="icon" href="../assets/images/favicon-32.png" sizes="32x32">
+    <link rel="stylesheet" href="../assets/css/pm-admin.css">
 </head>
-<body>
-<div class="login-page">
-    <div class="login-card">
-        <div class="login-logo">
-            <img src="../assets/images/fisrt-logo.png" alt="Prosperminds">
+<body class="pma">
+<div class="pma-login">
+
+    <div class="pma-login-aside">
+        <div class="pma-login-brand">
+            <img src="../assets/images/favicon-512.png" alt="" width="26" height="27">
+            <span>Prosperminds</span>
         </div>
-        <h2 class="login-title">Admin Portal</h2>
-        <p class="login-sub">Sign in to manage events and registrations</p>
 
-        <?php if ($error): ?>
-            <div class="alert alert-danger">
-                <i class="fas fa-exclamation-circle"></i>
-                <?php echo htmlspecialchars($error); ?>
+        <div>
+            <h1>Programme and content administration</h1>
+            <p>Private. Every action is recorded in the audit log with your account name, the time and the address you signed in from.</p>
+        </div>
+
+        <dl class="pma-login-facts">
+            <div>
+                <dt>Access</dt>
+                <dd>By invitation</dd>
             </div>
-        <?php endif; ?>
+            <div>
+                <dt>Session</dt>
+                <dd>Ends on browser close</dd>
+            </div>
+        </dl>
+    </div>
 
+    <div class="pma-login-form">
         <form method="POST" action="login.php" autocomplete="off">
+            <div>
+                <h2>Sign in</h2>
+                <p>Use the username the account was created with.</p>
+            </div>
+
+<?php if ($error): ?>
+            <div class="alert alert-danger" style="margin:0"><?php echo htmlspecialchars($error); ?></div>
+<?php endif; ?>
+
             <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrfToken); ?>">
 
             <div class="form-group">
-                <label for="username"><i class="fas fa-user" style="margin-right:6px;color:#94a3b8;"></i>Username</label>
+                <label for="username">Username</label>
                 <input type="text" id="username" name="username" class="form-control"
                        value="<?php echo htmlspecialchars($_POST['username'] ?? ''); ?>"
                        autocomplete="username" required autofocus>
             </div>
 
-            <div class="form-group" style="margin-bottom:24px;">
-                <label for="password"><i class="fas fa-lock" style="margin-right:6px;color:#94a3b8;"></i>Password</label>
-                <div style="position:relative;">
-                    <input type="password" id="password" name="password" class="form-control"
-                           autocomplete="current-password" required style="padding-right:42px;">
-                    <button type="button" id="togglePwd"
-                            style="position:absolute;right:10px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;color:#94a3b8;font-size:15px;">
-                        <i class="fas fa-eye"></i>
-                    </button>
-                </div>
+            <div class="form-group">
+                <label for="password">Password</label>
+                <input type="password" id="password" name="password" class="form-control"
+                       autocomplete="current-password" required>
             </div>
 
-            <button type="submit" class="btn btn-primary" style="width:100%;justify-content:center;padding:11px;">
-                <i class="fas fa-sign-in-alt"></i> Sign In
-            </button>
-        </form>
+            <label style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--pma-body)">
+                <input type="checkbox" id="showPwd" style="width:15px;height:15px">
+                Show password
+            </label>
 
-        <p style="text-align:center;margin-top:24px;font-size:12px;color:#94a3b8;">
-            <i class="fas fa-shield-alt"></i> Secured with CSRF protection &amp; rate limiting
-        </p>
+            <button type="submit" class="btn btn-primary">Sign in</button>
+
+            <div class="pma-login-note">
+                <svg width="15" height="15" viewBox="0 0 16 16" aria-hidden="true">
+                    <path d="M8 2.5 13 4.3v4.2c0 3-2.2 5-5 6-2.8-1-5-3-5-6V4.3z" fill="none"
+                          stroke="#000" stroke-width="1.3"></path>
+                </svg>
+                <p>This panel holds delegate records and invoices. Sign-in attempts are rate limited, and a locked account clears after fifteen minutes.</p>
+            </div>
+        </form>
     </div>
+
 </div>
 
 <script>
-document.getElementById('togglePwd').addEventListener('click', function() {
-    const pwd = document.getElementById('password');
-    const icon = this.querySelector('i');
-    if (pwd.type === 'password') {
-        pwd.type = 'text';
-        icon.classList.replace('fa-eye', 'fa-eye-slash');
-    } else {
-        pwd.type = 'password';
-        icon.classList.replace('fa-eye-slash', 'fa-eye');
-    }
+document.getElementById('showPwd').addEventListener('change', function () {
+    document.getElementById('password').type = this.checked ? 'text' : 'password';
 });
 </script>
 </body>
