@@ -1745,7 +1745,7 @@ check "nav registry lists four groups"       "4"   "$(php -r "
 check "nav registry covers 19 screens"       "19"  "$(php -r "
   require 'public_html/admin/includes/nav.php';
   \$n=0; foreach (pmAdminNav() as \$g) { \$n += count(\$g['items']); } echo \$n;")"
-check "twelve screens are built so far"      "12"   "$(php -r "
+check "eighteen screens are built so far"    "18"   "$(php -r "
   require 'public_html/admin/includes/nav.php';
   \$n=0; foreach (pmAdminNav() as \$g) foreach (\$g['items'] as \$i) if (!empty(\$i['built'])) \$n++; echo \$n;")"
 check "the CMS permission modules exist"     "8"   "$(php -r "
@@ -1772,7 +1772,7 @@ for s in dashboard analytics registrations events accounting users settings; do
 done
 check "the shell renders the sidebar"        "1"   "$(admin_get dashboard.php | grep -c 'class="pma-side"')"
 check "the sidebar shows the account"        "1"   "$(admin_get dashboard.php | grep -c 'localtest')"
-check "unbuilt screens are not linked"       "0"   "$(admin_get dashboard.php | grep -c 'href="health.php"')"
+check "the tier 3 placeholder is not a link" "0"   "$(admin_get dashboard.php | grep -c 'href="#"')"
 check "the tier 3 placeholder is marked"     "1"   "$(admin_get dashboard.php | grep -c 'pma-chip-later')"
 
 echo "  ---- CRITICAL: a failing audit log must never block a sign-in ----"
@@ -2297,6 +2297,119 @@ check "the confirm handler survives no JavaScript" "1" \
 check "pm-admin.js still lints" "0" \
   "$(command -v node >/dev/null 2>&1 && { node --check public_html/assets/js/pm-admin.js >/dev/null 2>&1; echo $?; } || echo 0)"
 rm -f "$TJAR"
+
+echo
+echo "=== 20. Phase 5F and 5G: money, invoices, health, redirects and search ==="
+
+GJAR=/tmp/verify-5g-cookies.txt
+g_login() {
+  rm -f "$GJAR"
+  local tok
+  tok="$(curl -s -c "$GJAR" "$MAIN/admin/login.php" \
+        | sed -n 's/.*name="csrf_token" value="\([^"]*\)".*/\1/p' | head -1)"
+  curl -s -b "$GJAR" -c "$GJAR" -o /dev/null \
+    --data-urlencode "csrf_token=$tok" --data-urlencode "username=localtest" \
+    --data-urlencode "password=localtest-analytics-pw" "$MAIN/admin/login.php"
+}
+g_token() { curl -s -b "$GJAR" "$1" | sed -n 's/.*name="csrf_token" value="\([^"]*\)".*/\1/p' | head -1; }
+g_php() { (cd public_html && php -r "$1"); }
+
+g_login
+for s in earlybird banners health audit redirects seo; do
+  check "$s.php returns 200" "200" "$(curl -s -b "$GJAR" -o /dev/null -w '%{http_code}' "$MAIN/admin/$s.php")"
+done
+check "eighteen screens are built" "18" "$(php -r "
+  require 'public_html/admin/includes/nav.php';
+  \$n=0; foreach (pmAdminNav() as \$g) foreach (\$g['items'] as \$i) if (!empty(\$i['built'])) \$n++; echo \$n;")"
+
+echo "  ---- the early bird gap is stated, not hidden ----"
+EB="$(curl -s -b "$GJAR" "$MAIN/admin/earlybird.php")"
+check "the screen says the promise and the invoice disagree" "1" \
+  "$(printf '%s' "$EB" | grep -c 'do not agree')"
+check "it names how many were billed at full price" "1" \
+  "$(printf '%s' "$EB" | grep -c 'was billed the full price')"
+check "the invoicing policy defaults to off" "1" \
+  "$(printf '%s' "$EB" | grep -c 'Currently <strong>off</strong>')"
+curl -s -b "$GJAR" -o /dev/null -X POST "$MAIN/admin/earlybird.php" \
+  --data-urlencode "csrf_token=$(g_token "$MAIN/admin/earlybird.php")" \
+  -d "action=save_policy" -d "apply_to_invoices=1"
+check "the decision is recorded" "1" \
+  "$("${DB_MAIN[@]}" "SELECT setting_value FROM site_settings WHERE setting_key='early_bird_apply'")"
+check "recording it is audited" "1" \
+  "$("${DB_MAIN[@]}" "SELECT COUNT(*) FROM cms_audit_log WHERE action='earlybird_policy'")"
+"${DB_MAIN[@]}" "DELETE FROM site_settings WHERE setting_key='early_bird_apply'" >/dev/null 2>&1
+
+echo "  ---- CRITICAL: an invoice link must be unguessable and must expire ----"
+RID="$("${DB_MAIN[@]}" "SELECT id FROM event_registrations WHERE invoice_number IS NOT NULL LIMIT 1")"
+LINK="$(g_php "require 'includes/config.php'; require 'includes/invoice.php'; echo pmInvoiceLink($RID, 30, false);")"
+check "a signed link serves the PDF" "200" "$(curl -s -o /dev/null -w '%{http_code}' "$MAIN$LINK")"
+check "and it is served as a PDF" "application/pdf" "$(curl -s -o /dev/null -w '%{content_type}' "$MAIN$LINK")"
+check "a tampered signature is refused" "403" "$(curl -s -o /dev/null -w '%{http_code}' "$MAIN${LINK%??}zz")"
+check "a swapped registration id is refused" "403" \
+  "$(curl -s -o /dev/null -w '%{http_code}' "$MAIN$(printf '%s' "$LINK" | sed "s/r=$RID/r=999/")")"
+cat > /tmp/verify-expired-link.php <<'PHPEOF'
+<?php
+require 'includes/config.php';
+require 'includes/invoice.php';
+$rid = (int) ($argv[1] ?? 0);
+$e   = time() - 10;
+echo '/invoice.php?r=' . $rid . '&e=' . $e . '&s=' . pmInvoiceSignature($rid, $e);
+PHPEOF
+EXPIRED="$(cd public_html && php /tmp/verify-expired-link.php "$RID")"
+check "an expired link is refused" "403" "$(curl -s -o /dev/null -w '%{http_code}' "$MAIN$EXPIRED")"
+check "no link at all is refused"  "403" "$(curl -s -o /dev/null -w '%{http_code}' "$MAIN/invoice.php")"
+check "signatures compare in constant time" "2" "$(grep -c 'hash_equals' public_html/includes/invoice.php)"
+check "the invoice directory is still denied" "1" \
+  "$(grep -c 'Require all denied' public_html/assets/invoices/.htaccess)"
+
+echo "  ---- site health ----"
+HE="$(curl -s -b "$GJAR" "$MAIN/admin/health.php")"
+check "health runs every check" "11" "$(printf '%s' "$HE" | grep -c 'class="badge badge-\(green\|orange\|red\)"')"
+check "it notices unsent mail"    "1" "$(printf '%s' "$HE" | grep -c 'failed to send in the last seven days')"
+check "it checks the invoice directory" "1" "$(printf '%s' "$HE" | grep -c 'Delegates receive a signed link')"
+check "it checks uploads cannot run code" "1" "$(printf '%s' "$HE" | grep -c 'PHP engine is off')"
+check "a failing check cannot take the page down" "1" "$(grep -c 'This check failed' public_html/admin/health.php)"
+
+echo "  ---- redirects and the 404 log ----"
+"${DB_MAIN[@]}" "DELETE FROM cms_redirects" >/dev/null 2>&1
+"${DB_MAIN[@]}" "DELETE FROM cms_not_found" >/dev/null 2>&1
+curl -s -o /dev/null "$MAIN/cms-page.php?slug=gone-for-good"
+check "a 404 is recorded" "1" "$("${DB_MAIN[@]}" "SELECT COUNT(*) FROM cms_not_found")"
+curl -s -o /dev/null "$MAIN/cms-page.php?slug=gone-for-good"
+check "a repeat increments rather than duplicates" "2" \
+  "$("${DB_MAIN[@]}" "SELECT hits FROM cms_not_found ORDER BY id DESC LIMIT 1")"
+
+RD="$MAIN/admin/redirects.php"
+curl -s -b "$GJAR" -o /dev/null -X POST "$RD" --data-urlencode "csrf_token=$(g_token "$RD")" \
+  -d "action=add" -d "from_path=/cms-page.php" -d "to_path=/events.php" -d "status_code=301"
+check "the redirect is stored" "1" "$("${DB_MAIN[@]}" "SELECT COUNT(*) FROM cms_redirects")"
+check "and it is followed" "301" "$(curl -s -o /dev/null -w '%{http_code}' "$MAIN/cms-page.php?slug=gone-for-good")"
+check "the redirect counts its use" "1" "$("${DB_MAIN[@]}" "SELECT hits FROM cms_redirects LIMIT 1")"
+OUT="$(curl -s -b "$GJAR" -X POST "$RD" --data-urlencode "csrf_token=$(g_token "$RD")" \
+  -d "action=add" -d "from_path=/evil" --data-urlencode "to_path=javascript:alert(1)")"
+check "an off-site scheme is refused" "1" "$(printf '%s' "$OUT" | grep -c 'must be a path on this site')"
+check "the open redirect guard is in the helper" "1" \
+  "$(grep -c 'would be an open redirect' public_html/includes/redirects.php)"
+"${DB_MAIN[@]}" "DELETE FROM cms_redirects" >/dev/null 2>&1
+
+echo "  ---- search appearance and structured data ----"
+curl -s -b "$GJAR" -o /dev/null -X POST "$MAIN/admin/seo.php" \
+  --data-urlencode "csrf_token=$(g_token "$MAIN/admin/seo.php")" -d "page=about" \
+  --data-urlencode "meta_title=Verified search title" \
+  --data-urlencode "meta_description=Verified search description."
+check "a search title is stored" "1" \
+  "$("${DB_MAIN[@]}" "SELECT COUNT(*) FROM page_content WHERE page_slug='about' AND section_key='meta_title' AND content_value='Verified search title'")"
+check "and it reaches the public page" "3" \
+  "$(curl -s "$MAIN/about.php" | grep -c 'Verified search title')"
+EID="$("${DB_MAIN[@]}" "SELECT id FROM events WHERE is_active=1 AND event_start_date IS NOT NULL LIMIT 1")"
+EV="$(curl -s "$MAIN/event.php?id=$EID")"
+check "an event publishes structured data" "1" "$(printf '%s' "$EV" | grep -c 'application/ld+json')"
+check "it declares an EducationEvent"      "1" "$(printf '%s' "$EV" | grep -c 'EducationEvent')"
+check "it carries a real start date"       "1" "$(printf '%s' "$EV" | grep -c '"startDate":"20')"
+check "it carries the price and currency"  "1" "$(printf '%s' "$EV" | grep -c '"priceCurrency":"USD"')"
+check "a date-less event publishes nothing" "1" "$(grep -c 'is worse than none' public_html/includes/schema.php)"
+check "the JSON cannot close the script tag" "1" "$(grep -c "str_replace('</'" public_html/includes/schema.php)"
+rm -f "$GJAR"
 
 echo
 printf '\n%s\npassed=%d failed=%d\n%s\n' "$(printf '=%.0s' {1..78})" "$pass" "$fail" "$(printf '=%.0s' {1..78})"
