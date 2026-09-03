@@ -87,6 +87,22 @@ pmPageBegin([
     'og_image'    => $pmImage !== '' ? $pmImage : PM_SOCIAL_IMAGE,
 ]);
 ?>
+<?php
+require_once __DIR__ . '/includes/schema.php';
+require_once __DIR__ . '/includes/events.php';
+require_once __DIR__ . '/includes/invoice.php';
+
+// Emitted in the body rather than the head deliberately: pmPageBegin has
+// already written the head by this point, and search engines read JSON-LD
+// anywhere in the document.
+try {
+    $pmOrigin = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off' ? 'https' : 'http')
+              . '://' . ($_SERVER['HTTP_HOST'] ?? 'prosper-minds.com');
+    echo pmEventSchema($pmEvent, $pmOrigin);
+} catch (Throwable $pmSchemaError) {
+    error_log('event schema failed: ' . $pmSchemaError->getMessage());
+}
+?>
 
 <?php // ── Hero ──────────────────────────────────────────────────────────── ?>
 <section class="pm-section pm-relative pm-clip">

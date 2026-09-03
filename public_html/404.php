@@ -8,6 +8,14 @@
 http_response_code(404);
 
 require_once __DIR__ . '/includes/layout/page.php';
+require_once __DIR__ . '/includes/redirects.php';
+
+// Runs only for a request that already found nothing, so a redirect row can
+// never shadow a real page. Both calls swallow their own failures: a 404 page
+// that fails to render because its logging failed is a worse 404.
+$pmPath = pmRequestPath();
+pmRedirectMaybe($pdo ?? null, $pmPath);
+pmNotFoundRecord($pdo ?? null, $pmPath);
 
 pmPageBegin([
     'slug'        => 'notfound',
