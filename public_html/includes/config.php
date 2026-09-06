@@ -289,6 +289,32 @@ function sanitizeInput(string $data): string {
     return htmlspecialchars(stripslashes(trim($data)));
 }
 
+/**
+ * A stylesheet or script URL, stamped with the file's own modification time.
+ *
+ * The server sends these with "Cache-Control: public, max-age=604800". Without
+ * a stamp in the URL, a deploy that changes a stylesheet reaches nobody who has
+ * already visited until a week later or until they clear their cache by hand:
+ * the new markup arrives, the old CSS styles it, and the page looks broken in a
+ * way no amount of redeploying fixes. That is exactly what happened on
+ * 6 September 2026, when the registration modal shipped and stayed invisible.
+ *
+ * $path is root-relative ("/assets/css/pm-admin.css"). A file that cannot be
+ * read returns the path unstamped rather than failing, because a missing stamp
+ * is a caching problem and a fatal here is a blank site.
+ */
+function pmAssetUrl(string $path): string {
+    $file = __DIR__ . '/..' . $path;
+
+    if (!is_file($file)) {
+        return $path;
+    }
+
+    $stamp = @filemtime($file);
+
+    return $stamp === false ? $path : $path . '?v=' . $stamp;
+}
+
 // ── Funnel analytics, loaded defensively ────────────────────────────────────
 // includes/funnel.php is a secondary concern: registration funnel counters for
 // the admin panel. It is loaded here, once, so every entry point gets the same
