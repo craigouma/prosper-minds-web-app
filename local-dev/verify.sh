@@ -470,7 +470,7 @@ NS_DOWN=public_html/database/migrations/2026-08-28-02-create-newsletter-subscrib
 SEED_UP=public_html/database/migrations/2026-08-28-03-seed-page-content.up.sql
 SEED_DOWN=public_html/database/migrations/2026-08-28-03-seed-page-content.down.sql
 
-PREVIEW="$MAIN/_phase1-preview.php"
+PREVIEW="$MAIN/index.php"
 
 # Pull one value out of the rendered preview page. Same one-liner approach as
 # funnel_shown() above: data-pm-check is a real attribute on the page and each
@@ -550,7 +550,6 @@ NCODE="$(curl -s -c "$NJAR" -o "$NBODY" -w '%{http_code}' "$PREVIEW")"
 check "preview page renders with no page_content table" "200" "$NCODE"
 check "page_content created on demand"                 "1"   "$(table_exists page_content)"
 check "created empty, so every key falls back"         "0"   "$(pc_rows)"
-check "page still showed its inline defaults" "FALLBACK-DEFAULT-USED" "$(pm_check "$(cat "$NBODY")" seeded)"
 
 NTOK="$(sed -n 's/.*name="csrf_token" value="\([a-f0-9]*\)".*/\1/p' "$NBODY" | head -1)"
 check "footer newsletter form carries a CSRF token" "yes" \
@@ -575,9 +574,6 @@ echo "=== 9c. pmContent(): seeded value, and the default for a missing key ==="
 PBODY="$(curl -s "$PREVIEW")"
 check "preview page renders"          "200" "$(curl -s -o /dev/null -w '%{http_code}' "$PREVIEW")"
 check "no PHP error in the page"      "0"   "$(printf '%s' "$PBODY" | grep -ciE 'fatal error|parse error|warning:|uncaught')"
-check "seeded key renders from the DB" "Strong systems start with strong people" "$(pm_check "$PBODY" seeded)"
-check "missing key renders its default" "default-was-returned" "$(pm_check "$PBODY" default)"
-check "whole page fetched in one go"    "21" "$(pm_check "$PBODY" count)"
 
 check "pmContent returns the seeded value" "Strong systems start with strong people" \
   "$(cd public_html && php -r 'require "includes/layout/page.php"; echo pmContent($pdo, "home", "hero_title", "MISS");' 2>/dev/null)"
@@ -655,7 +651,7 @@ check "refuses an off-site return_to" "/?newsletter=ok#newsletter" \
       | sed -n 's/^[Ll]ocation: *//p' | tr -d '\r')"
 
 echo
-echo "=== 9e. Design system assets, and the preview page's shared chrome ==="
+echo "=== 9e. Design system assets and the shared page chrome ==="
 check "pm-design-system.css is served"   "200" "$(curl -s -o /dev/null -w '%{http_code}' "$MAIN/assets/css/pm-design-system.css")"
 check "served as text/css"               "text/css" \
   "$(curl -s -o /dev/null -w '%{content_type}' "$MAIN/assets/css/pm-design-system.css" | cut -d';' -f1)"
@@ -675,7 +671,7 @@ check "font is the brand file, byte for byte" "yes" \
 check "layout script is served"          "200" "$(curl -s -o /dev/null -w '%{http_code}' "$MAIN/assets/js/pm-layout.js")"
 
 PBODY="$(curl -s "$PREVIEW")"
-check "preview loads the design system, not style.css" "yes" \
+check "the page loads the design system, not style.css" "yes" \
   "$(printf '%s' "$PBODY" | grep -q 'pm-design-system.css' && ! printf '%s' "$PBODY" | grep -q 'assets/css/style.css' && echo yes || echo no)"
 check "shared header rendered"      "yes" "$(printf '%s' "$PBODY" | grep -q 'class="pm-header"' && echo yes || echo no)"
 check "mobile menu toggle present"  "yes" "$(printf '%s' "$PBODY" | grep -q 'id="pm-nav-toggle"' && echo yes || echo no)"
@@ -684,9 +680,11 @@ check "GA4 and Ads tag on the page"  "2"  \
   "$(printf '%s' "$PBODY" | grep -cE "gtag\('config', '(G-H030354F23|AW-18352784550)'\)")"
 check "admin login is not in the nav" "0" "$(printf '%s' "$PBODY" | grep -c 'admin/login.php')"
 # The preview page is scaffolding and must not be indexed or advertised.
-check "preview page is noindex"        "yes" "$(printf '%s' "$PBODY" | grep -q 'name="robots" content="noindex' && echo yes || echo no)"
-check "preview page disallowed in robots.txt" "yes" \
-  "$(curl -s "$MAIN/robots.txt" | grep -q '_phase1-preview.php' && echo yes || echo no)"
+check "the temporary preview page is gone"    "no" \
+  "$([ -f public_html/_phase1-preview.php ] && echo yes || echo no)"
+check "and it is out of git too"              "0" \
+  "$(git ls-files public_html/_phase1-preview.php | wc -l | tr -d ' ')"
+check "and robots no longer hides it"         "0" "$(grep -c '_phase1-preview' public_html/robots.txt)"
 # sitemap.php, not /sitemap.xml: the rewrite that maps one to the other lives in
 # .htaccess, which the PHP built-in server does not read.
 check "preview page absent from the sitemap"  "0" \
@@ -710,7 +708,6 @@ fq "CREATE TABLE page_content (id INT AUTO_INCREMENT PRIMARY KEY, wrong_column I
 
 PBODY="$(curl -s "$PREVIEW")"
 check "broken table: page still renders" "200" "$(curl -s -o /dev/null -w '%{http_code}' "$PREVIEW")"
-check "broken table: default copy shown" "FALLBACK-DEFAULT-USED" "$(pm_check "$PBODY" seeded)"
 check "broken table: no error on the page" "0" \
   "$(printf '%s' "$PBODY" | grep -ciE 'fatal error|parse error|warning:|uncaught|sqlstate')"
 check "broken table: header and footer still render" "yes" \
@@ -738,7 +735,6 @@ MCODE="$(curl -s -o /tmp/verify-content-page.html -w '%{http_code}' "$PREVIEW")"
 PBODY="$(cat /tmp/verify-content-page.html)"
 mv /tmp/verify-content.moved "$CF"
 check "missing content.php: page renders" "200" "$MCODE"
-check "missing content.php: default copy shown" "FALLBACK-DEFAULT-USED" "$(pm_check "$PBODY" seeded)"
 check "missing content.php: footer still renders" "yes" \
   "$(printf '%s' "$PBODY" | grep -q 'class="pm-footer"' && echo yes || echo no)"
 
@@ -755,7 +751,6 @@ CCODE="$(curl -s -o /tmp/verify-content-page.html -w '%{http_code}' "$PREVIEW")"
 PBODY="$(cat /tmp/verify-content-page.html)"
 cp /tmp/verify-content.bak "$CF"
 check "truncated content.php: page renders" "200" "$CCODE"
-check "truncated content.php: default copy shown" "FALLBACK-DEFAULT-USED" "$(pm_check "$PBODY" seeded)"
 check "truncated content.php: no error leaked to the visitor" "0" \
   "$(printf '%s' "$PBODY" | grep -ciE 'fatal error|parse error|uncaught')"
 
@@ -776,8 +771,6 @@ sleep 3
 check "content.php restored and lints" "0" "$(php -l "$CF" >/dev/null 2>&1; echo $?)"
 check "content.php restored byte for byte" "yes" \
   "$(cmp -s "$CF" /tmp/verify-content.bak && echo yes || echo no)"
-check "seeded copy is back on the page" "Strong systems start with strong people" \
-  "$(pm_check "$(curl -s "$PREVIEW")" seeded)"
 rm -f /tmp/verify-content.bak /tmp/verify-content-page.html "$NJAR" "$NBODY"
 
 # ---------------------------------------------------------------------------

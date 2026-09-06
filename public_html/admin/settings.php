@@ -4,6 +4,7 @@ startAdminSession();
 require_once '../includes/config.php';
 require_once '../includes/audit.php';
 require_once '../includes/media.php';
+require_once '../includes/identity.php';
 requireAdminAuth();
 
 $pageTitle  = 'Settings';
@@ -36,6 +37,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_settings'])) {
             $stmt->execute([$key, $val]);
         }
         $success = 'Settings saved successfully.';
+    }
+}
+
+// ── One click brand fill, for a host with no shell ──────────
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['seed_identity'])) {
+    if (!validateCsrfToken($_POST['csrf_token'] ?? '')) {
+        $error = 'Invalid security token.';
+    } elseif (!isSuper()) {
+        $error = 'Only a super admin can do that.';
+    } else {
+        $seedLog = pmIdentitySeed($pdo, (string) ($_SESSION['admin_username'] ?? 'admin'));
+        pmAudit($pdo, 'identity_seed', 'Filled in the brand details from the built-in values');
+        $success = implode(' ', $seedLog);
     }
 }
 
@@ -120,6 +134,16 @@ include 'header.php';
 <div class="card">
   <h2 class="card-title" style="margin-bottom:4px">Site identity</h2>
   <p class="card-subtitle" style="margin-bottom:16px">What the public site shows as the brand, and the details in the footer</p>
+
+<?php if (isSuper()): ?>
+  <form method="POST" action="settings.php" class="pma-toolbar" style="border:0;padding:0 0 16px">
+    <?php echo csrfField(); ?>
+    <input type="hidden" name="seed_identity" value="1">
+    <button type="submit" class="btn btn-outline btn-sm">Fill in the brand details</button>
+    <span class="form-hint" style="margin:0">Sets the title, tagline, contact details and social links, and
+      puts the logo and favicon into the media library. Does not touch the mail settings. Safe to press twice.</span>
+  </form>
+<?php endif; ?>
 
   <div class="pma-identity">
 <?php
