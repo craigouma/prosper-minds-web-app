@@ -949,6 +949,30 @@ body.pm {
   object-fit: cover;
 }
 
+/* The stand-in when a cohort was listed as text and no banner was ever
+   designed for it. Same 16:9 slot, so a row of cards keeps one height. */
+.pm-banner--monogram {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background:
+    linear-gradient(135deg, rgba(0, 191, 99, 0.07), rgba(0, 191, 99, 0) 62%),
+    var(--pm-surface);
+}
+
+.pm-monogram {
+  font-family: var(--pm-font);
+  font-size: 34px;
+  line-height: 1;
+  letter-spacing: 0.06em;
+  color: var(--pm-black);
+}
+
+.pm-tile .pm-monogram {
+  font-size: clamp(38px, 5vw, 58px);
+}
+
 /* A tile: a full-bleed figure across the top edge, then a .pm-cell body that
    fills whatever height the tallest tile in the row sets.
 

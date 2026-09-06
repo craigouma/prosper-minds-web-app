@@ -63,8 +63,8 @@ function pmEventRegisterUrl(array $event): string
  *
  * events.image_path is stored without a leading slash ("assets/images/x.jpg")
  * and several of the real filenames contain spaces, so each path segment is
- * encoded. A row pointing at nothing returns '' and the caller omits the
- * banner rather than rendering a broken image icon.
+ * encoded. A row pointing at nothing returns '' and the caller draws a
+ * monogram in the same slot rather than a broken image icon.
  */
 function pmEventImageUrl(array $event): string
 {
@@ -77,6 +77,74 @@ function pmEventImageUrl(array $event): string
     $segments = array_map('rawurlencode', explode('/', ltrim($path, '/')));
 
     return '/' . implode('/', $segments);
+}
+
+/**
+ * Two initials standing in for a missing banner, for example "FF" from
+ * "Foundations of Foresight".
+ *
+ * The seven 2026 CPD cohorts were listed as text and never had a designed
+ * banner made for them. Omitting the tile entirely left those cards visibly
+ * shorter than the ones beside them, which read as a fault rather than as an
+ * archive, so the slot is filled typographically instead.
+ *
+ * Joining words are skipped so the initials come from the words that carry the
+ * name. A single-word title uses its own first two letters, and a title with
+ * nothing alphabetic in it returns '' so the caller can fall back again.
+ */
+function pmEventMonogram(array $event): string
+{
+    $words = preg_split('/[^\p{L}\p{N}]+/u', (string) ($event['title'] ?? ''), -1, PREG_SPLIT_NO_EMPTY) ?: [];
+
+    $words = array_values(array_filter($words, static function (string $word): bool {
+        return !in_array(mb_strtolower($word), ['of', 'the', 'and', 'for', 'in', 'a', 'an', 'to', 'on', 'with'], true);
+    }));
+
+    if ($words === []) {
+        return '';
+    }
+
+    $initials = count($words) === 1
+        ? mb_substr($words[0], 0, 2)
+        : mb_substr($words[0], 0, 1) . mb_substr($words[1], 0, 1);
+
+    return mb_strtoupper($initials);
+}
+
+/**
+ * The 16:9 banner slot: the designed image when there is one, a monogram when
+ * there is not.
+ *
+ * Shared by the tile cards and the calendar's listing rows so the two cannot
+ * drift into answering the missing-banner case differently.
+ */
+function pmRenderEventBanner(array $event): void
+{
+    $image = pmEventImageUrl($event);
+
+    if ($image !== '') {
+        $title = pmEventProse((string) ($event['title'] ?? ''));
+        ?>
+          <div class="pm-banner">
+            <?php // The client's own designed promotional banner. Alt names the
+                  // course because that is the information the image carries. ?>
+            <img src="<?php echo pmEsc($image); ?>"
+                 alt="Promotional banner for <?php echo pmEsc($title); ?>"
+                 loading="lazy" decoding="async">
+          </div>
+<?php
+        return;
+    }
+
+    $monogram = pmEventMonogram($event);
+    ?>
+          <?php // Decorative: the title it abbreviates is read out beside it. ?>
+          <div class="pm-banner<?php echo $monogram === '' ? '' : ' pm-banner--monogram'; ?>" aria-hidden="true">
+<?php if ($monogram !== ''): ?>
+            <span class="pm-monogram"><?php echo pmEsc($monogram); ?></span>
+<?php endif; ?>
+          </div>
+<?php
 }
 
 /**
@@ -135,18 +203,9 @@ function pmRenderEventCard(array $event, array $labels, string $variant, int $in
         return;
     }
 
-    $image = pmEventImageUrl($event);
     ?>
       <article class="pm-tile">
-<?php if ($image !== ''): ?>
-        <div class="pm-banner">
-          <?php // The client's own designed promotional banner. Alt names the
-                // course because that is the information the image carries. ?>
-          <img src="<?php echo pmEsc($image); ?>"
-               alt="Promotional banner for <?php echo pmEsc($title); ?>"
-               loading="lazy" decoding="async">
-        </div>
-<?php endif; ?>
+<?php pmRenderEventBanner($event); ?>
         <div class="pm-cell">
           <div class="pm-cell__meta">
             <span class="pm-ordinal"><?php echo pmEsc(str_pad((string) ($index + 1), 2, '0', STR_PAD_LEFT)); ?></span>

@@ -2,7 +2,7 @@
 
 Everything below is done in the cPanel web interface. Nothing here needs SSH.
 
-Three tools: **cPanel Git Version Control** to deploy the code, the **admin panel** to set itself up, and **phpMyAdmin** to back up first and run three SQL files after.
+Three tools: **cPanel Git Version Control** to deploy the code, the **admin panel** to set itself up, and **phpMyAdmin** to back up first and run four SQL files after.
 
 Each step below says exactly what to click and exactly what you should see. If what you see does not match, stop at that step and tell me.
 
@@ -22,7 +22,7 @@ cPanel, **phpMyAdmin**, select `kidsmone_Prosperminds_website`, **Export** tab, 
 
 Do this now, not from the copy you sent me on 4 September. Anything registered since then is only in the live database.
 
-This backup is the whole rollback plan for the data. The rollback for the code is step 8.
+This backup is the whole rollback plan for the data. The rollback for the code is step 9.
 
 ---
 
@@ -37,7 +37,7 @@ Then in cPanel: **Files, Git Version Control**, find the repository, **Manage**,
 
 cPanel runs `.cpanel.yml`, which copies `public_html/` over the live document root.
 
-The deploy carries the two `.htaccess` files that lock down the invoice and upload directories, so those are handled. It also removes nothing, which matters in step 5.
+The deploy carries the two `.htaccess` files that lock down the invoice and upload directories, so those are handled. It also removes nothing, which matters in step 8.
 
 ---
 
@@ -57,7 +57,7 @@ That one page does the setup. The new system stores things in twenty tables that
 
 If it says some could not be created, stop and send me the line. It names them.
 
-The rest of that page is the health report, which you will come back to in step 9.
+The rest of that page is the health report, which you will come back to in step 10.
 
 ---
 
@@ -150,7 +150,31 @@ Afterwards, Site health's Content layer row turns from **Look** to **Fine**.
 
 ---
 
-## 7. Delete two things by hand
+## 7. Add the seven cohorts that have already run
+
+Same place: **phpMyAdmin**, the **SQL** tab. Paste `deploy/2026-09-06-past-cohorts.sql` and click **Go**.
+
+**Why.** The Past cohorts tab on the calendar is empty, because the only events the main database has ever held are the four still to come. The seven 2026 schools that already ran (Foundations of Foresight through Transparency Engine) were only ever published on the CPD subdomain. This copies them across, word for word, from what was actually advertised for each one.
+
+They are added as finished schools: off the Upcoming tab, listed under Past cohorts newest first, and each with a working page that says *"This cohort has already run"* and points at the current calendar instead of a registration form.
+
+**Is it safe.** `INSERT IGNORE` on fixed ids, so running it twice adds nothing, and it touches no existing row. It is also the reason to run it before you retire the CPD subdomain: after this, the record of those seven lives on the main site.
+
+**What you should see.**
+
+| past_cohorts_should_be_7 | events_should_be_11 |
+|---|---|
+| 7 | 11 |
+
+Then all eleven events in date order, the seven new ones first.
+
+Prices are deliberately left blank on all seven. The events table defaults its price columns to this year's figures, so filling them in would have quietly advertised USD 599 against a school that finished in January.
+
+None of the seven had a banner designed for it. Rather than leave a hole in the row, the site draws the course's initials in the banner's place, so the archive rows sit at the same height as the live ones.
+
+---
+
+## 8. Delete two things by hand
 
 The deploy copies files over the live site and never deletes, so anything removed from the repository stays on the server until you remove it.
 
@@ -161,11 +185,11 @@ cPanel, **File Manager**, in `public_html`:
 
 And if the CPD subdomain still exists, in `cpd.prosper-minds.com` delete `setup_database.php`, `insert_events.php` and `test_email.php`. Two of those accept unauthenticated writes on any request.
 
-You do not have to remember this list. Step 9 tells you what is still there.
+You do not have to remember this list. Step 10 tells you what is still there.
 
 ---
 
-## 8. If something is wrong
+## 9. If something is wrong
 
 In Git Version Control, deploy the previous commit. The code goes back.
 
@@ -173,7 +197,7 @@ If the data needs to go back too, restore the export from step 1 through phpMyAd
 
 ---
 
-## 9. Check it worked
+## 10. Check it worked
 
 Open **Site health** again. It runs twelve checks on the spot and sorts the worst first:
 
@@ -190,7 +214,7 @@ Open **Site health** again. It runs twelve checks on the spot and sorts the wors
 - **are any leftover setup scripts still present**
 - what PHP version is running, and the largest upload it accepts
 
-The three in bold are the ones that would have caught the problems found during this engagement. If step 7 was done properly, the leftover scripts check reads clean.
+The three in bold are the ones that would have caught the problems found during this engagement. If step 8 was done properly, the leftover scripts check reads clean.
 
 Then look at the public site: the homepage, an event page, and the footer, where LinkedIn and Facebook should now appear.
 

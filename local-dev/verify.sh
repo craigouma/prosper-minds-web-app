@@ -2675,5 +2675,71 @@ check "and the homepage still returns 200" "200" "$(curl -s -o /dev/null -w '%{h
 rm -f "$RJ"
 
 echo
+echo "=== 24. Past cohorts ==="
+
+check "the past cohorts migration is tracked" "1" \
+  "$(ls deploy/2026-09-06-past-cohorts.sql 2>/dev/null | wc -l | tr -d ' ')"
+
+# The file the client pastes into phpMyAdmin, run here rather than mirrored into
+# the local dump, so what the suite proves is the artefact that ships.
+check "it applies cleanly" "0" \
+  "$("${DB_MAIN_FILE[@]}" < deploy/2026-09-06-past-cohorts.sql >/dev/null 2>&1; echo $?)"
+check "and is safe to run twice" "0" \
+  "$("${DB_MAIN_FILE[@]}" < deploy/2026-09-06-past-cohorts.sql >/dev/null 2>&1; echo $?)"
+check "it seeds all seven"  "7" \
+  "$("${DB_MAIN[@]}" "SELECT COUNT(*) FROM events WHERE id BETWEEN 20 AND 26")"
+check "each one is already in the past" "7" \
+  "$("${DB_MAIN[@]}" "SELECT COUNT(*) FROM events WHERE id BETWEEN 20 AND 26 AND event_start_date < CURDATE()")"
+check "and none is published" "0" \
+  "$("${DB_MAIN[@]}" "SELECT COUNT(*) FROM events WHERE id BETWEEN 20 AND 26 AND is_active = 1")"
+
+echo "  ---- CRITICAL: a finished school must not advertise this year's prices ----"
+check "no cohort inherited the price default" "0" \
+  "$("${DB_MAIN[@]}" "SELECT COUNT(*) FROM events WHERE id BETWEEN 20 AND 26 AND (price IS NOT NULL OR regular_price IS NOT NULL OR vip_price IS NOT NULL OR vvip_price IS NOT NULL)")"
+check "nor an early bird percentage" "0" \
+  "$("${DB_MAIN[@]}" "SELECT COUNT(*) FROM events WHERE id BETWEEN 20 AND 26 AND (early_bird_1_pct IS NOT NULL OR early_bird_2_pct IS NOT NULL OR early_bird_3_pct IS NOT NULL)")"
+check "so no price reaches a past cohort's page" "0" \
+  "$(curl -s "$MAIN/event.php?id=25" | grep -c 'USD 599')"
+
+PAST="$(curl -s "$MAIN/events.php?show=past")"
+check "the past tab lists all seven" "7"  "$(printf '%s' "$PAST" | grep -c 'class="pm-listing__row"')"
+check "the count says so"            "1"  "$(printf '%s' "$PAST" | grep -c '7 past cohorts')"
+check "no early bird badge on a finished school" "0" \
+  "$(printf '%s' "$PAST" | grep -c 'pm-label--green')"
+check "a past cohort's own page still opens" "200" \
+  "$(curl -s -o /dev/null -w '%{http_code}' "$MAIN/event.php?id=20")"
+check "and says the cohort has run" "1" \
+  "$(curl -s "$MAIN/event.php?id=20" | grep -c 'already run')"
+check "the upcoming tab is unaffected" "4" \
+  "$(curl -s "$MAIN/events.php" | grep -c 'class="pm-listing__row"')"
+
+echo "  ---- a cohort with no designed banner gets a monogram, not a gap ----"
+check "all seven draw one"     "7"  "$(printf '%s' "$PAST" | grep -c 'pm-banner--monogram')"
+check "initials come from the words that carry the name" "1" \
+  "$(printf '%s' "$PAST" | grep -c '>FF<')"
+check "joining words are skipped"  "1"  "$(printf '%s' "$PAST" | grep -c '>TE<')"
+check "it is hidden from a screen reader" "7" \
+  "$(printf '%s' "$PAST" | grep -c 'pm-banner--monogram" aria-hidden')"
+check "an event with a real banner still shows it" "0" \
+  "$(curl -s "$MAIN/events.php" | grep -c 'pm-banner--monogram')"
+check "the monogram style is defined" "1" \
+  "$(grep -c '^\.pm-banner--monogram {' public_html/assets/css/pm-design-system.css)"
+check "both card shapes share one renderer" "2" \
+  "$(grep -l 'pmRenderEventBanner(' public_html/events.php public_html/includes/layout/event-card.php | wc -l | tr -d ' ')"
+
+echo
+echo "=== 25. Registration details modal ==="
+
+check "the modal styles live in the loaded stylesheet" "1" \
+  "$(grep -c '^\.pma \.modal-backdrop {' $CSS)"
+check "the detail fields are laid out in columns" "1" \
+  "$(grep -c '^\.pma #detailGrid {' $CSS)"
+check "and a long value wraps rather than overflowing" "1" \
+  "$(grep -A4 '^\.pma \.detail-item p {' $CSS | grep -c 'word-break: break-word;')"
+check "a figure is never clipped by a too-narrow column" "1" \
+  "$(grep -c 'minmax(min(100%, 168px), 1fr)' $CSS)"
+check "pm-admin.css still carries one comment only" "1" "$(grep -c '/\*' $CSS)"
+
+echo
 printf '\n%s\npassed=%d failed=%d\n%s\n' "$(printf '=%.0s' {1..78})" "$pass" "$fail" "$(printf '=%.0s' {1..78})"
 exit $((fail > 0 ? 1 : 0))
