@@ -93,7 +93,6 @@ pmPageBegin([
 <?php foreach ($pmShown as $pmEvent): ?>
 <?php
       $pmTitle  = pmEventProse((string) ($pmEvent['title'] ?? ''));
-      $pmImage  = pmEventImageUrl($pmEvent);
       $pmDate   = pmEventDateBlock($pmEvent);
       $pmTags   = pmEventFocusTags($pmEvent);
       $pmLength = pmEventLengthLabel($pmEvent);
@@ -103,15 +102,7 @@ pmPageBegin([
       <li>
         <div class="pm-listing__row">
 
-          <?php // A row with no banner keeps its column empty rather than
-                // rendering a broken image, and the grid holds its shape. ?>
-          <div class="pm-banner">
-<?php if ($pmImage !== ''): ?>
-            <img src="<?php echo pmEsc($pmImage); ?>"
-                 alt="Promotional banner for <?php echo pmEsc($pmTitle); ?>"
-                 loading="lazy" decoding="async">
-<?php endif; ?>
-          </div>
+<?php pmRenderEventBanner($pmEvent); ?>
 
           <div class="pm-listing__date">
 <?php if ($pmDate['range'] !== ''): ?>
