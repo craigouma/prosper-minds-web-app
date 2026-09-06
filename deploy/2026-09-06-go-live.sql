@@ -7,6 +7,9 @@
 -- Safe to run twice. Every statement is either idempotent or scoped so a second
 -- run changes nothing.
 
+-- Run everything against this database, whatever is selected on the left.
+USE `kidsmone_Prosperminds_website`;
+
 START TRANSACTION;
 
 -- 1. The last trace of the currency parsing bug.
@@ -77,8 +80,9 @@ COMMIT;
 -- because admin_email, company_name and company_color already existed.
 SELECT (SELECT COUNT(*) FROM `event_registrations` WHERE `currency_code` = 'FRO') AS fro_rows_should_be_0,
        (SELECT COUNT(*) FROM `admin_users` WHERE `permissions` LIKE '%"content"%')  AS editors_with_cms_should_be_2,
-       (SELECT COUNT(*) FROM `site_settings`)                                       AS settings_should_be_15,
+       (SELECT COUNT(*) FROM `kidsmone_Prosperminds_website`.`site_settings`)                                       AS settings_should_be_15,
        (SELECT COUNT(*) FROM `events` WHERE `is_active` = 1)                        AS live_events_should_be_2;
 
 -- The two that stay live, for a final look.
-SELECT `id`, `title`, `location`, `is_active` FROM `events` ORDER BY `sort_order`, `id`;
+SELECT `id`, `title`, `location`, `is_active`
+  FROM `kidsmone_Prosperminds_website`.`events` ORDER BY `sort_order`, `id`;
