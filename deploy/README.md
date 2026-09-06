@@ -110,6 +110,8 @@ Same place: **phpMyAdmin**, the same database, the **SQL** tab.
 
 Open `deploy/2026-09-06-utf8mb4.sql`, paste the whole file, click **Go**.
 
+Every script begins with a `USE` line naming the database, so it does not matter which one is highlighted on the left.
+
 **Why.** Your original tables store text as latin1, an old character set. Everything the new system adds uses utf8mb4, which covers every language. While the old tables stay on latin1, a delegate whose name contains a character latin1 cannot represent loses it silently on the way in. This closes that gap.
 
 **Is it safe.** It rewrites every row, which is why it is separate and why the backup came first. I rehearsed it against your 4 September data: every row of events, registrations, accounts and settings was read back before and after, and the text was identical.
@@ -120,7 +122,9 @@ Open `deploy/2026-09-06-utf8mb4.sql`, paste the whole file, click **Go**.
 |---|
 | 0 |
 
-The second lists the four events with their dates, which should read normally, for example **19–23 October 2026**. If a date looks like `19â23 October 2026`, stop and restore the backup from step 1.
+The second lists the four events with their dates, which should read normally, for example **19-23 October 2026** with a proper en dash. If a date looks like `19â23 October 2026`, stop and restore the backup from step 1.
+
+If anything went wrong partway, paste `deploy/CHECK-utf8mb4.sql` instead. It changes nothing and reports whether the conversion finished, which tables are still on latin1 if any, and confirms the registration count, delegate count and invoiced total are untouched.
 
 ---
 

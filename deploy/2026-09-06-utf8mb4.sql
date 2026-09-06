@@ -23,6 +23,12 @@
 -- means a delegate whose name contains a character latin1 cannot hold silently
 -- loses it on the way in.
 
+-- Run everything against this database, whatever is selected on the left in
+-- phpMyAdmin. Without this line the verification query at the bottom can
+-- resolve `events` to information_schema.EVENTS, which is a real table with
+-- entirely different columns, and the script ends on a confusing error.
+USE `kidsmone_Prosperminds_website`;
+
 ALTER TABLE `admin_users`           CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci;
 ALTER TABLE `events`                CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci;
 ALTER TABLE `event_registrations`   CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci;
@@ -41,6 +47,8 @@ ALTER TABLE `vendor_bill_lines`     CONVERT TO CHARACTER SET utf8mb4 COLLATE utf
 -- 19-23 October 2026 with a proper en dash.
 SELECT COUNT(*) AS latin1_tables_should_be_0
   FROM information_schema.TABLES
- WHERE TABLE_SCHEMA = DATABASE() AND TABLE_COLLATION LIKE 'latin1%';
+ WHERE TABLE_SCHEMA = 'kidsmone_Prosperminds_website' AND TABLE_COLLATION LIKE 'latin1%';
 
-SELECT id, date_display FROM events ORDER BY id;
+-- Fully qualified on purpose. `events` on its own is ambiguous the moment
+-- information_schema is the selected database.
+SELECT `id`, `date_display` FROM `kidsmone_Prosperminds_website`.`events` ORDER BY `id`;
