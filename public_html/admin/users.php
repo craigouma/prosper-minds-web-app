@@ -49,7 +49,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_id'])) {
             if ($tr && $tr['is_administrator'] && $superCnt <= 1) {
                 $error = 'Cannot delete the last Administrator account.';
             } else {
-                $pdo->prepare("DELETE FROM admin_users WHERE id=?")->execute([$did]);
+                require_once '../includes/trash.php';
+                $snap = $pdo->prepare("SELECT * FROM admin_users WHERE id = ?");
+                $snap->execute([$did]);
+                $doomedUser = $snap->fetch();
+
+                if ($doomedUser && pmTrashPut($pdo, 'admin_user', $did, (string) $doomedUser['username'],
+                                              $doomedUser, (string) ($_SESSION['admin_username'] ?? 'unknown'), 'Accounts')) {
+                    $pdo->prepare("DELETE FROM admin_users WHERE id = ?")->execute([$did]);
+                }
                 header('Location: users.php?msg=deleted');
                 exit;
             }
@@ -161,16 +169,34 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_user'])) {
 
                     // Welcome email
                     if ($sendWelcome) {
-                        $loginUrl = (isset($_SERVER['HTTPS']) ? 'https' : 'http') . '://' . $_SERVER['HTTP_HOST']
-                                  . rtrim(dirname($_SERVER['PHP_SELF']), '/') . '/login.php';
-                        $body = "Hello $firstName,<br><br>"
-                              . "Your admin account for <strong>" . COMPANY_NAME . "</strong> has been created.<br><br>"
-                              . "<strong>Username:</strong> $username<br>"
-                              . "<strong>Password:</strong> $password<br>"
-                              . "<strong>Login URL:</strong> <a href='$loginUrl'>$loginUrl</a><br><br>"
-                              . "Please change your password after your first login.<br><br>"
-                              . "— " . COMPANY_NAME . " Team";
-                        sendEmail($emailAddr, 'Your Admin Account – ' . COMPANY_NAME, $body);
+                        require_once '../includes/adminsession.php';
+                        $origin = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off' ? 'https' : 'http')
+                                . '://' . ($_SERVER['HTTP_HOST'] ?? 'prosper-minds.com');
+
+                        // A link, never the password. Emailing a password puts
+                        // it in a mailbox and a mail log for good, and this
+                        // account can read delegate records and invoices.
+                        $setLink = pmResetIssue($pdo, (int) $pdo->lastInsertId(), $origin);
+                        $subject = 'Your Prosperminds admin account';
+                        $body    = "<p>Hello " . htmlspecialchars($firstName) . ",</p>"
+                                 . "<p>An admin account has been created for you at " . COMPANY_NAME . ".</p>"
+                                 . "<p>Your username is <strong>" . htmlspecialchars($username) . "</strong>. "
+                                 . "Choose your own password using the link below.</p>"
+                                 . ($setLink !== null
+                                    ? "<p><a href=\"" . htmlspecialchars($setLink) . "\">Set your password</a></p>"
+                                      . "<p>The link works once and stops working in " . PM_RESET_MINUTES . " minutes. "
+                                      . "If it expires, use Reset password on the sign-in page.</p>"
+                                    : "<p>Use Reset password on the sign-in page to choose one.</p>");
+
+                        try {
+                            $sent = sendEmailMessages([['to' => $emailAddr, 'subject' => $subject, 'message' => $body]]);
+                            if (empty($sent[0]['success'])) {
+                                recordFailedNotification($pdo, null, $emailAddr, $subject,
+                                    (string) ($sent[0]['error'] ?? 'send reported failure'));
+                            }
+                        } catch (Throwable $e) {
+                            recordFailedNotification($pdo, null, $emailAddr, $subject, $e->getMessage());
+                        }
                     }
                     header('Location: users.php?msg=added');
                     exit;
@@ -234,19 +260,18 @@ include 'header.php';
      ====================================================== */ ?>
 <?php if ($action === 'list'): ?>
 
-<div class="page-sub-header">
-    <div>
-        <h2 style="font-size:18px;">Staff Members</h2>
-        <p style="color:#94a3b8;font-size:13px;"><?=count($allUsers)?> account<?=count($allUsers)!==1?'s':''?></p>
-    </div>
-    <?php if (isSuper()): ?>
-    <a href="users.php?action=add" class="btn btn-primary">
-        <i class="fas fa-user-plus"></i> Add New Staff Member
-    </a>
-    <?php endif; ?>
-</div>
-
 <div class="table-card">
+    <div class="table-card-header">
+        <div>
+            <h2 class="card-title">Staff members</h2>
+            <p class="card-subtitle"><?=count($allUsers)?> account<?=count($allUsers)!==1?'s':''?>,
+               <?=count(array_filter($allUsers, fn($u) => (int) $u['is_administrator'] === 1))?> of them administrators</p>
+        </div>
+        <?php if (isSuper()): ?>
+        <a href="users.php?action=add" class="btn btn-primary btn-sm" style="margin-left:auto">Add a staff member</a>
+        <?php endif; ?>
+    </div>
+
     <div class="table-responsive">
         <table>
             <thead>
@@ -282,12 +307,12 @@ include 'header.php';
                                     <span class="badge badge-orange" style="margin-left:4px;">You</span>
                                 <?php endif; ?>
                             </div>
-                            <div style="font-size:12px;color:#94a3b8;">@<?=htmlspecialchars($u['username'])?></div>
+                            <div style="font-size:12px;color:#6b6b6b;">@<?=htmlspecialchars($u['username'])?></div>
                         </div>
                     </div>
                 </td>
-                <td style="color:#475569;"><?=htmlspecialchars($u['email']??'—')?></td>
-                <td><?=htmlspecialchars($u['department']??'—')?></td>
+                <td style="color:#3d3d3d;"><?=htmlspecialchars($u['email'] ?: 'Not set')?></td>
+                <td><?=htmlspecialchars($u['department'] ?: 'Not set')?></td>
                 <td>
                     <?php if (!empty($u['is_administrator'])): ?>
                         <span class="badge badge-green"><i class="fas fa-shield-alt"></i> Administrator</span>
@@ -311,12 +336,10 @@ include 'header.php';
                     <?php endif; ?>
                     <?php if ($canDel): ?>
                     <form method="POST" style="display:inline;"
-                          onsubmit="return confirm('Delete <?=htmlspecialchars(addslashes($u['username']))?> permanently?');">
+                          onsubmit="return confirm('Move <?=htmlspecialchars(addslashes($u['username']))?> to the trash? You can restore the account for 30 days.');">
                         <?=csrfField()?>
                         <input type="hidden" name="delete_id" value="<?=$u['id']?>">
-                        <button type="submit" class="btn btn-danger btn-sm btn-icon" title="Delete">
-                            <i class="fas fa-trash"></i>
-                        </button>
+                        <button type="submit" class="btn btn-danger btn-sm" title="Delete">Delete</button>
                     </form>
                     <?php endif; ?>
                 </td>
@@ -332,14 +355,11 @@ include 'header.php';
      ====================================================== */ ?>
 <?php else: ?>
 
-<div class="page-sub-header">
-    <div>
-        <h2><?=$editUser ? 'Edit Staff Member' : 'Add New Staff Member'?></h2>
-        <p style="color:#94a3b8;font-size:13px;">
-            <?=$editUser ? htmlspecialchars(trim(($editUser['first_name']??'').' '.($editUser['last_name']??''))) ?: htmlspecialchars($editUser['username']) : 'Fill in the details below'?>
-        </p>
-    </div>
-    <a href="users.php" class="btn btn-outline"><i class="fas fa-arrow-left"></i> Back to Users</a>
+<div class="pma-toolbar" style="border:0;padding:0 0 18px">
+    <a href="users.php" class="btn btn-outline btn-sm">All staff</a>
+    <span class="text-muted" style="font-size:12px">
+        <?=$editUser ? htmlspecialchars(trim(($editUser['first_name']??'').' '.($editUser['last_name']??''))) ?: htmlspecialchars($editUser['username']) : 'A new account starts inactive until you save it'?>
+    </span>
 </div>
 
 <form method="POST" action="users.php" enctype="multipart/form-data">
@@ -369,16 +389,16 @@ include 'header.php';
                     <input type="checkbox" name="is_administrator" value="1" id="isAdminChk"
                            <?=!empty($editUser['is_administrator'])?'checked':''?>>
                     <div>
-                        <div class="check-group-label"><i class="fas fa-shield-alt" style="color:var(--primary);margin-right:5px;"></i>Administrator</div>
-                        <div class="check-group-sub">Full access to all features and settings</div>
+                        <div class="check-group-label">Administrator</div>
+                        <div class="check-group-sub">Every screen, including accounting, users and the audit log. Leave this off and set permissions on the next tab.</div>
                     </div>
                 </label>
                 <label class="check-group">
                     <input type="checkbox" name="is_staff" value="1"
                            <?=!isset($editUser)||!empty($editUser['is_staff'])?'checked':''?>>
                     <div>
-                        <div class="check-group-label"><i class="fas fa-id-badge" style="color:#94a3b8;margin-right:5px;"></i>Active Staff Member</div>
-                        <div class="check-group-sub">Uncheck to deactivate this account</div>
+                        <div class="check-group-label">Active staff member</div>
+                        <div class="check-group-sub">Turn this off to stop the account signing in without deleting it.</div>
                     </div>
                 </label>
             </div>
@@ -395,12 +415,12 @@ include 'header.php';
                         $ini = strtoupper(substr($editUser['first_name']??'',0,1).substr($editUser['last_name']??'',0,1));
                         if (!$ini) $ini = strtoupper(substr($editUser['username']??'U',0,2));
                         ?>
-                        <div style="width:80px;height:80px;border-radius:50%;background:var(--gray-200);display:flex;align-items:center;justify-content:center;font-size:28px;font-weight:700;color:var(--gray-600);"><?=$ini?></div>
+                        <div style="width:80px;height:80px;border-radius:2px;background:var(--gray-200);display:flex;align-items:center;justify-content:center;font-size:28px;font-weight:700;color:var(--gray-600);"><?=$ini?></div>
                     <?php endif; ?>
                     <div>
                         <input type="file" name="profile_image" accept="image/*" class="form-control"
                                style="max-width:300px;" onchange="previewAvatar(this)">
-                        <div class="form-hint">JPG, PNG, WEBP – max 3 MB</div>
+                        <div class="form-hint">JPG, PNG or WEBP, up to 3 MB.</div>
                     </div>
                 </div>
             </div>
@@ -448,7 +468,7 @@ include 'header.php';
             <hr class="divider">
             <div style="font-size:13.5px;font-weight:700;color:var(--gray-800);margin-bottom:14px;">
                 <i class="fas fa-key" style="color:var(--primary);margin-right:6px;"></i>
-                <?=$editUser ? 'Password <span style="font-weight:400;color:#94a3b8;font-size:12.5px;">(leave blank to keep current)</span>' : 'Password'?>
+                <?=$editUser ? 'Password <span style="font-weight:400;color:#6b6b6b;font-size:12.5px;">(leave blank to keep current)</span>' : 'Password'?>
             </div>
 
             <div class="form-grid">
@@ -460,7 +480,7 @@ include 'header.php';
                                style="padding-right:42px;"
                                placeholder="<?=$editUser?'Leave blank to keep current':'Min. 8 characters'?>">
                         <button type="button" onclick="togglePwd('pwdField',this)"
-                                style="position:absolute;right:10px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;color:#94a3b8;font-size:15px;">
+                                style="position:absolute;right:10px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;color:#6b6b6b;font-size:15px;">
                             <i class="fas fa-eye"></i>
                         </button>
                     </div>
@@ -473,11 +493,11 @@ include 'header.php';
             </div>
 
             <?php if (!$editUser && isSuper()): ?>
-            <label class="check-group" style="border-color:rgba(0,177,64,.3);background:rgba(0,177,64,.03);">
+            <label class="check-group">
                 <input type="checkbox" name="send_welcome" value="1" checked>
                 <div>
-                    <div class="check-group-label"><i class="fas fa-envelope" style="color:var(--primary);margin-right:5px;"></i>Send welcome email</div>
-                    <div class="check-group-sub">Sends login credentials to the user's email address</div>
+                    <div class="check-group-label">Send a welcome email</div>
+                    <div class="check-group-sub">Sends a link so they can choose their own password. No password is ever emailed.</div>
                 </div>
             </label>
             <?php endif; ?>
@@ -494,12 +514,12 @@ include 'header.php';
             <div class="admin-perm-note">
                 <i class="fas fa-shield-alt"></i>
                 <div>
-                    <strong>Administrator</strong> — This user has full access to all features.
+                    <strong>Administrator.</strong> This account reaches every screen, so the list below does not apply to it.
                     Permissions cannot be restricted for Administrators.
                 </div>
             </div>
             <?php else: ?>
-            <p style="font-size:13px;color:#94a3b8;margin-bottom:20px;">
+            <p style="font-size:13px;color:#6b6b6b;margin-bottom:20px;">
                 Check the capabilities this staff member is allowed to perform.
                 Unchecked items will be hidden or blocked.
             </p>
@@ -596,7 +616,7 @@ function previewAvatar(input) {
     const reader = new FileReader();
     reader.onload = e => {
         let img = input.closest('.form-group').querySelector('img.user-avatar-lg');
-        let ph  = input.closest('.form-group').querySelector('div[style*="border-radius:50%"]');
+        let ph  = input.closest('.form-group').querySelector('div[style*="border-radius:2px"]');
         if (!img) {
             img = document.createElement('img');
             img.className = 'user-avatar-lg';

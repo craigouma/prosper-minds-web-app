@@ -237,43 +237,41 @@ $pct = static function (float $part, float $whole): string {
 include 'header.php';
 ?>
 
-<div class="card" style="padding:16px 20px;margin-bottom:20px;">
-    <form method="GET" class="filter-bar" action="analytics.php">
-        <div>
-            <label>Date range</label>
-            <select name="range" id="rangeSelect" class="form-control">
-                <option value="7"      <?php echo $range === '7'      ? 'selected' : ''; ?>>Last 7 days</option>
-                <option value="30"     <?php echo $range === '30'     ? 'selected' : ''; ?>>Last 30 days</option>
-                <option value="all"    <?php echo $range === 'all'    ? 'selected' : ''; ?>>All time</option>
-                <option value="custom" <?php echo $range === 'custom' ? 'selected' : ''; ?>>Custom range</option>
-            </select>
-        </div>
-        <div id="customFrom" style="<?php echo $range === 'custom' ? '' : 'display:none;'; ?>">
-            <label>From</label>
-            <input type="date" name="from" class="form-control" value="<?php echo htmlspecialchars($from); ?>">
-        </div>
-        <div id="customTo" style="<?php echo $range === 'custom' ? '' : 'display:none;'; ?>">
-            <label>To</label>
-            <input type="date" name="to" class="form-control" value="<?php echo htmlspecialchars($to); ?>">
-        </div>
-        <div>
-            <label>Event</label>
-            <select name="event_id" class="form-control">
-                <option value="0">All Events</option>
-                <?php foreach ($events as $eventRow): ?>
-                    <option value="<?php echo (int) $eventRow['id']; ?>" <?php echo $eventId === (int) $eventRow['id'] ? 'selected' : ''; ?>>
-                        <?php echo htmlspecialchars($eventRow['title']); ?>
-                        <?php echo ((int) $eventRow['is_active'] === 1) ? '' : ' (inactive)'; ?>
-                    </option>
-                <?php endforeach; ?>
-            </select>
-        </div>
-        <div style="align-self:flex-end;">
-            <button type="submit" class="btn btn-primary"><i class="fas fa-filter"></i> Apply</button>
-            <a href="analytics.php" class="btn btn-outline">Reset</a>
-        </div>
-    </form>
-</div>
+<form method="GET" action="analytics.php" class="pma-toolbar" style="border:0;padding:0 0 18px">
+    <label>
+        <span class="pma-vh">Date range</span>
+        <select name="range" id="rangeSelect">
+            <option value="7"      <?php echo $range === '7'      ? 'selected' : ''; ?>>Last 7 days</option>
+            <option value="30"     <?php echo $range === '30'     ? 'selected' : ''; ?>>Last 30 days</option>
+            <option value="all"    <?php echo $range === 'all'    ? 'selected' : ''; ?>>All time</option>
+            <option value="custom" <?php echo $range === 'custom' ? 'selected' : ''; ?>>Custom range</option>
+        </select>
+    </label>
+    <label id="customFrom" style="<?php echo $range === 'custom' ? '' : 'display:none;'; ?>">
+        <span class="pma-vh">From</span>
+        <input type="date" name="from" class="form-control" style="width:auto"
+               value="<?php echo htmlspecialchars($from); ?>">
+    </label>
+    <label id="customTo" style="<?php echo $range === 'custom' ? '' : 'display:none;'; ?>">
+        <span class="pma-vh">To</span>
+        <input type="date" name="to" class="form-control" style="width:auto"
+               value="<?php echo htmlspecialchars($to); ?>">
+    </label>
+    <label>
+        <span class="pma-vh">Event</span>
+        <select name="event_id">
+            <option value="0">All events</option>
+            <?php foreach ($events as $eventRow): ?>
+                <option value="<?php echo (int) $eventRow['id']; ?>" <?php echo $eventId === (int) $eventRow['id'] ? 'selected' : ''; ?>>
+                    <?php echo htmlspecialchars($eventRow['title']); ?>
+                    <?php echo ((int) $eventRow['is_active'] === 1) ? '' : ' (inactive)'; ?>
+                </option>
+            <?php endforeach; ?>
+        </select>
+    </label>
+    <button type="submit" class="btn btn-primary btn-sm">Apply</button>
+    <a href="analytics.php" class="btn btn-outline btn-sm">Reset</a>
+</form>
 
 <?php if ($funnelRowTotal === 0): ?>
 <div class="alert alert-danger" style="margin-bottom:20px;">
@@ -348,11 +346,70 @@ include 'header.php';
                 <?php echo $selectedEvent ? htmlspecialchars($selectedEvent['title']) : 'All events'; ?>
             </div>
         </div>
+        <div style="margin-left:auto;display:flex;gap:4px">
+            <button type="button" class="btn btn-outline btn-sm is-on" data-funnel-view="bars">Bars</button>
+            <button type="button" class="btn btn-outline btn-sm" data-funnel-view="flow">Flow</button>
+        </div>
     </div>
-    <div style="padding:20px;">
+
+<?php
+// A proportional flow drawn as inline SVG. funnel-graph-js was the obvious
+// route, but it needs a build step this panel does not have, and its stylesheet
+// ships gradients and a palette the brand does not use.
+$pmFunnelW = 900;
+$pmFunnelH = 260;
+$pmTop     = max(1, (int) $stages[0]['hits']);
+$pmSeg     = count($stages) > 1 ? $pmFunnelW / (count($stages) - 1) : $pmFunnelW;
+$pmY = static function (int $hits) use ($pmTop, $pmFunnelH): float {
+    return ($pmFunnelH / 2) * (1 - min(1, $hits / $pmTop));
+};
+$pmUpper = $pmLower = [];
+foreach ($stages as $i => $stage) {
+    $x = round($i * $pmSeg, 2);
+    $y = round($pmY((int) $stage['hits']), 2);
+    $pmUpper[] = [$x, $y];
+    $pmLower[] = [$x, round($pmFunnelH - $y, 2)];
+}
+$pmPath = 'M ' . $pmUpper[0][0] . ' ' . $pmUpper[0][1];
+for ($i = 1; $i < count($pmUpper); $i++) {
+    $cx = round(($pmUpper[$i - 1][0] + $pmUpper[$i][0]) / 2, 2);
+    $pmPath .= " C $cx {$pmUpper[$i-1][1]}, $cx {$pmUpper[$i][1]}, {$pmUpper[$i][0]} {$pmUpper[$i][1]}";
+}
+$pmPath .= ' L ' . end($pmLower)[0] . ' ' . end($pmLower)[1];
+for ($i = count($pmLower) - 2; $i >= 0; $i--) {
+    $cx = round(($pmLower[$i + 1][0] + $pmLower[$i][0]) / 2, 2);
+    $pmPath .= " C $cx {$pmLower[$i+1][1]}, $cx {$pmLower[$i][1]}, {$pmLower[$i][0]} {$pmLower[$i][1]}";
+}
+$pmPath .= ' Z';
+?>
+    <div style="padding:20px" data-funnel-panel="flow" hidden>
+        <div class="pma-funnelflow">
+            <svg viewBox="0 -18 <?php echo $pmFunnelW; ?> <?php echo $pmFunnelH + 36; ?>"
+                 preserveAspectRatio="none" role="img"
+                 aria-label="Registration funnel shown as a proportional flow">
+                <path d="<?php echo $pmPath; ?>" fill="#00BF63" fill-opacity="0.9"></path>
+<?php foreach ($stages as $i => $stage): if ($i === 0) { continue; } $x = round($i * $pmSeg, 2); ?>
+                <line x1="<?php echo $x; ?>" y1="-18" x2="<?php echo $x; ?>" y2="<?php echo $pmFunnelH + 18; ?>"
+                      stroke="#dcdcdc" stroke-width="1"></line>
+<?php endforeach; ?>
+            </svg>
+            <div class="pma-funnelflow-labels">
+<?php foreach ($stages as $i => $stage): ?>
+                <div>
+                    <span class="pma-funnelflow-figure"><?php echo (int) $stage['hits']; ?></span>
+                    <span class="pma-funnelflow-name"><?php echo htmlspecialchars($stage['label']); ?></span>
+                    <span class="pma-funnelflow-pct"><?php
+                      echo $pct((float) $stage['hits'], (float) $stages[0]['hits']); ?> of views</span>
+                </div>
+<?php endforeach; ?>
+            </div>
+        </div>
+    </div>
+
+    <div style="padding:20px;" data-funnel-panel="bars">
         <?php foreach ($stages as $index => $stage): ?>
             <?php if ($index > 0): ?>
-                <div style="display:flex;align-items:center;gap:8px;margin:0 0 10px 2px;font-size:12px;color:#94a3b8;">
+                <div style="display:flex;align-items:center;gap:8px;margin:0 0 10px 2px;font-size:12px;color:#6b6b6b;">
                     <i class="fas fa-arrow-down"></i>
                     <?php
                     // One line, and always rendered: local-dev/verify.sh asserts
@@ -379,26 +436,26 @@ include 'header.php';
                 <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px;gap:12px;">
                     <span style="font-weight:600;color:var(--gray-800);">
                         <?php echo htmlspecialchars($stage['label']); ?>
-                        <span style="font-weight:400;color:#94a3b8;font-size:12px;">
+                        <span style="font-weight:400;color:#6b6b6b;font-size:12px;">
                             &middot; <?php echo htmlspecialchars($stage['hint']); ?>
                         </span>
                     </span>
                     <span style="white-space:nowrap;">
                         <strong style="color:var(--primary);font-size:15px;"><?php echo $stage['hits']; ?></strong>
-                        <span style="color:#94a3b8;font-size:12px;">
+                        <span style="color:#6b6b6b;font-size:12px;">
                             (<?php echo $stage['sessions']; ?> session<?php echo $stage['sessions'] === 1 ? '' : 's'; ?>,
                             <?php echo $pct((float) $stage['hits'], (float) $stages[0]['hits']); ?> of views)
                         </span>
                     </span>
                 </div>
-                <div style="background:var(--gray-200);border-radius:20px;height:22px;overflow:hidden;">
-                    <div style="background:linear-gradient(90deg,#00B140,#0f766e);width:<?php echo $stage['width']; ?>%;height:22px;border-radius:20px;min-width:<?php echo $stage['hits'] > 0 ? '2px' : '0'; ?>;"></div>
+                <div style="background:var(--gray-200);border-radius:2px;height:22px;overflow:hidden;">
+                    <div style="background:var(--pma-green);width:<?php echo $stage['width']; ?>%;height:22px;border-radius:2px;min-width:<?php echo $stage['hits'] > 0 ? '2px' : '0'; ?>;"></div>
                 </div>
             </div>
         <?php endforeach; ?>
 
         <?php if ($failedSubmits > 0): ?>
-            <div style="margin-top:18px;padding-top:14px;border-top:1px solid var(--gray-200);font-size:13px;color:#b45309;">
+            <div style="margin-top:18px;padding-top:14px;border-top:1px solid var(--gray-200);font-size:13px;color:#8a5a00;">
                 <i class="fas fa-triangle-exclamation"></i>
                 <?php echo $failedSubmits; ?> submission<?php echo $failedSubmits === 1 ? '' : 's'; ?>
                 failed validation or the database write in this range. Email that
@@ -523,7 +580,7 @@ include 'header.php';
     </div>
 </div>
 
-<p style="margin-top:20px;font-size:12px;color:#94a3b8;line-height:1.7;">
+<p style="margin-top:20px;font-size:12px;color:#6b6b6b;line-height:1.7;">
     Funnel figures come from <code>funnel_events</code>, which holds no IP
     address, no user agent and nothing that identifies a person &mdash; sessions
     are correlated by one first-party 24-hour cookie carrying a random UUID.

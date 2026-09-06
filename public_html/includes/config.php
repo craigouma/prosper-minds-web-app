@@ -1,4 +1,18 @@
 <?php
+
+// Errors are logged, never printed. A notice printed into the response would
+// corrupt the JSON that process-registration.php returns, break any header()
+// redirect issued after it, and disclose the absolute server path. Set
+// PM_DISPLAY_ERRORS=1 in a local .env to see them on screen instead.
+error_reporting(E_ALL);
+ini_set('log_errors', '1');
+ini_set('display_errors', (getenv('PM_DISPLAY_ERRORS') === '1') ? '1' : '0');
+
+// Everyone reading this runs on East Africa Time. Set here and on the database
+// connection below: if only one of them moved, a row written now would read
+// back three hours out.
+date_default_timezone_set('Africa/Nairobi');
+
 require_once __DIR__ . '/../vendor/autoload.php';
 use PHPMailer\PHPMailer\PHPMailer;
 use PHPMailer\PHPMailer\Exception;
@@ -16,6 +30,7 @@ try {
     );
     $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
     $pdo->setAttribute(PDO::ATTR_DEFAULT_FETCH_MODE, PDO::FETCH_ASSOC);
+    $pdo->exec("SET time_zone = '+03:00'");
 } catch (PDOException $e) {
     die("Database connection failed. Please contact the administrator.");
 }

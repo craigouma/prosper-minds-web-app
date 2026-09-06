@@ -1,125 +1,74 @@
 <?php
-$footerLinksHtml = '
-    <footer>
-        <div class="container">
-            <div class="footer-grid">
-                <div class="footer-col">
-                    <div class="footer-logo">
-                        <img src="assets/images/fisrt-logo.png" alt="Prosperminds">
-                    </div>
-                    <p class="footer-desc">Empowering African governments with practical training, IPSAS mastery, AI automation and sustainability reporting.</p>
-                    <div style="display: flex; gap: 15px;">
-                        <a href="#" style="color: var(--white); font-size: 20px;"><i class="fab fa-linkedin"></i></a>
-                        <a href="#" style="color: var(--white); font-size: 20px;"><i class="fab fa-twitter"></i></a>
-                        <a href="#" style="color: var(--white); font-size: 20px;"><i class="fab fa-facebook"></i></a>
-                    </div>
-                </div>
-                <div class="footer-col">
-                    <h4 class="footer-heading">Quick Links</h4>
-                    <ul class="footer-links">
-                        <li><a href="index.php#home">Home</a></li>
-                        <li><a href="index.php#events">Upcoming Events</a></li>
-                        <li><a href="index.php#about">About Us</a></li>
-                        <li><a href="index.php#services">Services</a></li>
-                    </ul>
-                </div>
-                <div class="footer-col">
-                    <h4 class="footer-heading">Our Services</h4>
-                    <ul class="footer-links">
-                        <li><a href="service-pfm.php">PFM & IPSAS Mastery</a></li>
-                        <li><a href="service-data.php">Data Analytics & AI</a></li>
-                        <li><a href="service-sustainability.php">Sustainability Reporting</a></li>
-                    </ul>
-                </div>
-                <div class="footer-col">
-                    <h4 class="footer-heading">Newsletter</h4>
-                    <p style="color: #aaa; margin-bottom: 15px; font-size: 0.9rem;">Subscribe to our newsletter for the latest updates.</p>
-                    <form style="display: flex;">
-                        <input type="email" placeholder="Your email address" style="padding: 10px; border: none; border-radius: 4px 0 0 4px; width: 100%; outline: none;" required>
-                        <button type="submit" style="background: var(--primary-green); border: none; color: white; padding: 0 15px; border-radius: 0 4px 4px 0; cursor: pointer;"><i class="fas fa-paper-plane"></i></button>
-                    </form>
-                </div>
-            </div>
-            <div class="footer-bottom">
-                <p>&copy; ' . date('Y') . ' Prosperminds. All rights reserved.</p>
-            </div>
-        </div>
-    </footer>
-';
-?>
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sustainability Reporting | Prosperminds</title>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <link rel="stylesheet" href="assets/css/style.css">
-    <style>
-        .page-hero { background: var(--faded-green); padding: 150px 0 80px; text-align: center; }
-        .page-hero h1 { color: var(--dark-green); font-size: 3rem; margin-bottom: 15px; }
-        .page-hero p { color: #555; max-width: 800px; margin: 0 auto; font-size: 1.2rem; }
-        .service-details { padding: 100px 0; }
-        .service-img-wrapper img { width: 100%; border-radius: 8px; box-shadow: 0 15px 35px rgba(0,0,0,0.1); }
-        .service-list li { margin-bottom: 15px; font-size: 1.1rem; color: #444; display: flex; align-items: flex-start; gap: 10px; }
-        .service-list i { color: var(--primary-green); margin-top: 5px; }
-        @media (max-width: 768px) {
-            .page-hero { padding: 120px 20px 60px; }
-            .page-hero h1 { font-size: 2.2rem; }
-            .content-grid { display: grid; grid-template-columns: 1fr !important; gap: 40px !important; }
-        }
-    </style>
-    <?php include __DIR__ . '/includes/google-tag.php'; ?>
-</head>
-<body>
+/**
+ * Service detail: Sustainability Reporting.
+ *
+ * Rebuilt. See service-pfm.php for why the inline defaults live in the page
+ * file rather than in includes/layout/service-detail.php, which holds the
+ * shared shape.
+ *
+ * NOTE ON THE CALENDAR SECTION
+ * ----------------------------
+ * related_tags below currently matches NO event, and that is correct rather
+ * than broken. No school in the 2026 calendar covers sustainability reporting:
+ * not in its title, not in its focus tags, and not in any line of any of the
+ * four five-day agendas. The section therefore renders events_empty, which says
+ * so plainly. Falling back to "show all four schools" under a heading that says
+ * "schools covering this pillar" would tell a delegate they can book something
+ * that does not exist, on a page selling USD 599 seats. See the comment on
+ * pmEventsMatchingTags() in includes/events.php.
+ *
+ * House style: no em dashes in any user-visible copy. Client instruction.
+ */
 
-    <header>
-        <div class="container navbar">
-            <a href="index.php" class="logo"><img src="assets/images/fisrt-logo.png" alt="Prosperminds"></a>
-            <nav class="nav-links">
-                <a href="index.php#home">Home</a>
-                <a href="index.php#events">Events</a>
-                <a href="index.php#about">About</a>
-                <a href="index.php#services">Services</a>
-                <a href="index.php#contact">Contact</a>
-            </nav>
-            <div class="mobile-menu-btn"><i class="fas fa-bars"></i></div>
-        </div>
-    </header>
+require_once __DIR__ . '/includes/layout/page.php';
 
-    <div class="page-hero">
-        <div class="container">
-            <h1 class="reveal">Sustainability Reporting</h1>
-            <p class="reveal">Meet evolving global climate and environmental standards while strengthening transparency in the public sector.</p>
-        </div>
-    </div>
+$pmService = [
+    'slug'     => 'service-sustainability',
+    'pillar'   => 'sustainability',
+    'defaults' => [
+        'meta_title'       => 'Sustainability Reporting',
+        'meta_description' => 'Climate and sustainability disclosure for public institutions now being asked for it by lenders, auditors and citizens. Scope, data ownership, assurance readiness.',
+        'hero_eyebrow'     => 'Services',
+        'hero_title'       => 'Sustainability Reporting',
+        'hero_promise'     => 'Meet global standards while strengthening transparency.',
+        'hero_body'        => 'Climate and sustainability disclosure for public institutions now being asked for it by lenders, auditors and citizens.',
+        'context_title'    => 'Why departments send teams',
+        'context_body_1'   => 'Sustainability disclosure arrived in the public sector from the outside. Lenders ask for it as a condition of funding, auditors ask for it because it is now in scope, and citizens ask for it because the spending is theirs. Very few institutions were given a budget or a team to answer with.',
+        'context_body_2'   => 'The practical questions are the same everywhere. What is in scope, who owns the data, how does the reporting fit the financial calendar, and what will stand up to assurance. This pillar works through those four in order, rather than starting from a framework and hoping the underlying data exists.',
+        'outcomes_title'   => 'What a delegate returns with',
+        'outcomes'         => [
+            'A disclosure scope decision you can defend',
+            'Data collection assigned to real owners',
+            'Alignment with lender and donor requirements',
+            'Reporting integrated with the financial calendar',
+        ],
+        'curriculum_title' => 'Curriculum coverage',
+        'topics'           => [
+            'Disclosure frameworks and their public sector fit',
+            'Materiality assessment',
+            'Emissions and resource data collection',
+            'Climate risk in fiscal planning',
+            'Assurance readiness',
+            'Reporting to oversight and lenders',
+        ],
+        'audience_title'   => 'Who it is for',
+        'audience'         => [
+            'Finance directors and reporting managers',
+            'Internal auditors',
+            'Planning and economic affairs officials',
+            'Debt management office staff',
+            'Sub-national finance officers',
+        ],
+        'format_title'     => 'How it is taught',
+        'format_body'      => "Five days, residential, with the cohort capped so that faculty stay reachable throughout. Delegates work on their own institution's reporting scope through the week, and day five is spent building the action plan each delegate takes back to their department. Every school carries CPD certification.",
+        'events_title'     => 'Schools covering this pillar',
+        'events_empty'     => 'No school covering this pillar is in the 2026 calendar yet. Contact the programme office and we will tell you when one is scheduled.',
+        'related_tags'     => ['Sustainability', 'Climate', 'Disclosure'],
+        'cta_eyebrow'      => 'Next step',
+        'cta_title'        => 'Ask for the full course outline',
+        'cta_body'         => 'The programme office replies within one working day, and will say plainly if a different pillar fits your team better.',
+        'cta_label'        => 'Contact the programme office',
+    ],
+];
 
-    <section class="service-details">
-        <div class="container content-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 60px; align-items: center;">
-            <div class="service-img-wrapper reveal">
-                <!-- Using the pre-generated sustainability image -->
-                <img src="assets/images/service_sustainability.png" alt="Sustainability Reporting Africa">
-            </div>
-            <div class="reveal">
-                <h2 style="font-size: 2.2rem; margin-bottom: 25px;">Align with Global ESG Standards</h2>
-                <p style="color: #555; font-size: 1.1rem; margin-bottom: 20px; line-height: 1.8;">As international donors, stakeholders, and citizens demand higher accountability, Sustainability and Environmental, Social, and Governance (ESG) reporting has become a necessity for modern African governance.</p>
-                <p style="color: #555; font-size: 1.1rem; margin-bottom: 30px; line-height: 1.8;">Our expert trainers guide public institutions through the complexities of integrating sustainability metrics into core financial reporting. We help you build frameworks that attract green funding and ensure long-term public trust.</p>
-                
-                <ul class="service-list" style="list-style: none; padding: 0; margin-bottom: 40px;">
-                    <li><i class="fas fa-check-circle"></i> Integrated ESG Reporting Frameworks</li>
-                    <li><i class="fas fa-check-circle"></i> Green Finance & Budgeting</li>
-                    <li><i class="fas fa-check-circle"></i> ISSB & Global Standard Compliance</li>
-                    <li><i class="fas fa-check-circle"></i> Carbon footprint tracking in government</li>
-                </ul>
-                
-                <a href="index.php#contact" class="btn btn-primary">Speak to our Consultants</a>
-            </div>
-        </div>
-    </section>
-
-    <?php echo $footerLinksHtml; ?>
-
-    <script src="assets/js/main.js"></script>
-</body>
-</html>
+require __DIR__ . '/includes/layout/service-detail.php';

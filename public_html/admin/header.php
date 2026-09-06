@@ -1,84 +1,161 @@
+<?php
+require_once __DIR__ . '/includes/nav.php';
+
+$pmScreenKey = $activePage ?? 'dashboard';
+$pmScreen    = pmAdminScreen($pmScreenKey);
+$pmTitle     = $pageTitle ?? ($pmScreen['label'] ?? 'Dashboard');
+$pmCrumb     = $pmScreen['crumb'] ?? '';
+$pmIcons     = pmAdminIcons();
+
+$pmUser      = (string) ($_SESSION['admin_username'] ?? 'Admin');
+$pmFullName  = trim((string) ($_SESSION['admin_full_name'] ?? '')) ?: $pmUser;
+$pmInitials  = '';
+foreach (preg_split('/\s+/', $pmFullName) as $pmPart) {
+    if ($pmPart !== '') {
+        $pmInitials .= strtoupper(substr($pmPart, 0, 1));
+    }
+}
+$pmInitials = substr($pmInitials, 0, 2) ?: strtoupper(substr($pmUser, 0, 2));
+?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title><?php echo htmlspecialchars($pageTitle ?? 'Dashboard'); ?> – Prosperminds Admin</title>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <meta name="robots" content="noindex, nofollow">
+    <title><?php echo htmlspecialchars($pmTitle); ?> | Prosperminds Admin</title>
+    <link rel="icon" href="../assets/images/favicon-32.png" sizes="32x32">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <link rel="stylesheet" href="../assets/css/admin.css">
+    <link rel="stylesheet" href="../assets/css/pm-admin.css">
+    <script src="../assets/js/pm-admin.js" defer></script>
 </head>
-<body>
-<div class="admin-wrapper">
+<body class="pma">
+<div class="pma-shell">
 
-    <!-- Sidebar -->
-    <aside class="sidebar" id="sidebar">
-        <div class="sidebar-logo">
-            <img src="../assets/images/fisrt-logo.png" alt="Prosperminds">
+    <aside class="pma-side">
+        <a class="pma-brand" href="dashboard.php">
+            <img src="../assets/images/favicon-512.png" alt="" width="20" height="21">
+            <span>Prosperminds</span>
+        </a>
+
+<?php foreach (pmAdminNav() as $pmGroup):
+        $pmVisible = array_filter($pmGroup['items'], static function (array $item): bool {
+            return !empty($item['built']) || !empty($item['soon']);
+        });
+        if (!$pmVisible) {
+            continue;
+        }
+?>
+        <div class="pma-navgroup">
+            <div class="pma-navgroup-label"><?php echo htmlspecialchars($pmGroup['label']); ?></div>
+            <nav class="pma-nav">
+<?php   foreach ($pmVisible as $pmItem):
+            $pmKey     = $pmItem['key'];
+            $pmAllowed = pmAdminCanSee($pmItem);
+            $pmLocked  = !$pmAllowed || !empty($pmItem['soon']);
+            $pmPath    = $pmIcons[$pmItem['icon'] ?? $pmKey] ?? $pmIcons['pages'];
+            $pmClasses = 'pma-nav-item'
+                . ($pmKey === $pmScreenKey ? ' is-active' : '')
+                . ($pmLocked ? ' is-locked' : '');
+            $pmTag     = $pmLocked ? 'span' : 'a';
+?>
+                <<?php echo $pmTag; ?> class="<?php echo $pmClasses; ?>"
+<?php       if (!$pmLocked): ?> href="<?php echo htmlspecialchars($pmItem['href']); ?>"<?php endif; ?>
+<?php       if ($pmLocked && !$pmAllowed): ?> title="Not part of your permissions"<?php endif; ?>>
+                    <svg width="15" height="15" viewBox="0 0 16 16" aria-hidden="true">
+                        <path d="<?php echo $pmPath; ?>" fill="none" stroke="currentColor"
+                              stroke-width="1.3" stroke-linejoin="round"></path>
+                    </svg>
+                    <span><?php echo htmlspecialchars($pmItem['label']); ?></span>
+<?php       if (!empty($pmItem['soon'])): ?>
+                    <span class="pma-chip-later">Later</span>
+<?php       elseif (!$pmAllowed): ?>
+                    <svg width="12" height="12" viewBox="0 0 16 16" aria-hidden="true">
+                        <path d="M4 7.5h8v6H4zM5.8 7.5V5.2a2.2 2.2 0 014.4 0v2.3" fill="none"
+                              stroke="currentColor" stroke-width="1.3"></path>
+                    </svg>
+<?php       endif; ?>
+                </<?php echo $pmTag; ?>>
+<?php   endforeach; ?>
+            </nav>
         </div>
+<?php endforeach; ?>
 
-        <nav class="sidebar-nav">
-            <a href="dashboard.php"     class="nav-item <?php echo ($activePage==='dashboard')     ? 'active' : ''; ?>">
-                <i class="fas fa-chart-pie"></i><span>Overview</span>
-            </a>
-            <a href="analytics.php"     class="nav-item <?php echo ($activePage==='analytics')     ? 'active' : ''; ?>">
-                <i class="fas fa-funnel-dollar"></i><span>Analytics</span>
-            </a>
-            <a href="registrations.php" class="nav-item <?php echo ($activePage==='registrations') ? 'active' : ''; ?>">
-                <i class="fas fa-users"></i><span>Registrations</span>
-            </a>
-            <a href="events.php"        class="nav-item <?php echo ($activePage==='events')        ? 'active' : ''; ?>">
-                <i class="fas fa-calendar-alt"></i><span>Events</span>
-            </a>
-            <?php if (hasPermission('accounting', 'view')): ?>
-            <a href="accounting.php"    class="nav-item <?php echo ($activePage==='accounting')    ? 'active' : ''; ?>">
-                <i class="fas fa-chart-line"></i><span>Accounting</span>
-            </a>
-            <?php endif; ?>
-            <a href="users.php"         class="nav-item <?php echo ($activePage==='users')         ? 'active' : ''; ?>">
-                <i class="fas fa-user-shield"></i><span>Users</span>
-            </a>
-            <a href="settings.php"      class="nav-item <?php echo ($activePage==='settings')      ? 'active' : ''; ?>">
-                <i class="fas fa-cog"></i><span>Settings</span>
-            </a>
-        </nav>
-
-        <div class="sidebar-footer">
-            <div class="sidebar-user">
-                <i class="fas fa-user-circle"></i>
+        <div class="pma-side-foot">
+            <div class="pma-side-user">
+                <span class="pma-avatar"><?php echo htmlspecialchars($pmInitials); ?></span>
                 <div>
-                    <div style="font-size:13px;color:#e2e8f0;font-weight:600;">
-                        <?php echo htmlspecialchars($_SESSION['admin_username'] ?? 'Admin'); ?>
-                    </div>
-                    <div style="font-size:11px;margin-top:1px;">
-                        <?php if (isSuper()): ?>
-                            <span style="color:#4ade80;">&#9679; Super Admin</span>
-                        <?php else: ?>
-                            <span style="color:#94a3b8;">&#9679; Editor</span>
-                        <?php endif; ?>
-                    </div>
+                    <div class="pma-side-user-name"><?php echo htmlspecialchars($pmUser); ?></div>
+                    <div class="pma-side-user-role"><?php echo isSuper() ? 'Super admin' : 'Editor'; ?></div>
                 </div>
             </div>
-            <a href="logout.php" class="logout-btn">
-                <i class="fas fa-sign-out-alt"></i> Logout
-            </a>
+            <a class="pma-signout" href="logout.php">Sign out</a>
         </div>
     </aside>
 
-    <!-- Main content -->
-    <main class="main-content">
-        <div class="content-header">
-            <h1><?php echo htmlspecialchars($pageTitle ?? 'Dashboard'); ?></h1>
-            <a href="../index.php" target="_blank" class="btn btn-outline btn-sm">
-                <i class="fas fa-external-link-alt"></i> View Site
-            </a>
+    <main class="pma-main">
+        <header class="pma-top">
+          <div class="pma-top-inner">
+            <button type="button" class="pma-side-toggle" aria-expanded="true"
+                    aria-label="Show or hide the sidebar">
+                <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true">
+                    <path d="M2.5 4.5h11M2.5 8h11M2.5 11.5h11" fill="none"
+                          stroke="currentColor" stroke-width="1.4"></path>
+                </svg>
+            </button>
+            <div style="min-width:0">
+<?php if ($pmCrumb !== ''): ?>
+                <div class="pma-crumb"><?php echo htmlspecialchars($pmCrumb); ?></div>
+<?php endif; ?>
+                <h1><?php echo htmlspecialchars($pmTitle); ?></h1>
+            </div>
+            <div class="pma-top-actions">
+                <button type="button" class="pma-search-trigger" data-palette-open>
+                    <svg width="14" height="14" viewBox="0 0 16 16" aria-hidden="true">
+                        <path d="M7.2 3a4.2 4.2 0 110 8.4 4.2 4.2 0 010-8.4zM10.4 10.4 13.5 13.5"
+                              fill="none" stroke="currentColor" stroke-width="1.3"></path>
+                    </svg>
+                    <span>Search pages, events, delegates</span>
+                    <kbd>Ctrl K</kbd>
+                </button>
+                <a href="../index.php" target="_blank" rel="noopener" class="btn btn-outline btn-sm">View site</a>
+            </div>
+          </div>
+        </header>
+
+        <div class="pma-palette" id="pm-palette" hidden>
+          <div class="pma-palette-panel" role="dialog" aria-modal="true" aria-label="Search the panel">
+            <label class="pma-palette-field">
+              <svg width="15" height="15" viewBox="0 0 16 16" aria-hidden="true">
+                <path d="M7.2 3a4.2 4.2 0 110 8.4 4.2 4.2 0 010-8.4zM10.4 10.4 13.5 13.5"
+                      fill="none" stroke="#6b6b6b" stroke-width="1.3"></path>
+              </svg>
+              <span class="pma-vh">Search the panel</span>
+              <input type="text" data-palette-input autocomplete="off"
+                     placeholder="Screens, delegates, events, pages, files, enquiries">
+            </label>
+            <div class="pma-palette-status" data-palette-status role="status"></div>
+            <div class="pma-palette-results" data-palette-results></div>
+          </div>
         </div>
-        <?php if (!empty($_SESSION['perm_error'])): ?>
-        <div style="margin:0 28px;margin-top:16px;">
+
+<?php $pmPhoneReady = pmAdminPhoneReady($pmScreenKey); ?>
+<?php if (!$pmPhoneReady): ?>
+        <div class="pma-desktoponly">
+          <div class="pma-gate">
+            <h2><?php echo htmlspecialchars($pmTitle); ?> is a desktop screen</h2>
+            <p>Six screens have a phone layout: the dashboard, registrations, the page editor, the media
+               library, submissions and sign in. Those are the tasks staff genuinely do away from a desk.
+               This one is a dense comparison screen, and shrinking it would make it unusable rather than
+               mobile.</p>
+            <a class="btn btn-primary btn-sm" href="dashboard.php">Go to the dashboard</a>
+          </div>
+        </div>
+<?php endif; ?>
+
+        <div class="pma-body<?php echo $pmPhoneReady ? '' : ' is-desktop-only'; ?>">
+<?php if (!empty($_SESSION['perm_error'])): ?>
             <div class="alert alert-danger">
-                <i class="fas fa-ban"></i>
                 <?php echo htmlspecialchars($_SESSION['perm_error']); unset($_SESSION['perm_error']); ?>
             </div>
-        </div>
-        <?php endif; ?>
-        <div class="content-body">
+<?php endif; ?>

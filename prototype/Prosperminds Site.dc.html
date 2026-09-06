@@ -1,0 +1,1407 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<script src="./image-slot.js"></script>
+<style>
+@font-face{font-family:'Maharlika';src:url('fonts/Maharlika-Regular.ttf') format('truetype');font-weight:400;font-style:normal;font-display:swap}
+*{box-sizing:border-box}
+body{margin:0;background:#1a1a1a;font-family:'Maharlika',Georgia,serif;-webkit-font-smoothing:antialiased}
+a{color:#00BF63;text-decoration:none}
+a:hover{color:#00BF63;text-decoration:underline}
+::selection{background:#00BF63;color:#000}
+input,select,textarea,button{font-family:'Maharlika',Georgia,serif}
+</style>
+</helmet>
+
+<div style="min-height:100vh;background:#1a1a1a;padding-bottom:64px">
+
+  <div style="position:sticky;top:0;z-index:60;display:flex;align-items:center;gap:24px;flex-wrap:wrap;padding:12px 20px;background:#0d0d0d;border-bottom:1px solid rgba(255,255,255,0.12)">
+    <div style="display:flex;align-items:center;gap:10px;color:#fff;font-size:12px;letter-spacing:0.2em;text-transform:uppercase;white-space:nowrap">
+      <span style="width:7px;height:7px;background:#00BF63;display:block"></span>Prosperminds redesign
+    </div>
+    <div style="display:flex;gap:2px;flex-wrap:wrap">
+      <sc-for list="{{ tabs }}" as="t" hint-placeholder-count="8">
+        <button onClick="{{ t.go }}" style="border:0;background:{{ t.bg }};color:{{ t.fg }};padding:8px 13px;font-size:12px;letter-spacing:0.1em;text-transform:uppercase;white-space:nowrap;cursor:pointer;border-radius:2px">{{ t.label }}</button>
+      </sc-for>
+    </div>
+    <div style="display:flex;gap:12px;margin-left:auto;align-items:center">
+      <div style="display:flex;border:1px solid rgba(255,255,255,0.2);border-radius:2px;overflow:hidden">
+        <button onClick="{{ setDesktop }}" style="border:0;background:{{ deskBg }};color:{{ deskFg }};padding:8px 14px;font-size:12px;letter-spacing:0.1em;text-transform:uppercase;cursor:pointer">Desktop</button>
+        <button onClick="{{ setMobile }}" style="border:0;background:{{ mobBg }};color:{{ mobFg }};padding:8px 14px;font-size:12px;letter-spacing:0.1em;text-transform:uppercase;cursor:pointer">Mobile</button>
+      </div>
+      <button onClick="{{ toggleNotes }}" style="border:1px solid rgba(255,255,255,0.2);background:{{ notesBg }};color:{{ notesFg }};padding:8px 14px;font-size:12px;letter-spacing:0.1em;text-transform:uppercase;cursor:pointer;border-radius:2px">Treatment notes</button>
+    </div>
+  </div>
+
+  <sc-if value="{{ notesOn }}" hint-placeholder-val="{{ false }}">
+    <div style="position:fixed;right:20px;top:76px;z-index:70;width:320px;max-height:calc(100vh - 110px);overflow:auto;background:#000;border:1px solid rgba(255,255,255,0.16);padding:22px 20px">
+      <div style="font-size:11px;letter-spacing:0.22em;text-transform:uppercase;color:#00BF63;margin-bottom:14px">Dark / light system</div>
+      <p style="margin:0 0 18px;font-size:13px;line-height:1.6;color:rgba(255,255,255,0.7)">Dark sections carry the brand voice: hero, proof, testimonials, closing calls to action. Light sections carry information the delegate has to read closely: agendas, pricing tables, forms, contact details. Green appears only as rules, numerals, active states and primary buttons, never as a large background field.</p>
+      <div style="font-size:11px;letter-spacing:0.22em;text-transform:uppercase;color:#fff;margin-bottom:12px">{{ pageTitle }}</div>
+      <div style="display:flex;flex-direction:column;gap:12px">
+        <sc-for list="{{ notes }}" as="n" hint-placeholder-count="4">
+          <div style="display:flex;gap:10px;align-items:flex-start">
+            <span style="flex:0 0 auto;margin-top:3px;width:34px;text-align:center;font-size:9px;letter-spacing:0.1em;padding:3px 0;background:{{ n.chipBg }};color:{{ n.chipFg }};border:1px solid rgba(255,255,255,0.2)">{{ n.tone }}</span>
+            <span style="font-size:12.5px;line-height:1.55;color:rgba(255,255,255,0.82)">{{ n.text }}</span>
+          </div>
+        </sc-for>
+      </div>
+    </div>
+  </sc-if>
+
+  <div style="display:flex;justify-content:center;padding:28px 20px 0">
+    <div style="position:relative;width:{{ frameWidth }};max-width:100%;container-type:inline-size;background:#fff;border:1px solid #dcdcdc;overflow:hidden">
+
+      <header style="background:#fff;padding:0 clamp(20px,4cqw,56px)">
+        <div style="display:flex;flex-wrap:wrap;align-items:center;gap:clamp(14px,3cqw,48px);row-gap:0;min-height:76px;padding-bottom:2px;border-bottom:1px solid #dcdcdc">
+          <button onClick="{{ nav.home }}" style="display:flex;align-items:center;gap:11px;background:none;border:0;padding:0;cursor:pointer">
+            <svg width="24" height="28" viewBox="0 0 26 30" aria-hidden="true"><path d="M13 1.6 24.4 5.6v9.6c0 7-4.9 11.6-11.4 13.1C6.5 26.8 1.6 22.2 1.6 15.2V5.6L13 1.6Z" fill="none" stroke="#00BF63" stroke-width="1.5"></path><circle cx="13" cy="12.2" r="4.1" fill="none" stroke="#000" stroke-width="1.1"></circle><path d="M13 16.3v4.2M8.9 12.2H4.6M21.4 12.2h-4.3M10.1 9.1 7.4 6.6M15.9 9.1l2.7-2.5" stroke="#000" stroke-width="1.1" stroke-linecap="round"></path><circle cx="13" cy="12.2" r="1.2" fill="#00BF63"></circle></svg>
+            <span style="color:#000;font-size:clamp(15px,1.5cqw,18px);letter-spacing:0.16em;text-transform:uppercase;white-space:nowrap">Prosperminds</span>
+          </button>
+          <sc-if value="{{ isDesktop }}" hint-placeholder-val="{{ true }}">
+            <nav style="display:flex;flex-wrap:wrap;gap:clamp(10px,2.2cqw,32px);row-gap:8px;margin-left:auto;align-items:center;justify-content:flex-end;padding:10px 0;min-width:0">
+              <sc-for list="{{ siteNav }}" as="l" hint-placeholder-count="5">
+                <button onClick="{{ l.go }}" style="background:none;border:0;padding:6px 0;cursor:pointer;color:{{ l.color }};border-bottom:2px solid {{ l.rule }};font-size:13px;letter-spacing:0.1em;text-transform:uppercase;white-space:nowrap">{{ l.label }}</button>
+              </sc-for>
+              <button onClick="{{ nav.register }}" style="flex:0 0 auto;background:#00BF63;border:0;color:#000;padding:13px 20px;min-height:44px;cursor:pointer;font-size:12px;letter-spacing:0.1em;text-transform:uppercase;white-space:nowrap;border-radius:2px">Register a delegate</button>
+            </nav>
+          </sc-if>
+          <sc-if value="{{ isMobileView }}" hint-placeholder-val="{{ false }}">
+            <button onClick="{{ toggleMenu }}" style="margin-left:auto;background:none;border:1px solid #000;color:#000;padding:12px 16px;min-height:44px;cursor:pointer;font-size:12px;letter-spacing:0.14em;text-transform:uppercase;border-radius:2px">Menu</button>
+          </sc-if>
+        </div>
+      </header>
+
+      <sc-if value="{{ menuOpen }}" hint-placeholder-val="{{ false }}">
+        <div style="position:absolute;top:0;left:0;right:0;height:100dvh;max-height:100vh;z-index:80;background:#fff;display:flex;flex-direction:column;padding:0 20px 28px;overflow:auto">
+          <div style="display:flex;align-items:center;gap:11px;min-height:76px;border-bottom:1px solid #dcdcdc">
+            <svg width="24" height="28" viewBox="0 0 26 30" aria-hidden="true"><path d="M13 1.6 24.4 5.6v9.6c0 7-4.9 11.6-11.4 13.1C6.5 26.8 1.6 22.2 1.6 15.2V5.6L13 1.6Z" fill="none" stroke="#00BF63" stroke-width="1.5"></path><circle cx="13" cy="12.2" r="4.1" fill="none" stroke="#000" stroke-width="1.1"></circle><path d="M13 16.3v4.2M8.9 12.2H4.6M21.4 12.2h-4.3M10.1 9.1 7.4 6.6M15.9 9.1l2.7-2.5" stroke="#000" stroke-width="1.1" stroke-linecap="round"></path><circle cx="13" cy="12.2" r="1.2" fill="#00BF63"></circle></svg>
+            <span style="color:#000;font-size:15px;letter-spacing:0.16em;text-transform:uppercase">Prosperminds</span>
+            <button onClick="{{ toggleMenu }}" aria-label="Close menu" style="margin-left:auto;width:48px;height:48px;background:none;border:1px solid #000;border-radius:2px;cursor:pointer;display:flex;align-items:center;justify-content:center">
+              <svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true"><path d="M2 2 16 16M16 2 2 16" stroke="#000" stroke-width="1.6" stroke-linecap="round"></path></svg>
+            </button>
+          </div>
+          <nav style="display:flex;flex-direction:column;padding-top:12px">
+            <sc-for list="{{ siteNav }}" as="l" hint-placeholder-count="5">
+              <button onClick="{{ l.go }}" style="text-align:left;background:none;border:0;border-bottom:1px solid #dcdcdc;padding:20px 0;min-height:64px;cursor:pointer;color:{{ l.color }};font-size:24px;line-height:1.1;letter-spacing:0.04em;text-transform:uppercase">{{ l.label }}</button>
+            </sc-for>
+          </nav>
+          <button onClick="{{ nav.register }}" style="margin-top:28px;background:#00BF63;border:0;color:#000;padding:19px;min-height:52px;cursor:pointer;font-size:13px;letter-spacing:0.14em;text-transform:uppercase;border-radius:2px">Register a delegate</button>
+          <div style="margin-top:auto;padding-top:32px;color:#4a4a4a;font-size:14px;line-height:1.8">info@prosper-minds.com<br />+254 740 582302<br />Mon to Fri, 8am to 5pm EAT</div>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{ isHome }}" hint-placeholder-val="{{ true }}">
+      <main data-screen-label="Homepage">
+
+        <section style="position:relative;background:#fff;overflow:hidden;padding:clamp(56px,8cqw,120px) clamp(20px,4cqw,56px) clamp(48px,6cqw,96px)">
+          <svg viewBox="0 0 800 480" preserveAspectRatio="xMidYMid slice" aria-hidden="true" style="position:absolute;inset:0;width:100%;height:100%;pointer-events:none;opacity:0.75"><g stroke="#00BF63" stroke-width="0.7" fill="none" opacity="0.5"><path d="M60 90 150 190 90 310 210 70 260 250 330 150 400 340 470 120 520 260 600 70 640 210 700 350 760 130"></path><path d="M150 190 260 250 330 150 470 120 520 260 640 210"></path><path d="M90 310 360 430 400 340 700 350"></path><path d="M120 430 90 310M360 430 520 260M600 70 760 130"></path></g><g fill="#00BF63" opacity="0.75"><circle cx="60" cy="90" r="2.6"></circle><circle cx="150" cy="190" r="3.4"></circle><circle cx="90" cy="310" r="2.4"></circle><circle cx="210" cy="70" r="2.2"></circle><circle cx="260" cy="250" r="3.6"></circle><circle cx="330" cy="150" r="2.4"></circle><circle cx="400" cy="340" r="3"></circle><circle cx="470" cy="120" r="3.4"></circle><circle cx="520" cy="260" r="2.6"></circle><circle cx="600" cy="70" r="2.2"></circle><circle cx="640" cy="210" r="3.2"></circle><circle cx="700" cy="350" r="2.4"></circle><circle cx="760" cy="130" r="2.6"></circle><circle cx="360" cy="430" r="3"></circle><circle cx="120" cy="430" r="2.2"></circle></g></svg>
+          <div style="position:relative;max-width:1180px;margin:0 auto">
+            <div style="display:flex;align-items:center;gap:12px;margin-bottom:clamp(24px,3cqw,40px)">
+              <span style="width:44px;height:1px;background:#00BF63;display:block"></span>
+              <span style="font-size:11px;letter-spacing:0.24em;text-transform:uppercase;color:#000">Executive PFM training · 2026 calendar</span>
+            </div>
+            <h1 style="margin:0;color:#000;font-size:clamp(34px,7.2cqw,86px);line-height:0.98;letter-spacing:-0.005em;text-transform:uppercase;max-width:15ch">Strong systems start with strong people</h1>
+            <p style="margin:clamp(22px,3cqw,34px) 0 0;max-width:56ch;color:#4a4a4a;font-size:clamp(15px,1.55cqw,19px);line-height:1.65">Prosperminds trains senior government finance officials across Africa in public finance management, IPSAS and IFRS reporting, data analytics, AI automation and sustainability disclosure. Five-day residential courses, delivered by practitioners.</p>
+            <div style="display:flex;flex-wrap:wrap;gap:14px;margin-top:clamp(28px,3.5cqw,44px)">
+              <button onClick="{{ nav.events }}" style="background:#00BF63;border:0;color:#000;padding:18px 30px;min-height:48px;cursor:pointer;font-size:13px;letter-spacing:0.14em;text-transform:uppercase;border-radius:2px">View the 2026 calendar</button>
+              <button onClick="{{ nav.register }}" style="background:none;border:1px solid #000;color:#000;padding:18px 30px;min-height:48px;cursor:pointer;font-size:13px;letter-spacing:0.14em;text-transform:uppercase;border-radius:2px">Register a delegate</button>
+            </div>
+            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,180px),1fr));gap:1px;margin-top:clamp(48px,6cqw,88px);background:#dcdcdc">
+              <sc-for list="{{ heroFacts }}" as="f" hint-placeholder-count="4">
+                <div style="background:#fff;padding:22px 20px 20px">
+                  <div style="color:#000;font-size:clamp(26px,3.4cqw,40px);line-height:1">{{ f.value }}</div>
+                  <div style="margin-top:8px;color:#5f5f5f;font-size:12px;letter-spacing:0.14em;text-transform:uppercase">{{ f.label }}</div>
+                </div>
+              </sc-for>
+            </div>
+          </div>
+        </section>
+
+        <section style="background:#fff;padding:clamp(52px,7cqw,108px) clamp(20px,4cqw,56px)">
+          <div style="max-width:1180px;margin:0 auto">
+            <div style="display:flex;flex-wrap:wrap;align-items:flex-end;gap:20px;padding-bottom:26px;border-bottom:2px solid #000">
+              <div>
+                <div style="font-size:11px;letter-spacing:0.24em;text-transform:uppercase;color:#000;border-left:3px solid #00BF63;padding-left:11px;margin-bottom:14px">Upcoming courses</div>
+                <h2 style="margin:0;font-size:clamp(26px,3.8cqw,46px);line-height:1.05;text-transform:uppercase;color:#000">Four flagship events</h2>
+              </div>
+              <button onClick="{{ nav.events }}" style="margin-left:auto;background:none;border:1px solid #000;color:#000;padding:15px 24px;min-height:44px;cursor:pointer;font-size:12px;letter-spacing:0.14em;text-transform:uppercase;border-radius:2px">Full calendar</button>
+            </div>
+            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,290px),1fr));gap:1px;background:#e2e2e2;border:1px solid #e2e2e2;border-top:0">
+              <sc-for list="{{ events }}" as="e" hint-placeholder-count="4">
+                <article style="background:#fff;display:flex;flex-direction:column">
+                  <div style="position:relative;aspect-ratio:16/9;background:#f6f6f4;border-bottom:1px solid #e2e2e2">
+                    <image-slot id="{{ e.slotId }}" shape="rect" fit="cover" placeholder="Drop the banner"></image-slot>
+                  </div>
+                  <div style="padding:clamp(22px,2.4cqw,30px);display:flex;flex-direction:column;gap:16px;flex:1 1 auto">
+                  <div style="display:flex;justify-content:space-between;align-items:baseline;gap:12px">
+                    <span style="font-size:11px;letter-spacing:0.2em;text-transform:uppercase;color:#000">{{ e.index }}</span>
+                    <span style="font-size:11px;letter-spacing:0.16em;text-transform:uppercase;color:#000">{{ e.earlyBird }}</span>
+                  </div>
+                  <h3 style="margin:0;font-size:clamp(19px,1.9cqw,24px);line-height:1.18;color:#000">{{ e.title }}</h3>
+                  <div style="display:flex;flex-direction:column;gap:6px;font-size:14px;color:#5a5a5a;line-height:1.5">
+                    <span>{{ e.city }}</span>
+                    <span>{{ e.dates }}</span>
+                  </div>
+                  <div style="margin-top:auto;padding-top:18px;border-top:1px solid #e2e2e2;display:flex;justify-content:space-between;align-items:center;gap:12px">
+                    <span style="font-size:14px;color:#000">{{ e.priceFrom }}</span>
+                    <button onClick="{{ e.open }}" style="background:none;border:0;padding:8px 0;cursor:pointer;color:#000;font-size:12px;letter-spacing:0.14em;text-transform:uppercase;border-bottom:2px solid #00BF63">Details</button>
+                  </div>
+                  </div>
+                </article>
+              </sc-for>
+            </div>
+          </div>
+        </section>
+
+        <section style="background:#f6f6f4;padding:clamp(52px,7cqw,108px) clamp(20px,4cqw,56px);border-top:1px solid #e2e2e2">
+          <div style="max-width:1180px;margin:0 auto">
+            <div style="font-size:11px;letter-spacing:0.24em;text-transform:uppercase;color:#000;border-left:3px solid #00BF63;padding-left:11px;margin-bottom:14px">What we teach</div>
+            <h2 style="margin:0 0 clamp(34px,4cqw,56px);font-size:clamp(26px,3.8cqw,46px);line-height:1.05;text-transform:uppercase;color:#000;max-width:22ch">Three pillars of public finance capability</h2>
+            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,260px),1fr));gap:1px;background:#dcdcdc">
+              <sc-for list="{{ pillars }}" as="p" hint-placeholder-count="3">
+                <div style="background:#fff;padding:clamp(26px,3cqw,40px);display:flex;flex-direction:column;gap:18px">
+                  <div style="color:#000;font-size:12px;letter-spacing:0.2em">{{ p.num }}</div>
+                  <h3 style="margin:0;color:#000;font-size:clamp(20px,2.1cqw,26px);line-height:1.2;text-transform:uppercase">{{ p.name }}</h3>
+                  <p style="margin:0;color:#4a4a4a;font-size:15px;line-height:1.65">{{ p.promise }}</p>
+                  <button onClick="{{ p.open }}" style="margin-top:auto;align-self:flex-start;background:none;border:0;padding:8px 0;cursor:pointer;color:#000;font-size:12px;letter-spacing:0.14em;text-transform:uppercase;border-bottom:2px solid #00BF63">Read more</button>
+                </div>
+              </sc-for>
+            </div>
+          </div>
+        </section>
+
+        <section style="background:#fff;padding:clamp(52px,7cqw,108px) clamp(20px,4cqw,56px)">
+          <div style="max-width:1180px;margin:0 auto">
+            <div style="display:flex;flex-wrap:wrap;gap:clamp(28px,5cqw,80px)">
+              <div style="flex:1 1 300px;min-width:0">
+                <div style="font-size:11px;letter-spacing:0.24em;text-transform:uppercase;color:#000;border-left:3px solid #00BF63;padding-left:11px;margin-bottom:14px">Track record</div>
+                <h2 style="margin:0 0 22px;font-size:clamp(26px,3.6cqw,44px);line-height:1.06;text-transform:uppercase;color:#000">Twenty-five years in the room</h2>
+                <p style="margin:0;color:#5a5a5a;font-size:16px;line-height:1.7;max-width:48ch">Our faculty has spent a quarter of a century inside treasuries, audit offices and accountant-general departments. Every course is built from that work, then tested against the standards delegates are held to when they return.</p>
+                <button onClick="{{ nav.about }}" style="margin-top:30px;background:none;border:1px solid #000;color:#000;padding:16px 26px;min-height:44px;cursor:pointer;font-size:12px;letter-spacing:0.14em;text-transform:uppercase;border-radius:2px">About Prosperminds</button>
+              </div>
+              <div style="flex:1 1 280px;min-width:0;display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,150px),1fr));gap:1px;background:#e2e2e2;border:1px solid #e2e2e2;align-content:start">
+                <sc-for list="{{ stats }}" as="s" hint-placeholder-count="4">
+                  <div style="background:#fff;padding:clamp(22px,2.4cqw,32px)">
+                    <div style="font-size:clamp(30px,4cqw,52px);line-height:1;color:#000">{{ s.value }}</div>
+                    <div style="margin-top:10px;font-size:11px;letter-spacing:0.16em;text-transform:uppercase;color:#5a5a5a">{{ s.label }}</div>
+                  </div>
+                </sc-for>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section style="background:#f6f6f4;padding:clamp(52px,7cqw,108px) clamp(20px,4cqw,56px)">
+          <div style="max-width:1180px;margin:0 auto">
+            <div style="font-size:11px;letter-spacing:0.24em;text-transform:uppercase;color:#000;border-left:3px solid #00BF63;padding-left:11px;margin-bottom:14px">Delegate feedback</div>
+            <h2 style="margin:0 0 clamp(32px,4cqw,54px);font-size:clamp(26px,3.8cqw,46px);line-height:1.05;text-transform:uppercase;color:#000">In their words</h2>
+            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,280px),1fr));gap:clamp(18px,2cqw,28px)">
+              <sc-for list="{{ testimonials }}" as="t" hint-placeholder-count="4">
+                <figure style="margin:0;background:#fff;border:1px solid #dcdcdc;padding:clamp(24px,2.6cqw,34px);display:flex;flex-direction:column;gap:20px">
+                  <span style="color:#00BF63;font-size:30px;line-height:0.6">&ldquo;</span>
+                  <blockquote style="margin:0;color:#000;font-size:16px;line-height:1.68">{{ t.quote }}</blockquote>
+                  <figcaption style="margin-top:auto;padding-top:18px;border-top:1px solid #dcdcdc;color:#5f5f5f;font-size:13px;line-height:1.5">{{ t.role }}<br />{{ t.org }}</figcaption>
+                </figure>
+              </sc-for>
+            </div>
+          </div>
+        </section>
+
+        <section style="position:relative;overflow:hidden;background:#00BF63;padding:clamp(46px,6cqw,88px) clamp(20px,4cqw,56px)">
+          <div style="position:relative;max-width:1180px;margin:0 auto;display:flex;flex-wrap:wrap;align-items:center;gap:28px">
+            <div style="flex:1 1 320px;min-width:0">
+              <h2 style="margin:0;color:#000;font-size:clamp(24px,3.4cqw,42px);line-height:1.08;text-transform:uppercase;max-width:24ch">Seats for the October cohort close on 12 September</h2>
+              <p style="margin:16px 0 0;color:rgba(0,0,0,0.72);font-size:16px;line-height:1.6;max-width:52ch">Early-bird pricing is tiered by registration date. Twenty per cent applies until 15 July 2026.</p>
+            </div>
+            <button onClick="{{ nav.register }}" style="background:#000;border:0;color:#fff;padding:20px 34px;min-height:48px;cursor:pointer;font-size:13px;letter-spacing:0.14em;text-transform:uppercase;border-radius:2px">Start registration</button>
+          </div>
+        </section>
+
+      </main>
+      </sc-if>
+
+      <sc-if value="{{ isEvents }}" hint-placeholder-val="{{ false }}">
+      <main data-screen-label="Events calendar">
+        <section style="background:#fff;padding:clamp(46px,6cqw,92px) clamp(20px,4cqw,56px)">
+          <div style="max-width:1180px;margin:0 auto">
+            <div style="font-size:11px;letter-spacing:0.24em;text-transform:uppercase;color:#000;border-left:3px solid #00BF63;padding-left:11px;margin-bottom:16px">CPD calendar</div>
+            <h1 style="margin:0;color:#000;font-size:clamp(30px,5.4cqw,64px);line-height:1;text-transform:uppercase;max-width:18ch">Courses and residential schools</h1>
+            <p style="margin:22px 0 0;max-width:58ch;color:#4a4a4a;font-size:clamp(15px,1.5cqw,18px);line-height:1.65">Every course runs five days, carries CPD certification and is capped to keep faculty access high. Dates are confirmed twelve months ahead so departments can budget for them.</p>
+          </div>
+        </section>
+        <section style="background:#fff;padding:clamp(36px,4cqw,64px) clamp(20px,4cqw,56px) clamp(52px,7cqw,104px)">
+          <div style="max-width:1180px;margin:0 auto">
+            <div style="display:flex;flex-wrap:wrap;gap:16px;align-items:center;padding-bottom:22px;border-bottom:2px solid #000">
+              <div style="display:flex;gap:2px">
+                <sc-for list="{{ filters }}" as="f" hint-placeholder-count="2">
+                  <button onClick="{{ f.go }}" style="border:1px solid #000;background:{{ f.bg }};color:{{ f.fg }};padding:13px 22px;min-height:44px;cursor:pointer;font-size:12px;letter-spacing:0.14em;text-transform:uppercase;border-radius:2px">{{ f.label }}</button>
+                </sc-for>
+              </div>
+              <span style="margin-left:auto;font-size:13px;color:#5a5a5a">{{ resultCount }}</span>
+            </div>
+            <div style="display:flex;flex-direction:column">
+              <sc-for list="{{ filteredEvents }}" as="e" hint-placeholder-count="4">
+                <article style="display:flex;flex-wrap:wrap;gap:clamp(18px,3cqw,48px);padding:clamp(26px,3cqw,40px) 0;border-bottom:1px solid #e2e2e2">
+                  <div style="flex:0 0 auto;width:clamp(150px,20cqw,250px);position:relative;aspect-ratio:16/9;background:#f6f6f4;border:1px solid #e2e2e2">
+                    <image-slot id="{{ e.slotId }}" shape="rect" fit="cover" placeholder="Event banner"></image-slot>
+                  </div>
+                  <div style="flex:0 0 auto;width:clamp(88px,10cqw,132px)">
+                    <div style="font-size:clamp(24px,3cqw,38px);line-height:1;color:#000">{{ e.dayRange }}</div>
+                    <div style="margin-top:8px;font-size:12px;letter-spacing:0.16em;text-transform:uppercase;color:#000">{{ e.monthYear }}</div>
+                  </div>
+                  <div style="flex:1 1 260px;min-width:0">
+                    <h2 style="margin:0 0 12px;font-size:clamp(19px,2.1cqw,27px);line-height:1.16;color:#000">{{ e.title }}</h2>
+                    <div style="display:flex;flex-wrap:wrap;gap:18px;font-size:14px;color:#5a5a5a">
+                      <span>{{ e.city }}</span><span>{{ e.duration }}</span><span>{{ e.audienceShort }}</span>
+                    </div>
+                  </div>
+                  <div style="flex:0 0 auto;display:flex;flex-direction:column;gap:12px;align-items:flex-start;min-width:170px">
+                    <div style="font-size:14px;color:#000">{{ e.priceFrom }}</div>
+                    <div style="font-size:12px;letter-spacing:0.14em;text-transform:uppercase;color:#000">{{ e.earlyBird }}</div>
+                    <button onClick="{{ e.open }}" style="margin-top:4px;background:#000;border:0;color:#fff;padding:14px 22px;min-height:44px;cursor:pointer;font-size:12px;letter-spacing:0.14em;text-transform:uppercase;border-radius:2px">View event</button>
+                  </div>
+                </article>
+              </sc-for>
+            </div>
+            <sc-if value="{{ showPastNote }}" hint-placeholder-val="{{ false }}">
+              <p style="margin:36px 0 0;font-size:14px;line-height:1.7;color:#5a5a5a;max-width:60ch">Past cohorts are listed for reference. Delegate materials remain available through the alumni portal for twelve months after each school.</p>
+            </sc-if>
+          </div>
+        </section>
+        <section style="background:#f6f6f4;padding:clamp(48px,6cqw,96px) clamp(20px,4cqw,56px);border-top:1px solid #e2e2e2">
+          <div style="max-width:1180px;margin:0 auto">
+            <div style="display:flex;flex-wrap:wrap;align-items:flex-end;gap:20px;margin-bottom:clamp(26px,3cqw,40px)">
+              <div>
+                <div style="font-size:11px;letter-spacing:0.24em;text-transform:uppercase;color:#000;border-left:3px solid #00BF63;padding-left:11px;margin-bottom:14px">Banner library</div>
+                <h2 style="margin:0;font-size:clamp(24px,3.4cqw,42px);line-height:1.06;text-transform:uppercase;color:#000">Current promotional banners</h2>
+                <p style="margin:16px 0 0;font-size:15.5px;line-height:1.7;color:#4a4a4a;max-width:62ch">Every live event banner in one place, at the size it is published. Pull from here for LinkedIn and partner mailings so the version in circulation is always the current one.</p>
+              </div>
+            </div>
+            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,280px),1fr));gap:clamp(16px,2cqw,26px)">
+              <sc-for list="{{ events }}" as="e" hint-placeholder-count="4">
+                <div style="background:#fff;border:1px solid #e2e2e2;display:flex;flex-direction:column">
+                  <div style="position:relative;aspect-ratio:16/9;background:#f6f6f4">
+                    <image-slot id="{{ e.slotId }}" shape="rect" fit="cover" placeholder="Drop the banner"></image-slot>
+                  </div>
+                  <div style="padding:18px 20px 20px;display:flex;flex-direction:column;gap:14px;flex:1 1 auto">
+                    <div style="font-size:11px;letter-spacing:0.18em;text-transform:uppercase;color:#000">{{ e.monthYear }}</div>
+                    <div style="font-size:15.5px;line-height:1.35;color:#000">{{ e.title }}</div>
+                    <div style="margin-top:auto;padding-top:14px;border-top:1px solid #e2e2e2;display:flex;flex-wrap:wrap;gap:16px">
+                      <button style="background:none;border:0;padding:6px 0;cursor:pointer;color:#000;font-size:11.5px;letter-spacing:0.14em;text-transform:uppercase;white-space:nowrap;border-bottom:2px solid #00BF63">Download</button>
+                      <button style="background:none;border:0;padding:6px 0;cursor:pointer;color:#4a4a4a;font-size:11.5px;letter-spacing:0.14em;text-transform:uppercase;white-space:nowrap">Copy link</button>
+                    </div>
+                  </div>
+                </div>
+              </sc-for>
+            </div>
+          </div>
+        </section>
+      </main>
+      </sc-if>
+
+      <sc-if value="{{ isEvent }}" hint-placeholder-val="{{ false }}">
+      <main data-screen-label="Event detail">
+        <section style="position:relative;overflow:hidden;background:#fff;padding:clamp(44px,6cqw,92px) clamp(20px,4cqw,56px)">
+          <svg viewBox="0 0 800 420" preserveAspectRatio="xMidYMid slice" aria-hidden="true" style="position:absolute;inset:0;width:100%;height:100%;pointer-events:none;opacity:0.34"><g stroke="#00BF63" stroke-width="0.7" fill="none" opacity="0.5"><path d="M80 60 190 170 120 300 300 90 380 230 470 120 560 280 660 100 740 240"></path><path d="M190 170 380 230 470 120 660 100"></path><path d="M120 300 300 380 560 280 740 240"></path></g><g fill="#00BF63" opacity="0.7"><circle cx="80" cy="60" r="2.4"></circle><circle cx="190" cy="170" r="3.2"></circle><circle cx="120" cy="300" r="2.4"></circle><circle cx="300" cy="90" r="2.2"></circle><circle cx="380" cy="230" r="3.2"></circle><circle cx="470" cy="120" r="2.6"></circle><circle cx="560" cy="280" r="3"></circle><circle cx="660" cy="100" r="2.4"></circle><circle cx="740" cy="240" r="2.6"></circle><circle cx="300" cy="380" r="2.4"></circle></g></svg>
+          <div style="position:relative;max-width:1180px;margin:0 auto">
+            <button onClick="{{ nav.events }}" style="background:none;border:0;padding:0 0 22px;cursor:pointer;color:#5f5f5f;font-size:12px;letter-spacing:0.16em;text-transform:uppercase">Back to calendar</button>
+            <div style="font-size:11px;letter-spacing:0.24em;text-transform:uppercase;color:#000;border-left:3px solid #00BF63;padding-left:11px;margin-bottom:16px">Five-day residential school</div>
+            <h1 style="margin:0;max-width:26ch;color:#000;font-size:clamp(28px,4.6cqw,56px);line-height:1.04;text-transform:uppercase">{{ ev.title }}</h1>
+            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,160px),1fr));gap:1px;margin-top:clamp(32px,4cqw,56px);background:#dcdcdc">
+              <div style="background:#fff;padding:20px">
+                <div style="font-size:11px;letter-spacing:0.16em;text-transform:uppercase;color:#5f5f5f;margin-bottom:10px">Location</div>
+                <div style="color:#000;font-size:16px;line-height:1.4">{{ ev.city }}</div>
+              </div>
+              <div style="background:#fff;padding:20px">
+                <div style="font-size:11px;letter-spacing:0.16em;text-transform:uppercase;color:#5f5f5f;margin-bottom:10px">Dates</div>
+                <div style="color:#000;font-size:16px;line-height:1.4">{{ ev.dates }}</div>
+              </div>
+              <div style="background:#fff;padding:20px">
+                <div style="font-size:11px;letter-spacing:0.16em;text-transform:uppercase;color:#5f5f5f;margin-bottom:10px">From</div>
+                <div style="color:#000;font-size:16px;line-height:1.4">USD 599 per delegate</div>
+              </div>
+              <div style="background:#00BF63;padding:20px">
+                <div style="font-size:11px;letter-spacing:0.16em;text-transform:uppercase;color:#000;margin-bottom:10px">Early bird</div>
+                <div style="color:#000;font-size:16px;line-height:1.4">{{ ev.earlyBird }}</div>
+              </div>
+            </div>
+            <div style="display:flex;flex-wrap:wrap;gap:14px;margin-top:clamp(28px,3.5cqw,44px)">
+              <button onClick="{{ nav.register }}" style="background:#00BF63;border:0;color:#000;padding:18px 30px;min-height:48px;cursor:pointer;font-size:13px;letter-spacing:0.14em;text-transform:uppercase;border-radius:2px">Register for this school</button>
+              <button onClick="{{ nav.contact }}" style="background:none;border:1px solid #000;color:#000;padding:18px 30px;min-height:48px;cursor:pointer;font-size:13px;letter-spacing:0.14em;text-transform:uppercase;border-radius:2px">Request a group quote</button>
+            </div>
+          </div>
+        </section>
+
+        <section style="background:#fff;padding:clamp(48px,6cqw,96px) clamp(20px,4cqw,56px)">
+          <div style="max-width:1180px;margin:0 auto;display:flex;flex-wrap:wrap;gap:clamp(30px,5cqw,72px)">
+            <div style="flex:1 1 340px;min-width:0">
+              <div style="font-size:11px;letter-spacing:0.24em;text-transform:uppercase;color:#000;border-left:3px solid #00BF63;padding-left:11px;margin-bottom:14px">The course</div>
+              <p style="margin:0;font-size:clamp(17px,1.8cqw,22px);line-height:1.6;color:#000;max-width:52ch">{{ ev.summary }}</p>
+            </div>
+            <div style="flex:1 1 280px;min-width:0;border-left:2px solid #00BF63;padding-left:clamp(18px,2cqw,30px)">
+              <div style="font-size:11px;letter-spacing:0.24em;text-transform:uppercase;color:#000;border-left:3px solid #00BF63;padding-left:11px;margin-bottom:18px">Who it is for</div>
+              <ul style="margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:11px">
+                <sc-for list="{{ ev.audience }}" as="a" hint-placeholder-count="5">
+                  <li style="font-size:15px;line-height:1.55;color:#5a5a5a">{{ a }}</li>
+                </sc-for>
+              </ul>
+            </div>
+          </div>
+        </section>
+
+        <section style="background:#fafafa;padding:clamp(48px,6cqw,96px) clamp(20px,4cqw,56px);border-top:1px solid #e2e2e2">
+          <div style="max-width:1180px;margin:0 auto">
+            <div style="font-size:11px;letter-spacing:0.24em;text-transform:uppercase;color:#000;border-left:3px solid #00BF63;padding-left:11px;margin-bottom:14px">Agenda</div>
+            <h2 style="margin:0 0 clamp(30px,4cqw,52px);font-size:clamp(24px,3.4cqw,42px);line-height:1.06;text-transform:uppercase;color:#000">Five days, one arc</h2>
+            <div style="display:flex;flex-direction:column">
+              <sc-for list="{{ agendaDays }}" as="d" hint-placeholder-count="5">
+                <div style="display:flex;flex-wrap:wrap;gap:clamp(16px,3cqw,48px);padding:clamp(22px,2.6cqw,34px) 0;border-top:1px solid #e2e2e2">
+                  <div style="flex:0 0 auto;width:clamp(72px,8cqw,110px)">
+                    <div style="color:#000;font-size:clamp(22px,2.6cqw,32px);line-height:1">{{ d.num }}</div>
+                    <div style="margin-top:6px;font-size:11px;letter-spacing:0.16em;text-transform:uppercase;color:#5a5a5a">{{ d.day }}</div>
+                  </div>
+                  <div style="flex:1 1 240px;min-width:0">
+                    <h3 style="margin:0 0 14px;font-size:clamp(18px,1.9cqw,23px);line-height:1.2;color:#000">{{ d.title }}</h3>
+                    <ul style="margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:9px">
+                      <sc-for list="{{ d.items }}" as="i" hint-placeholder-count="3">
+                        <li style="font-size:15px;line-height:1.55;color:#5a5a5a">{{ i }}</li>
+                      </sc-for>
+                    </ul>
+                  </div>
+                </div>
+              </sc-for>
+            </div>
+          </div>
+        </section>
+
+        <section style="background:#fff;padding:clamp(48px,6cqw,96px) clamp(20px,4cqw,56px)">
+          <div style="max-width:1180px;margin:0 auto">
+            <div style="font-size:11px;letter-spacing:0.24em;text-transform:uppercase;color:#000;border-left:3px solid #00BF63;padding-left:11px;margin-bottom:14px">Pricing</div>
+            <h2 style="margin:0 0 clamp(28px,3.4cqw,46px);font-size:clamp(24px,3.4cqw,42px);line-height:1.06;text-transform:uppercase;color:#000">Three delegate tiers</h2>
+            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,270px),1fr));gap:clamp(16px,2cqw,26px)">
+              <sc-for list="{{ tiers }}" as="t" hint-placeholder-count="3">
+                <div style="border:{{ t.border }};padding:clamp(24px,2.6cqw,34px);display:flex;flex-direction:column;gap:18px">
+                  <div style="font-size:12px;letter-spacing:0.2em;text-transform:uppercase;color:#000">{{ t.name }}</div>
+                  <div style="font-size:clamp(26px,3.2cqw,38px);line-height:1;color:#000">{{ t.price }}</div>
+                  <div style="font-size:12px;color:#5a5a5a">per delegate</div>
+                  <ul style="margin:0;padding:18px 0 0;border-top:1px solid #e2e2e2;list-style:none;display:flex;flex-direction:column;gap:10px">
+                    <sc-for list="{{ t.perks }}" as="p" hint-placeholder-count="4">
+                      <li style="font-size:14.5px;line-height:1.55;color:#5a5a5a">{{ p }}</li>
+                    </sc-for>
+                  </ul>
+                  <button onClick="{{ t.select }}" style="margin-top:auto;background:{{ t.chipBg }};border:1px solid #000;color:{{ t.chipFg }};padding:15px;min-height:46px;cursor:pointer;font-size:12px;letter-spacing:0.14em;text-transform:uppercase;border-radius:2px">{{ t.chip }}</button>
+                </div>
+              </sc-for>
+            </div>
+            <p style="margin:26px 0 0;font-size:14px;line-height:1.7;color:#5a5a5a;max-width:64ch">Early-bird discounts of 20, 15 and 10 per cent apply by registration date and are calculated automatically at checkout. Group registrations of four or more delegates are invoiced together.</p>
+          </div>
+        </section>
+
+        <section style="background:#000;padding:clamp(44px,5.5cqw,84px) clamp(20px,4cqw,56px)">
+          <div style="max-width:1180px;margin:0 auto;display:flex;flex-wrap:wrap;align-items:center;gap:26px">
+            <div style="flex:1 1 300px;min-width:0">
+              <h2 style="margin:0;color:#fff;font-size:clamp(22px,3cqw,38px);line-height:1.1;text-transform:uppercase;max-width:26ch">{{ ev.earlyBird }} on this school</h2>
+              <p style="margin:14px 0 0;color:rgba(255,255,255,0.7);font-size:16px;line-height:1.6">Registration takes about four minutes. An invoice is issued immediately.</p>
+            </div>
+            <button onClick="{{ nav.register }}" style="background:#00BF63;border:0;color:#000;padding:20px 34px;min-height:48px;cursor:pointer;font-size:13px;letter-spacing:0.14em;text-transform:uppercase;border-radius:2px">Register a delegate</button>
+          </div>
+        </section>
+      </main>
+      </sc-if>
+
+      <sc-if value="{{ isRegister }}" hint-placeholder-val="{{ false }}">
+      <main data-screen-label="Registration flow">
+        <section style="background:#fff;padding:clamp(34px,4cqw,60px) clamp(20px,4cqw,56px) 0">
+          <div style="max-width:1180px;margin:0 auto">
+            <div style="display:flex;flex-wrap:wrap;gap:16px;align-items:baseline">
+              <div style="font-size:11px;letter-spacing:0.24em;text-transform:uppercase;color:#000">Delegate registration</div>
+              <span style="margin-left:auto;font-size:12px;letter-spacing:0.16em;text-transform:uppercase;color:#5f5f5f">{{ stepLabel }}</span>
+            </div>
+            <h1 style="margin:14px 0 clamp(26px,3.2cqw,42px);color:#000;font-size:clamp(26px,3.8cqw,46px);line-height:1.06;text-transform:uppercase;max-width:24ch">{{ ev.title }}</h1>
+            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,120px),1fr));gap:clamp(8px,1.4cqw,20px);padding-bottom:clamp(22px,2.6cqw,34px)">
+              <sc-for list="{{ steps }}" as="st" hint-placeholder-count="5">
+                <div style="border-top:3px solid {{ st.rule }};padding-top:12px">
+                  <div style="font-size:11px;letter-spacing:0.16em;color:{{ st.color }};margin-bottom:6px">{{ st.n }}</div>
+                  <div style="font-size:13px;line-height:1.35;color:{{ st.color }}">{{ st.label }}</div>
+                </div>
+              </sc-for>
+            </div>
+          </div>
+        </section>
+
+        <section style="background:#fff;padding:clamp(36px,5cqw,72px) clamp(20px,4cqw,56px) clamp(48px,6cqw,96px)">
+          <div style="max-width:1180px;margin:0 auto;display:flex;flex-wrap:wrap;gap:clamp(28px,4cqw,56px)">
+            <div style="flex:1 1 340px;min-width:0">
+
+              <sc-if value="{{ stepIsOne }}" hint-placeholder-val="{{ false }}">
+                <h2 style="margin:0 0 8px;font-size:clamp(22px,2.6cqw,32px);line-height:1.1;text-transform:uppercase;color:#000">Confirm event and tickets</h2>
+                <p style="margin:0 0 32px;font-size:15px;line-height:1.65;color:#5a5a5a;max-width:56ch">Check the school and dates, choose a tier and set the number of delegates. The invoice on the right updates as you go.</p>
+                <div style="border:1px solid #e2e2e2;padding:clamp(20px,2.4cqw,28px);margin-bottom:30px">
+                  <div style="font-size:11px;letter-spacing:0.2em;text-transform:uppercase;color:#000;margin-bottom:12px">Selected school</div>
+                  <div style="font-size:18px;line-height:1.3;color:#000;margin-bottom:10px">{{ ev.title }}</div>
+                  <div style="font-size:14px;color:#5a5a5a;line-height:1.6">{{ ev.city }}<br />{{ ev.dates }}</div>
+                  <button onClick="{{ nav.events }}" style="margin-top:16px;background:none;border:0;padding:6px 0;cursor:pointer;color:#000;font-size:12px;letter-spacing:0.14em;text-transform:uppercase;border-bottom:2px solid #00BF63">Change school</button>
+                </div>
+                <div style="font-size:11px;letter-spacing:0.2em;text-transform:uppercase;color:#000;margin-bottom:14px">Delegate tier</div>
+                <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:30px">
+                  <sc-for list="{{ tiers }}" as="t" hint-placeholder-count="3">
+                    <button onClick="{{ t.select }}" style="text-align:left;background:#fff;border:{{ t.border }};padding:18px 20px;min-height:56px;cursor:pointer;display:flex;flex-wrap:wrap;gap:12px;align-items:baseline">
+                      <span style="font-size:15px;letter-spacing:0.14em;text-transform:uppercase;color:#000">{{ t.name }}</span>
+                      <span style="margin-left:auto;font-size:16px;color:#000">{{ t.price }}</span>
+                    </button>
+                  </sc-for>
+                </div>
+                <div style="font-size:11px;letter-spacing:0.2em;text-transform:uppercase;color:#000;margin-bottom:14px">Number of delegates</div>
+                <div style="display:flex;align-items:center;gap:2px">
+                  <button onClick="{{ dec }}" style="width:52px;height:52px;border:1px solid #000;background:#fff;color:#000;font-size:20px;cursor:pointer">&minus;</button>
+                  <div style="min-width:72px;height:52px;border-top:1px solid #000;border-bottom:1px solid #000;display:flex;align-items:center;justify-content:center;font-size:19px;color:#000">{{ count }}</div>
+                  <button onClick="{{ inc }}" style="width:52px;height:52px;border:1px solid #000;background:#fff;color:#000;font-size:20px;cursor:pointer">+</button>
+                </div>
+              </sc-if>
+
+              <sc-if value="{{ stepIsTwo }}" hint-placeholder-val="{{ false }}">
+                <h2 style="margin:0 0 8px;font-size:clamp(22px,2.6cqw,32px);line-height:1.1;text-transform:uppercase;color:#000">Contact and billing</h2>
+                <p style="margin:0 0 32px;font-size:15px;line-height:1.65;color:#5a5a5a;max-width:56ch">The invoice is issued to the institution named here. This is also the address the confirmation and joining instructions are sent to.</p>
+                <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,240px),1fr));gap:20px">
+                  <label style="display:flex;flex-direction:column;gap:9px;font-size:12px;letter-spacing:0.14em;text-transform:uppercase;color:#000">Institution
+                    <input type="text" placeholder="Ministry, county or authority" style="height:52px;padding:0 15px;border:1px solid #cfcfcf;border-radius:2px;font-size:16px;color:#000;background:#fff" />
+                  </label>
+                  <label style="display:flex;flex-direction:column;gap:9px;font-size:12px;letter-spacing:0.14em;text-transform:uppercase;color:#000">Department
+                    <input type="text" placeholder="Finance, audit, treasury" style="height:52px;padding:0 15px;border:1px solid #cfcfcf;border-radius:2px;font-size:16px;color:#000;background:#fff" />
+                  </label>
+                  <label style="display:flex;flex-direction:column;gap:9px;font-size:12px;letter-spacing:0.14em;text-transform:uppercase;color:#000">Billing contact
+                    <input type="text" placeholder="Full name" style="height:52px;padding:0 15px;border:1px solid #cfcfcf;border-radius:2px;font-size:16px;color:#000;background:#fff" />
+                  </label>
+                  <label style="display:flex;flex-direction:column;gap:9px;font-size:12px;letter-spacing:0.14em;text-transform:uppercase;color:#000">Job title
+                    <input type="text" placeholder="e.g. Chief Accountant" style="height:52px;padding:0 15px;border:1px solid #cfcfcf;border-radius:2px;font-size:16px;color:#000;background:#fff" />
+                  </label>
+                  <label style="display:flex;flex-direction:column;gap:9px;font-size:12px;letter-spacing:0.14em;text-transform:uppercase;color:#000">Email
+                    <input type="email" placeholder="name@institution.go.ke" style="height:52px;padding:0 15px;border:1px solid #cfcfcf;border-radius:2px;font-size:16px;color:#000;background:#fff" />
+                  </label>
+                  <label style="display:flex;flex-direction:column;gap:9px;font-size:12px;letter-spacing:0.14em;text-transform:uppercase;color:#000">Phone
+                    <input type="tel" placeholder="+254" style="height:52px;padding:0 15px;border:1px solid #cfcfcf;border-radius:2px;font-size:16px;color:#000;background:#fff" />
+                  </label>
+                  <label style="display:flex;flex-direction:column;gap:9px;font-size:12px;letter-spacing:0.14em;text-transform:uppercase;color:#000">Country
+                    <input type="text" placeholder="Kenya" style="height:52px;padding:0 15px;border:1px solid #cfcfcf;border-radius:2px;font-size:16px;color:#000;background:#fff" />
+                  </label>
+                  <label style="display:flex;flex-direction:column;gap:9px;font-size:12px;letter-spacing:0.14em;text-transform:uppercase;color:#000">Purchase order reference
+                    <input type="text" placeholder="Optional" style="height:52px;padding:0 15px;border:1px solid #cfcfcf;border-radius:2px;font-size:16px;color:#000;background:#fff" />
+                  </label>
+                </div>
+              </sc-if>
+
+              <sc-if value="{{ stepIsThree }}" hint-placeholder-val="{{ false }}">
+                <h2 style="margin:0 0 8px;font-size:clamp(22px,2.6cqw,32px);line-height:1.1;text-transform:uppercase;color:#000">Delegate details</h2>
+                <p style="margin:0 0 32px;font-size:15px;line-height:1.65;color:#5a5a5a;max-width:56ch">Names are printed on certificates and used for visa support letters, so enter them as they appear on each passport.</p>
+                <div style="display:flex;flex-direction:column;gap:24px">
+                  <sc-for list="{{ delegateRows }}" as="d" hint-placeholder-count="2">
+                    <div style="border:1px solid #e2e2e2;padding:clamp(20px,2.4cqw,28px)">
+                      <div style="display:flex;flex-wrap:wrap;gap:12px;align-items:baseline;margin-bottom:20px">
+                        <span style="font-size:12px;letter-spacing:0.2em;text-transform:uppercase;color:#000">{{ d.n }}</span>
+                        <span style="margin-left:auto;font-size:11px;letter-spacing:0.16em;text-transform:uppercase;color:#000">{{ d.first }}</span>
+                      </div>
+                      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,220px),1fr));gap:18px">
+                        <label style="display:flex;flex-direction:column;gap:9px;font-size:12px;letter-spacing:0.14em;text-transform:uppercase;color:#000">Full name
+                          <input type="text" placeholder="As per passport" style="height:52px;padding:0 15px;border:1px solid #cfcfcf;border-radius:2px;font-size:16px;color:#000;background:#fff" />
+                        </label>
+                        <label style="display:flex;flex-direction:column;gap:9px;font-size:12px;letter-spacing:0.14em;text-transform:uppercase;color:#000">Job title
+                          <input type="text" placeholder="e.g. Budget Controller" style="height:52px;padding:0 15px;border:1px solid #cfcfcf;border-radius:2px;font-size:16px;color:#000;background:#fff" />
+                        </label>
+                        <label style="display:flex;flex-direction:column;gap:9px;font-size:12px;letter-spacing:0.14em;text-transform:uppercase;color:#000">Email
+                          <input type="email" placeholder="name@institution.go.ke" style="height:52px;padding:0 15px;border:1px solid #cfcfcf;border-radius:2px;font-size:16px;color:#000;background:#fff" />
+                        </label>
+                        <label style="display:flex;flex-direction:column;gap:9px;font-size:12px;letter-spacing:0.14em;text-transform:uppercase;color:#000">Dietary or access needs
+                          <input type="text" placeholder="Optional" style="height:52px;padding:0 15px;border:1px solid #cfcfcf;border-radius:2px;font-size:16px;color:#000;background:#fff" />
+                        </label>
+                      </div>
+                    </div>
+                  </sc-for>
+                </div>
+              </sc-if>
+
+              <sc-if value="{{ stepIsFour }}" hint-placeholder-val="{{ false }}">
+                <h2 style="margin:0 0 8px;font-size:clamp(22px,2.6cqw,32px);line-height:1.1;text-transform:uppercase;color:#000">Review and consent</h2>
+                <p style="margin:0 0 32px;font-size:15px;line-height:1.65;color:#5a5a5a;max-width:56ch">Confirming generates a numbered invoice and holds the seats for fourteen days pending payment.</p>
+                <div style="border:1px solid #e2e2e2">
+                  <div style="display:flex;flex-wrap:wrap;gap:16px;padding:20px clamp(18px,2.2cqw,26px);border-bottom:1px solid #e2e2e2">
+                    <span style="font-size:12px;letter-spacing:0.16em;text-transform:uppercase;color:#5a5a5a;min-width:120px">School</span>
+                    <span style="flex:1 1 200px;font-size:15px;line-height:1.5;color:#000">{{ ev.title }}</span>
+                  </div>
+                  <div style="display:flex;flex-wrap:wrap;gap:16px;padding:20px clamp(18px,2.2cqw,26px);border-bottom:1px solid #e2e2e2">
+                    <span style="font-size:12px;letter-spacing:0.16em;text-transform:uppercase;color:#5a5a5a;min-width:120px">Dates</span>
+                    <span style="flex:1 1 200px;font-size:15px;line-height:1.5;color:#000">{{ ev.dates }}, {{ ev.city }}</span>
+                  </div>
+                  <div style="display:flex;flex-wrap:wrap;gap:16px;padding:20px clamp(18px,2.2cqw,26px);border-bottom:1px solid #e2e2e2">
+                    <span style="font-size:12px;letter-spacing:0.16em;text-transform:uppercase;color:#5a5a5a;min-width:120px">Tier</span>
+                    <span style="flex:1 1 200px;font-size:15px;line-height:1.5;color:#000">{{ lineLabel }}</span>
+                  </div>
+                  <div style="display:flex;flex-wrap:wrap;gap:16px;padding:20px clamp(18px,2.2cqw,26px)">
+                    <span style="font-size:12px;letter-spacing:0.16em;text-transform:uppercase;color:#5a5a5a;min-width:120px">Payable</span>
+                    <span style="flex:1 1 200px;font-size:15px;line-height:1.5;color:#000">{{ total }}, invoiced to the institution</span>
+                  </div>
+                </div>
+                <div style="display:flex;flex-direction:column;gap:16px;margin-top:30px">
+                  <button onClick="{{ toggleTerms }}" style="text-align:left;display:flex;gap:14px;align-items:flex-start;background:none;border:0;padding:6px 0;cursor:pointer">
+                    <span style="flex:0 0 auto;width:24px;height:24px;border:1px solid #000;background:{{ termsBox }};color:#000;display:flex;align-items:center;justify-content:center;font-size:14px">{{ termsMark }}</span>
+                    <span style="font-size:14.5px;line-height:1.6;color:#000;max-width:60ch">I confirm the institution authorises this registration and accepts the cancellation terms, including the fourteen-day payment window.</span>
+                  </button>
+                  <button onClick="{{ toggleData }}" style="text-align:left;display:flex;gap:14px;align-items:flex-start;background:none;border:0;padding:6px 0;cursor:pointer">
+                    <span style="flex:0 0 auto;width:24px;height:24px;border:1px solid #000;background:{{ dataBox }};color:#000;display:flex;align-items:center;justify-content:center;font-size:14px">{{ dataMark }}</span>
+                    <span style="font-size:14.5px;line-height:1.6;color:#000;max-width:60ch">I consent to delegate details being used for certification, visa support letters and course administration.</span>
+                  </button>
+                </div>
+              </sc-if>
+
+              <sc-if value="{{ stepIsFive }}" hint-placeholder-val="{{ false }}">
+                <div style="background:#000;padding:clamp(30px,4cqw,52px)">
+                  <div style="display:flex;align-items:center;gap:12px;margin-bottom:22px">
+                    <span style="width:34px;height:34px;border:1px solid #00BF63;color:#00BF63;display:flex;align-items:center;justify-content:center;font-size:16px">&#10003;</span>
+                    <span style="font-size:11px;letter-spacing:0.24em;text-transform:uppercase;color:#00BF63">Registration received</span>
+                  </div>
+                  <h2 style="margin:0 0 18px;color:#fff;font-size:clamp(24px,3cqw,38px);line-height:1.08;text-transform:uppercase;max-width:22ch">Invoice PM-2026-0418 has been issued</h2>
+                  <p style="margin:0 0 28px;color:rgba(255,255,255,0.72);font-size:16px;line-height:1.65;max-width:56ch">Seats are held for fourteen days. The invoice and joining instructions have been sent to the billing contact, with delegate copies to each named attendee.</p>
+                  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,150px),1fr));gap:1px;background:rgba(255,255,255,0.14);margin-bottom:30px">
+                    <div style="background:#000;padding:18px">
+                      <div style="font-size:11px;letter-spacing:0.16em;text-transform:uppercase;color:rgba(255,255,255,0.5);margin-bottom:8px">Amount due</div>
+                      <div style="color:#00BF63;font-size:20px">{{ total }}</div>
+                    </div>
+                    <div style="background:#000;padding:18px">
+                      <div style="font-size:11px;letter-spacing:0.16em;text-transform:uppercase;color:rgba(255,255,255,0.5);margin-bottom:8px">Delegates</div>
+                      <div style="color:#fff;font-size:20px">{{ count }}</div>
+                    </div>
+                    <div style="background:#000;padding:18px">
+                      <div style="font-size:11px;letter-spacing:0.16em;text-transform:uppercase;color:rgba(255,255,255,0.5);margin-bottom:8px">Payment due by</div>
+                      <div style="color:#fff;font-size:20px">8 Sep 2026</div>
+                    </div>
+                  </div>
+                  <div style="display:flex;flex-wrap:wrap;gap:12px">
+                    <button style="background:#00BF63;border:0;color:#000;padding:17px 26px;min-height:48px;cursor:pointer;font-size:12px;letter-spacing:0.14em;text-transform:uppercase;border-radius:2px">Download invoice</button>
+                    <button onClick="{{ nav.events }}" style="background:none;border:1px solid rgba(255,255,255,0.32);color:#fff;padding:17px 26px;min-height:48px;cursor:pointer;font-size:12px;letter-spacing:0.14em;text-transform:uppercase;border-radius:2px">Back to calendar</button>
+                    <button onClick="{{ restart }}" style="background:none;border:0;color:rgba(255,255,255,0.55);padding:17px 8px;min-height:48px;cursor:pointer;font-size:12px;letter-spacing:0.14em;text-transform:uppercase">Register another group</button>
+                  </div>
+                </div>
+              </sc-if>
+
+              <sc-if value="{{ showNav }}" hint-placeholder-val="{{ false }}">
+                <div style="display:flex;flex-wrap:wrap;gap:12px;margin-top:clamp(30px,3.4cqw,44px);padding-top:26px;border-top:1px solid #e2e2e2">
+                  <sc-if value="{{ canBack }}" hint-placeholder-val="{{ false }}">
+                    <button onClick="{{ back }}" style="background:none;border:1px solid #000;color:#000;padding:17px 26px;min-height:48px;cursor:pointer;font-size:12px;letter-spacing:0.14em;text-transform:uppercase;border-radius:2px">Back</button>
+                  </sc-if>
+                  <button onClick="{{ next }}" style="margin-left:auto;background:{{ nextBg }};border:0;color:{{ nextFg }};padding:17px 30px;min-height:48px;cursor:pointer;font-size:12px;letter-spacing:0.14em;text-transform:uppercase;border-radius:2px">{{ nextLabel }}</button>
+                </div>
+              </sc-if>
+
+            </div>
+
+            <aside style="flex:0 1 340px;min-width:min(100%,280px)">
+              <div style="border:1px solid #000;padding:clamp(22px,2.4cqw,30px)">
+                <div style="font-size:11px;letter-spacing:0.22em;text-transform:uppercase;color:#000;padding-bottom:16px;border-bottom:2px solid #000">Invoice summary</div>
+                <div style="display:flex;justify-content:space-between;gap:14px;padding:18px 0;border-bottom:1px solid #e2e2e2">
+                  <span style="font-size:14.5px;color:#5a5a5a;line-height:1.5">{{ lineLabel }}</span>
+                  <span style="font-size:14.5px;color:#000;white-space:nowrap">{{ subtotal }}</span>
+                </div>
+                <div style="display:flex;justify-content:space-between;gap:14px;padding:18px 0;border-bottom:1px solid #e2e2e2">
+                  <span style="font-size:14.5px;color:#5a5a5a;line-height:1.5">Early bird, 20 per cent</span>
+                  <span style="font-size:14.5px;color:#000;white-space:nowrap">{{ discountLine }}</span>
+                </div>
+                <div style="display:flex;justify-content:space-between;gap:14px;padding:18px 0 20px;border-bottom:1px solid #e2e2e2">
+                  <span style="font-size:14.5px;color:#5a5a5a;line-height:1.5">Unit price, {{ tierName }}</span>
+                  <span style="font-size:14.5px;color:#000;white-space:nowrap">{{ unitPrice }}</span>
+                </div>
+                <div style="display:flex;justify-content:space-between;gap:14px;align-items:baseline;padding-top:20px">
+                  <span style="font-size:12px;letter-spacing:0.16em;text-transform:uppercase;color:#000">Total</span>
+                  <span style="font-size:clamp(20px,2.4cqw,28px);color:#000;white-space:nowrap">{{ total }}</span>
+                </div>
+              </div>
+              <p style="margin:18px 0 0;font-size:13px;line-height:1.65;color:#5a5a5a">Payment by bank transfer or institutional purchase order. No card details are collected on this site.</p>
+            </aside>
+          </div>
+        </section>
+      </main>
+      </sc-if>
+
+      <sc-if value="{{ isAbout }}" hint-placeholder-val="{{ false }}">
+      <main data-screen-label="About">
+        <section style="background:#fff;padding:clamp(50px,7cqw,110px) clamp(20px,4cqw,56px)">
+          <div style="max-width:1180px;margin:0 auto">
+            <div style="font-size:11px;letter-spacing:0.24em;text-transform:uppercase;color:#000;border-left:3px solid #00BF63;padding-left:11px;margin-bottom:18px">About Prosperminds</div>
+            <h1 style="margin:0;color:#000;font-size:clamp(30px,5.6cqw,68px);line-height:1;text-transform:uppercase;max-width:17ch">Protecting and growing the mind to achieve prosperity</h1>
+            <p style="margin:26px 0 0;max-width:60ch;color:#4a4a4a;font-size:clamp(15px,1.55cqw,19px);line-height:1.65">Prosperminds is a training institution for the public sector. We work with ministries of finance, audit offices, revenue authorities and state corporations across Africa, and increasingly with international delegations attending our residential schools.</p>
+          </div>
+        </section>
+
+        <section style="background:#fff;padding:clamp(48px,6cqw,96px) clamp(20px,4cqw,56px)">
+          <div style="max-width:1180px;margin:0 auto;display:flex;flex-wrap:wrap;gap:clamp(30px,5cqw,80px)">
+            <div style="flex:1 1 320px;min-width:0">
+              <h2 style="margin:0 0 22px;font-size:clamp(23px,3cqw,36px);line-height:1.08;text-transform:uppercase;color:#000">How we work</h2>
+              <p style="margin:0 0 18px;font-size:16.5px;line-height:1.72;color:#5a5a5a">Our faculty is drawn from practice. Between them they carry twenty-five years of collective experience inside treasuries, accountant-general departments and supreme audit institutions. Courses are written from that work rather than from a syllabus, then revised each year against the standards delegates are actually held to.</p>
+              <p style="margin:0 0 18px;font-size:16.5px;line-height:1.72;color:#5a5a5a">Every school runs for five days in a residential format. Day one establishes leadership context, days two to four go deep on technical material, and day five is spent building the action plan each delegate takes back to their department. Cohorts are capped so that faculty remain reachable throughout.</p>
+              <p style="margin:0;font-size:16.5px;line-height:1.72;color:#5a5a5a">Eight hundred and seventy-five leaders have completed a Prosperminds school. Many return with colleagues, and a growing number return as contributors.</p>
+            </div>
+            <div style="flex:0 1 320px;min-width:min(100%,260px)">
+              <div style="border-left:2px solid #00BF63;padding-left:clamp(18px,2cqw,28px)">
+                <div style="font-size:11px;letter-spacing:0.22em;text-transform:uppercase;color:#000;margin-bottom:18px">What delegates leave with</div>
+                <ul style="margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:14px">
+                  <li style="font-size:15px;line-height:1.6;color:#5a5a5a">A departmental action plan reviewed by faculty</li>
+                  <li style="font-size:15px;line-height:1.6;color:#5a5a5a">CPD certification recognised by professional bodies</li>
+                  <li style="font-size:15px;line-height:1.6;color:#5a5a5a">Working templates, not slide decks</li>
+                  <li style="font-size:15px;line-height:1.6;color:#5a5a5a">A peer network across finance functions in the region</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section style="background:#fff;padding:clamp(44px,5.5cqw,84px) clamp(20px,4cqw,56px)">
+          <div style="max-width:1180px;margin:0 auto">
+            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,170px),1fr));gap:1px;background:#dcdcdc">
+              <sc-for list="{{ stats }}" as="s" hint-placeholder-count="4">
+                <div style="background:#fff;padding:clamp(24px,2.8cqw,36px)">
+                  <div style="color:#000;font-size:clamp(30px,4cqw,52px);line-height:1">{{ s.value }}</div>
+                  <div style="margin-top:12px;color:#5f5f5f;font-size:11.5px;letter-spacing:0.16em;text-transform:uppercase">{{ s.label }}</div>
+                </div>
+              </sc-for>
+            </div>
+          </div>
+        </section>
+
+        <section style="background:#fff;padding:clamp(48px,6cqw,96px) clamp(20px,4cqw,56px)">
+          <div style="max-width:1180px;margin:0 auto">
+            <div style="font-size:11px;letter-spacing:0.24em;text-transform:uppercase;color:#000;border-left:3px solid #00BF63;padding-left:11px;margin-bottom:14px">Practice areas</div>
+            <h2 style="margin:0 0 clamp(28px,3.4cqw,46px);font-size:clamp(24px,3.4cqw,42px);line-height:1.06;text-transform:uppercase;color:#000">The three pillars in depth</h2>
+            <div style="display:flex;flex-direction:column">
+              <sc-for list="{{ pillars }}" as="p" hint-placeholder-count="3">
+                <div style="display:flex;flex-wrap:wrap;gap:clamp(16px,3cqw,48px);padding:clamp(24px,2.8cqw,36px) 0;border-top:1px solid #e2e2e2">
+                  <div style="flex:0 0 auto;width:clamp(54px,6cqw,84px);color:#000;font-size:clamp(20px,2.4cqw,30px);line-height:1">{{ p.num }}</div>
+                  <div style="flex:1 1 260px;min-width:0">
+                    <h3 style="margin:0 0 12px;font-size:clamp(19px,2.1cqw,26px);line-height:1.16;color:#000;text-transform:uppercase">{{ p.name }}</h3>
+                    <p style="margin:0 0 16px;font-size:16px;line-height:1.68;color:#5a5a5a;max-width:62ch">{{ p.intro }}</p>
+                    <button onClick="{{ p.open }}" style="background:none;border:0;padding:6px 0;cursor:pointer;color:#000;font-size:12px;letter-spacing:0.14em;text-transform:uppercase;border-bottom:2px solid #00BF63">Open service page</button>
+                  </div>
+                </div>
+              </sc-for>
+            </div>
+          </div>
+        </section>
+      </main>
+      </sc-if>
+
+      <sc-if value="{{ isServices }}" hint-placeholder-val="{{ false }}">
+      <main data-screen-label="Services">
+        <section style="background:#fff;padding:clamp(44px,6cqw,92px) clamp(20px,4cqw,56px) 0">
+          <div style="max-width:1180px;margin:0 auto">
+            <div style="font-size:11px;letter-spacing:0.24em;text-transform:uppercase;color:#000;border-left:3px solid #00BF63;padding-left:11px;margin-bottom:16px">Services</div>
+            <h1 style="margin:0 0 clamp(30px,4cqw,52px);color:#000;font-size:clamp(28px,4.8cqw,58px);line-height:1.02;text-transform:uppercase;max-width:20ch">{{ pillar.name }}</h1>
+            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,180px),1fr));gap:clamp(8px,1.4cqw,20px)">
+              <sc-for list="{{ pillarTabs }}" as="t" hint-placeholder-count="3">
+                <button onClick="{{ t.go }}" style="text-align:left;background:none;border:0;border-top:3px solid {{ t.rule }};padding:14px 0 clamp(20px,2.4cqw,30px);cursor:pointer;color:{{ t.color }};font-size:13.5px;line-height:1.35;letter-spacing:0.02em">{{ t.name }}</button>
+              </sc-for>
+            </div>
+          </div>
+        </section>
+
+        <section style="background:#fff;padding:clamp(44px,5.5cqw,88px) clamp(20px,4cqw,56px)">
+          <div style="max-width:1180px;margin:0 auto">
+            <p style="margin:0 0 clamp(36px,4cqw,60px);font-size:clamp(18px,2cqw,25px);line-height:1.5;color:#000;max-width:46ch">{{ pillar.promise }}</p>
+            <div style="display:flex;flex-wrap:wrap;gap:clamp(30px,5cqw,76px)">
+              <div style="flex:1 1 320px;min-width:0">
+                <div style="font-size:11px;letter-spacing:0.22em;text-transform:uppercase;color:#000;margin-bottom:16px">Why departments send teams</div>
+                <p style="margin:0 0 28px;font-size:16.5px;line-height:1.72;color:#5a5a5a;max-width:58ch">{{ pillar.intro }}</p>
+                <div style="font-size:11px;letter-spacing:0.22em;text-transform:uppercase;color:#000;margin-bottom:16px">Outcomes</div>
+                <ul style="margin:0;padding:0;list-style:none;display:flex;flex-direction:column">
+                  <sc-for list="{{ pillar.outcomes }}" as="o" hint-placeholder-count="4">
+                    <li style="font-size:16px;line-height:1.6;color:#000;padding:16px 0;border-top:1px solid #e2e2e2">{{ o }}</li>
+                  </sc-for>
+                </ul>
+              </div>
+              <div style="flex:0 1 340px;min-width:min(100%,270px)">
+                <div style="background:#fafafa;border:1px solid #e2e2e2;padding:clamp(22px,2.6cqw,32px)">
+                  <div style="font-size:11px;letter-spacing:0.22em;text-transform:uppercase;color:#000;margin-bottom:18px">Curriculum coverage</div>
+                  <ul style="margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:12px">
+                    <sc-for list="{{ pillar.topics }}" as="t" hint-placeholder-count="6">
+                      <li style="display:flex;gap:11px;align-items:flex-start;font-size:15px;line-height:1.55;color:#5a5a5a"><span style="flex:0 0 auto;margin-top:8px;width:6px;height:6px;background:#00BF63;display:block"></span>{{ t }}</li>
+                    </sc-for>
+                  </ul>
+                  <button onClick="{{ nav.contact }}" style="margin-top:26px;width:100%;background:#000;border:0;color:#fff;padding:17px;min-height:48px;cursor:pointer;font-size:12px;letter-spacing:0.14em;text-transform:uppercase;border-radius:2px">Request the full outline</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section style="background:#f6f6f4;padding:clamp(44px,5.5cqw,88px) clamp(20px,4cqw,56px);border-top:1px solid #e2e2e2">
+          <div style="max-width:1180px;margin:0 auto">
+            <div style="display:flex;flex-wrap:wrap;align-items:flex-end;gap:20px;margin-bottom:clamp(26px,3cqw,40px)">
+              <h2 style="margin:0;color:#000;font-size:clamp(22px,3cqw,38px);line-height:1.08;text-transform:uppercase;max-width:24ch">Schools covering this pillar</h2>
+              <button onClick="{{ nav.events }}" style="margin-left:auto;background:none;border:1px solid #000;color:#000;padding:15px 24px;min-height:44px;cursor:pointer;font-size:12px;letter-spacing:0.14em;text-transform:uppercase;border-radius:2px">All events</button>
+            </div>
+            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,250px),1fr));gap:1px;background:#dcdcdc">
+              <sc-for list="{{ events }}" as="e" hint-placeholder-count="4">
+                <button onClick="{{ e.open }}" style="text-align:left;background:#fff;border:0;padding:clamp(22px,2.6cqw,32px);cursor:pointer;display:flex;flex-direction:column;gap:14px">
+                  <span style="font-size:11px;letter-spacing:0.16em;text-transform:uppercase;color:#000">{{ e.monthYear }}</span>
+                  <span style="color:#000;font-size:17px;line-height:1.25">{{ e.title }}</span>
+                  <span style="margin-top:auto;color:#5f5f5f;font-size:13.5px">{{ e.city }}</span>
+                </button>
+              </sc-for>
+            </div>
+          </div>
+        </section>
+      </main>
+      </sc-if>
+
+      <sc-if value="{{ isContact }}" hint-placeholder-val="{{ false }}">
+      <main data-screen-label="Contact">
+        <section style="background:#fff;padding:clamp(46px,6cqw,96px) clamp(20px,4cqw,56px)">
+          <div style="max-width:1180px;margin:0 auto">
+            <div style="font-size:11px;letter-spacing:0.24em;text-transform:uppercase;color:#000;border-left:3px solid #00BF63;padding-left:11px;margin-bottom:16px">Contact</div>
+            <h1 style="margin:0 0 clamp(32px,4cqw,56px);color:#000;font-size:clamp(30px,5.2cqw,62px);line-height:1;text-transform:uppercase;max-width:18ch">Talk to the programme office</h1>
+            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,200px),1fr));gap:1px;background:#dcdcdc">
+              <div style="background:#fff;padding:clamp(20px,2.4cqw,28px)">
+                <div style="font-size:11px;letter-spacing:0.16em;text-transform:uppercase;color:#5f5f5f;margin-bottom:12px">Head office</div>
+                <div style="color:#000;font-size:15.5px;line-height:1.7">Twiga Towers, Moi Avenue<br />Nairobi, Kenya</div>
+              </div>
+              <div style="background:#fff;padding:clamp(20px,2.4cqw,28px)">
+                <div style="font-size:11px;letter-spacing:0.16em;text-transform:uppercase;color:#5f5f5f;margin-bottom:12px">Telephone</div>
+                <div style="color:#000;font-size:15.5px;line-height:1.7">+254 740 582302<br />+254 741 174909</div>
+              </div>
+              <div style="background:#fff;padding:clamp(20px,2.4cqw,28px)">
+                <div style="font-size:11px;letter-spacing:0.16em;text-transform:uppercase;color:#5f5f5f;margin-bottom:12px">Email</div>
+                <div style="color:#000;font-size:15.5px;line-height:1.7">info@prosper-minds.com</div>
+              </div>
+              <div style="background:#fff;padding:clamp(20px,2.4cqw,28px)">
+                <div style="font-size:11px;letter-spacing:0.16em;text-transform:uppercase;color:#000;margin-bottom:12px">Office hours</div>
+                <div style="color:#000;font-size:15.5px;line-height:1.7">Monday to Friday<br />8am to 5pm EAT</div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section style="background:#fff;padding:clamp(44px,5.5cqw,88px) clamp(20px,4cqw,56px)">
+          <div style="max-width:1180px;margin:0 auto;display:flex;flex-wrap:wrap;gap:clamp(30px,4cqw,64px)">
+            <div style="flex:1 1 340px;min-width:0">
+              <h2 style="margin:0 0 10px;font-size:clamp(22px,2.8cqw,34px);line-height:1.1;text-transform:uppercase;color:#000">Send an enquiry</h2>
+              <p style="margin:0 0 30px;font-size:15px;line-height:1.65;color:#5a5a5a;max-width:54ch">The programme office replies within one working day. For group registrations of four or more delegates, mention the number and we will issue a consolidated quote.</p>
+              <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,220px),1fr));gap:20px">
+                <label style="display:flex;flex-direction:column;gap:9px;font-size:12px;letter-spacing:0.14em;text-transform:uppercase;color:#000">Full name
+                  <input type="text" placeholder="Your name" style="height:52px;padding:0 15px;border:1px solid #cfcfcf;border-radius:2px;font-size:16px;color:#000;background:#fff" />
+                </label>
+                <label style="display:flex;flex-direction:column;gap:9px;font-size:12px;letter-spacing:0.14em;text-transform:uppercase;color:#000">Institution
+                  <input type="text" placeholder="Ministry, county or authority" style="height:52px;padding:0 15px;border:1px solid #cfcfcf;border-radius:2px;font-size:16px;color:#000;background:#fff" />
+                </label>
+                <label style="display:flex;flex-direction:column;gap:9px;font-size:12px;letter-spacing:0.14em;text-transform:uppercase;color:#000">Email
+                  <input type="email" placeholder="name@institution.go.ke" style="height:52px;padding:0 15px;border:1px solid #cfcfcf;border-radius:2px;font-size:16px;color:#000;background:#fff" />
+                </label>
+                <label style="display:flex;flex-direction:column;gap:9px;font-size:12px;letter-spacing:0.14em;text-transform:uppercase;color:#000">Phone
+                  <input type="tel" placeholder="+254" style="height:52px;padding:0 15px;border:1px solid #cfcfcf;border-radius:2px;font-size:16px;color:#000;background:#fff" />
+                </label>
+              </div>
+              <label style="display:flex;flex-direction:column;gap:9px;margin-top:20px;font-size:12px;letter-spacing:0.14em;text-transform:uppercase;color:#000">Enquiry
+                <textarea rows="5" placeholder="Which school or pillar are you asking about?" style="padding:14px 15px;border:1px solid #cfcfcf;border-radius:2px;font-size:16px;color:#000;background:#fff;resize:vertical"></textarea>
+              </label>
+              <button style="margin-top:26px;background:#00BF63;border:0;color:#000;padding:18px 32px;min-height:48px;cursor:pointer;font-size:12px;letter-spacing:0.14em;text-transform:uppercase;border-radius:2px">Send enquiry</button>
+            </div>
+            <div style="flex:0 1 380px;min-width:min(100%,280px)">
+              <div style="border:1px solid #e2e2e2">
+                <div style="position:relative;background:#f6f6f4;height:clamp(240px,26cqw,330px);overflow:hidden">
+                  <svg viewBox="0 0 400 320" preserveAspectRatio="xMidYMid slice" aria-hidden="true" style="position:absolute;inset:0;width:100%;height:100%"><g stroke="#cfcfcf" stroke-width="1" fill="none"><path d="M0 60H400M0 130H400M0 200H400M0 265H400M70 0V320M150 0V320M235 0V320M320 0V320"></path></g><g stroke="#00BF63" stroke-width="2" fill="none"><path d="M0 130H150V200H400"></path></g><rect x="132" y="112" width="36" height="36" fill="none" stroke="#00BF63" stroke-width="2"></rect><circle cx="150" cy="130" r="5" fill="#00BF63"></circle></svg>
+                  <div style="position:absolute;left:18px;bottom:18px;background:#00BF63;color:#000;padding:9px 14px;font-size:11px;letter-spacing:0.16em;text-transform:uppercase">Moi Avenue, Nairobi</div>
+                </div>
+                <div style="padding:clamp(20px,2.4cqw,26px)">
+                  <div style="font-size:11px;letter-spacing:0.22em;text-transform:uppercase;color:#000;margin-bottom:12px">Getting here</div>
+                  <p style="margin:0;font-size:15px;line-height:1.68;color:#5a5a5a">Twiga Towers sits on Moi Avenue in the central business district, a ten minute walk from the railway station and served by matatu routes along Tom Mboya Street. Visitor parking is available on the lower level.</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+      </main>
+      </sc-if>
+
+      <sc-if value="{{ isSponsorship }}" hint-placeholder-val="{{ false }}">
+      <main data-screen-label="Sponsorship">
+        <section style="position:relative;overflow:hidden;background:#fff;padding:clamp(50px,7cqw,112px) clamp(20px,4cqw,56px)">
+          <svg viewBox="0 0 800 420" preserveAspectRatio="xMidYMid slice" aria-hidden="true" style="position:absolute;inset:0;width:100%;height:100%;pointer-events:none;opacity:0.5"><g stroke="#00BF63" stroke-width="0.7" fill="none" opacity="0.55"><path d="M70 80 210 190 140 330 330 90 430 250 530 140 620 310 730 120"></path><path d="M210 190 430 250 530 140 730 120"></path><path d="M140 330 330 390 620 310"></path></g><g fill="#00BF63" opacity="0.8"><circle cx="70" cy="80" r="2.4"></circle><circle cx="210" cy="190" r="3.4"></circle><circle cx="140" cy="330" r="2.4"></circle><circle cx="330" cy="90" r="2.2"></circle><circle cx="430" cy="250" r="3.2"></circle><circle cx="530" cy="140" r="2.6"></circle><circle cx="620" cy="310" r="3"></circle><circle cx="730" cy="120" r="2.4"></circle></g></svg>
+          <div style="position:relative;max-width:1180px;margin:0 auto">
+            <div style="font-size:11px;letter-spacing:0.24em;text-transform:uppercase;color:#000;border-left:3px solid #00BF63;padding-left:11px;margin-bottom:18px">Sponsorship</div>
+            <h1 style="margin:0;color:#000;font-size:clamp(32px,6.4cqw,80px);line-height:0.98;text-transform:uppercase;max-width:16ch">Co-Author Africa's Public Finance Future</h1>
+            <p style="margin:26px 0 0;max-width:58ch;color:#4a4a4a;font-size:clamp(15px,1.55cqw,19px);line-height:1.65">This is a business-to-government partnership, not advertising space. Sponsors sit in the room with accountants general, auditors general, treasury leaders and budget controllers for five days, as contributors to the programme rather than names on a banner.</p>
+            <div style="display:flex;flex-wrap:wrap;gap:14px;margin-top:clamp(28px,3.5cqw,44px)">
+              <button onClick="{{ nav.events }}" style="background:#00BF63;border:0;color:#000;padding:18px 30px;min-height:48px;cursor:pointer;font-size:13px;letter-spacing:0.14em;text-transform:uppercase;border-radius:2px">See the events</button>
+              <button onClick="{{ nav.contact }}" style="background:none;border:1px solid #000;color:#000;padding:18px 30px;min-height:48px;cursor:pointer;font-size:13px;letter-spacing:0.14em;text-transform:uppercase;border-radius:2px">Talk to the partnership team</button>
+            </div>
+          </div>
+        </section>
+
+        <section style="background:#fff;padding:clamp(44px,5.5cqw,88px) clamp(20px,4cqw,56px);border-top:1px solid #e2e2e2">
+          <div style="max-width:1180px;margin:0 auto">
+            <div style="font-size:11px;letter-spacing:0.24em;text-transform:uppercase;color:#000;border-left:3px solid #00BF63;padding-left:11px;margin-bottom:14px">Eligible events</div>
+            <h2 style="margin:0 0 clamp(28px,3.4cqw,46px);font-size:clamp(24px,3.4cqw,42px);line-height:1.06;text-transform:uppercase;color:#000">Four flagship schools in 2026</h2>
+            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,240px),1fr));gap:1px;background:#dcdcdc;border:1px solid #dcdcdc">
+              <sc-for list="{{ events }}" as="e" hint-placeholder-count="4">
+                <div style="background:#fff;padding:clamp(22px,2.6cqw,32px);display:flex;flex-direction:column;gap:12px">
+                  <span style="font-size:11px;letter-spacing:0.18em;text-transform:uppercase;color:#000">{{ e.monthYear }}</span>
+                  <span style="font-size:16.5px;line-height:1.3;color:#000">{{ e.title }}</span>
+                  <span style="margin-top:auto;padding-top:14px;border-top:1px solid #e2e2e2;font-size:14px;color:#4a4a4a">{{ e.city }}</span>
+                </div>
+              </sc-for>
+            </div>
+          </div>
+        </section>
+
+        <section style="background:#fff;padding:clamp(44px,5.5cqw,88px) clamp(20px,4cqw,56px)">
+          <div style="max-width:1180px;margin:0 auto">
+            <div style="font-size:11px;letter-spacing:0.24em;text-transform:uppercase;color:#000;border-left:3px solid #00BF63;padding-left:11px;margin-bottom:14px">Tiers</div>
+            <h2 style="margin:0 0 clamp(28px,3.4cqw,46px);font-size:clamp(24px,3.4cqw,42px);line-height:1.06;text-transform:uppercase;color:#000">Four partnership tiers</h2>
+            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,250px),1fr));gap:clamp(16px,2cqw,24px)">
+              <sc-for list="{{ sponsorTiers }}" as="t" hint-placeholder-count="4">
+                <div style="border:1px solid #dcdcdc;padding:clamp(22px,2.6cqw,32px);display:flex;flex-direction:column;gap:16px">
+                  <div style="font-size:12px;letter-spacing:0.2em;text-transform:uppercase;color:#000">{{ t.name }}</div>
+                  <div style="font-size:clamp(26px,3.2cqw,38px);line-height:1;color:#000">{{ t.price }}</div>
+                  <div style="font-size:11px;letter-spacing:0.16em;text-transform:uppercase;color:#00BF63">{{ t.slots }}</div>
+                  <ul style="margin:0;padding:18px 0 0;border-top:1px solid #e2e2e2;list-style:none;display:flex;flex-direction:column;gap:11px">
+                    <sc-for list="{{ t.benefits }}" as="b" hint-placeholder-count="4">
+                      <li style="font-size:14.5px;line-height:1.55;color:#4a4a4a">{{ b }}</li>
+                    </sc-for>
+                  </ul>
+                  <button onClick="{{ nav.contact }}" style="margin-top:auto;background:#fff;border:1px solid #000;color:#000;padding:15px;min-height:46px;cursor:pointer;font-size:12px;letter-spacing:0.14em;text-transform:uppercase;border-radius:2px">Enquire</button>
+                </div>
+              </sc-for>
+            </div>
+          </div>
+        </section>
+
+        <section style="background:#f6f6f4;padding:clamp(44px,5.5cqw,88px) clamp(20px,4cqw,56px);border-top:1px solid #e2e2e2">
+          <div style="max-width:1180px;margin:0 auto;display:flex;flex-wrap:wrap;gap:clamp(30px,5cqw,72px)">
+            <div style="flex:1 1 320px;min-width:0">
+              <div style="font-size:11px;letter-spacing:0.24em;text-transform:uppercase;color:#000;border-left:3px solid #00BF63;padding-left:11px;margin-bottom:14px">Entry packages</div>
+              <h2 style="margin:0 0 26px;font-size:clamp(22px,2.8cqw,34px);line-height:1.08;text-transform:uppercase;color:#000">Specialised, $1,000 each</h2>
+              <div style="display:flex;flex-direction:column">
+                <sc-for list="{{ sponsorPackages }}" as="p" hint-placeholder-count="3">
+                  <div style="padding:22px 0;border-top:1px solid #dcdcdc">
+                    <div style="display:flex;flex-wrap:wrap;gap:12px;align-items:baseline;margin-bottom:10px">
+                      <span style="font-size:17px;color:#000">{{ p.name }}</span>
+                      <span style="margin-left:auto;font-size:15px;color:#000">{{ p.price }}</span>
+                    </div>
+                    <p style="margin:0;font-size:14.5px;line-height:1.6;color:#4a4a4a;max-width:52ch">{{ p.note }}</p>
+                  </div>
+                </sc-for>
+              </div>
+            </div>
+            <div style="flex:1 1 280px;min-width:0">
+              <div style="font-size:11px;letter-spacing:0.24em;text-transform:uppercase;color:#000;border-left:3px solid #00BF63;padding-left:11px;margin-bottom:14px">Add-ons</div>
+              <h2 style="margin:0 0 26px;font-size:clamp(22px,2.8cqw,34px);line-height:1.08;text-transform:uppercase;color:#000">$500 each</h2>
+              <div style="display:flex;flex-direction:column">
+                <sc-for list="{{ sponsorAddons }}" as="a" hint-placeholder-count="5">
+                  <div style="padding:18px 0;border-top:1px solid #dcdcdc">
+                    <div style="font-size:16px;color:#000;margin-bottom:8px">{{ a.name }}</div>
+                    <p style="margin:0;font-size:14.5px;line-height:1.6;color:#4a4a4a;max-width:48ch">{{ a.note }}</p>
+                  </div>
+                </sc-for>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section style="background:#000;padding:clamp(44px,6cqw,92px) clamp(20px,4cqw,56px)">
+          <div style="max-width:1180px;margin:0 auto;display:flex;flex-wrap:wrap;gap:clamp(30px,4cqw,64px)">
+            <div style="flex:1 1 280px;min-width:0">
+              <div style="font-size:11px;letter-spacing:0.24em;text-transform:uppercase;color:#00BF63;margin-bottom:16px">Enquiry</div>
+              <h2 style="margin:0 0 20px;color:#fff;font-size:clamp(24px,3.2cqw,40px);line-height:1.06;text-transform:uppercase;max-width:20ch">We do not sell packages. We build partnerships.</h2>
+              <p style="margin:0;color:rgba(255,255,255,0.72);font-size:16px;line-height:1.68;max-width:48ch">Tell us which events matter to you and what you want out of the room. A partnership lead replies within 48 hours with a proposal built around those goals.</p>
+            </div>
+            <div style="flex:1 1 320px;min-width:0">
+              <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,220px),1fr));gap:18px">
+                <label style="display:flex;flex-direction:column;gap:9px;font-size:12px;letter-spacing:0.14em;text-transform:uppercase;color:#fff">Organisation
+                  <input type="text" placeholder="Company or institution" style="height:52px;padding:0 15px;border:1px solid rgba(255,255,255,0.32);border-radius:2px;font-size:16px;color:#fff;background:#000" />
+                </label>
+                <label style="display:flex;flex-direction:column;gap:9px;font-size:12px;letter-spacing:0.14em;text-transform:uppercase;color:#fff">Contact name
+                  <input type="text" placeholder="Full name" style="height:52px;padding:0 15px;border:1px solid rgba(255,255,255,0.32);border-radius:2px;font-size:16px;color:#fff;background:#000" />
+                </label>
+                <label style="display:flex;flex-direction:column;gap:9px;font-size:12px;letter-spacing:0.14em;text-transform:uppercase;color:#fff">Email
+                  <input type="email" placeholder="name@organisation.com" style="height:52px;padding:0 15px;border:1px solid rgba(255,255,255,0.32);border-radius:2px;font-size:16px;color:#fff;background:#000" />
+                </label>
+                <label style="display:flex;flex-direction:column;gap:9px;font-size:12px;letter-spacing:0.14em;text-transform:uppercase;color:#fff">Phone
+                  <input type="tel" placeholder="+254" style="height:52px;padding:0 15px;border:1px solid rgba(255,255,255,0.32);border-radius:2px;font-size:16px;color:#fff;background:#000" />
+                </label>
+                <label style="display:flex;flex-direction:column;gap:9px;font-size:12px;letter-spacing:0.14em;text-transform:uppercase;color:#fff">Events of interest
+                  <select style="height:52px;padding:0 12px;border:1px solid rgba(255,255,255,0.32);border-radius:2px;font-size:16px;color:#fff;background:#000"><option>All four 2026 schools</option><option>Cape Town, October</option><option>Kuala Lumpur, November</option><option>Bali, December</option><option>Mombasa, December</option></select>
+                </label>
+                <label style="display:flex;flex-direction:column;gap:9px;font-size:12px;letter-spacing:0.14em;text-transform:uppercase;color:#fff">Tier of interest
+                  <select style="height:52px;padding:0 12px;border:1px solid rgba(255,255,255,0.32);border-radius:2px;font-size:16px;color:#fff;background:#000"><option>Platinum, $15,000</option><option>Gold, $7,500</option><option>Silver, $4,000</option><option>Bronze, $2,000</option><option>Entry package or add-on</option><option>Not decided yet</option></select>
+                </label>
+              </div>
+              <label style="display:flex;flex-direction:column;gap:9px;margin-top:18px;font-size:12px;letter-spacing:0.14em;text-transform:uppercase;color:#fff">Goals
+                <textarea rows="4" placeholder="What would make this partnership worthwhile for your organisation?" style="padding:14px 15px;border:1px solid rgba(255,255,255,0.32);border-radius:2px;font-size:16px;color:#fff;background:#000;resize:vertical"></textarea>
+              </label>
+              <button style="margin-top:24px;background:#00BF63;border:0;color:#000;padding:18px 32px;min-height:48px;cursor:pointer;font-size:12px;letter-spacing:0.14em;text-transform:uppercase;border-radius:2px">Send enquiry</button>
+              <p style="margin:16px 0 0;color:#9a9a9a;font-size:13px;line-height:1.6">Replies within 48 hours, Monday to Friday.</p>
+            </div>
+          </div>
+        </section>
+      </main>
+      </sc-if>
+
+      <sc-if value="{{ isNotFound }}" hint-placeholder-val="{{ false }}">
+      <main data-screen-label="404">
+        <section style="position:relative;overflow:hidden;background:#fff;padding:clamp(60px,9cqw,140px) clamp(20px,4cqw,56px)">
+          <svg viewBox="0 0 800 420" preserveAspectRatio="xMidYMid slice" aria-hidden="true" style="position:absolute;inset:0;width:100%;height:100%;pointer-events:none;opacity:0.65"><g stroke="#00BF63" stroke-width="0.7" fill="none" opacity="0.5"><path d="M70 70 200 180 130 320 320 80 420 240 520 130 610 300 720 110"></path><path d="M200 180 420 240 520 130 720 110"></path><path d="M130 320 320 380 610 300"></path></g><g fill="#00BF63" opacity="0.7"><circle cx="70" cy="70" r="2.4"></circle><circle cx="200" cy="180" r="3.4"></circle><circle cx="130" cy="320" r="2.4"></circle><circle cx="320" cy="80" r="2.2"></circle><circle cx="420" cy="240" r="3.2"></circle><circle cx="520" cy="130" r="2.6"></circle><circle cx="610" cy="300" r="3"></circle><circle cx="720" cy="110" r="2.4"></circle><circle cx="320" cy="380" r="2.4"></circle></g></svg>
+          <div style="position:relative;max-width:1180px;margin:0 auto">
+            <div style="color:#000;font-size:clamp(56px,11cqw,140px);line-height:0.9;letter-spacing:-0.02em">404</div>
+            <h1 style="margin:clamp(18px,2.4cqw,30px) 0 0;color:#000;font-size:clamp(26px,3.8cqw,46px);line-height:1.06;text-transform:uppercase;max-width:20ch">This page is not on the site</h1>
+            <p style="margin:20px 0 clamp(34px,4cqw,52px);color:#4a4a4a;font-size:17px;line-height:1.65;max-width:52ch">The address may have changed, or the course it referred to has already run. These four routes cover most of what people arrive looking for.</p>
+            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,200px),1fr));gap:1px;background:#dcdcdc">
+              <button onClick="{{ nav.events }}" style="text-align:left;background:#fff;border:0;padding:clamp(22px,2.6cqw,30px);cursor:pointer;display:flex;flex-direction:column;gap:10px">
+                <span style="font-size:11px;letter-spacing:0.18em;text-transform:uppercase;color:#000">Calendar</span>
+                <span style="color:#000;font-size:16.5px;line-height:1.35">The 2026 schools</span>
+              </button>
+              <button onClick="{{ nav.services }}" style="text-align:left;background:#fff;border:0;padding:clamp(22px,2.6cqw,30px);cursor:pointer;display:flex;flex-direction:column;gap:10px">
+                <span style="font-size:11px;letter-spacing:0.18em;text-transform:uppercase;color:#000">Services</span>
+                <span style="color:#000;font-size:16.5px;line-height:1.35">The three pillars</span>
+              </button>
+              <button onClick="{{ nav.register }}" style="text-align:left;background:#fff;border:0;padding:clamp(22px,2.6cqw,30px);cursor:pointer;display:flex;flex-direction:column;gap:10px">
+                <span style="font-size:11px;letter-spacing:0.18em;text-transform:uppercase;color:#000">Registration</span>
+                <span style="color:#000;font-size:16.5px;line-height:1.35">Register a delegate</span>
+              </button>
+              <button onClick="{{ nav.sponsorship }}" style="text-align:left;background:#fff;border:0;padding:clamp(22px,2.6cqw,30px);cursor:pointer;display:flex;flex-direction:column;gap:10px">
+                <span style="font-size:11px;letter-spacing:0.18em;text-transform:uppercase;color:#000">Sponsorship</span>
+                <span style="color:#000;font-size:16.5px;line-height:1.35">Partner with a school</span>
+              </button>
+              <button onClick="{{ nav.contact }}" style="text-align:left;background:#fff;border:0;padding:clamp(22px,2.6cqw,30px);cursor:pointer;display:flex;flex-direction:column;gap:10px">
+                <span style="font-size:11px;letter-spacing:0.18em;text-transform:uppercase;color:#000">Contact</span>
+                <span style="color:#000;font-size:16.5px;line-height:1.35">Programme office</span>
+              </button>
+            </div>
+          </div>
+        </section>
+      </main>
+      </sc-if>
+
+      <footer style="background:#000;padding:clamp(46px,6cqw,88px) clamp(20px,4cqw,56px) clamp(28px,3cqw,40px)">
+        <div style="max-width:1180px;margin:0 auto">
+          <div style="display:flex;flex-wrap:wrap;gap:clamp(22px,3cqw,56px);align-items:flex-end;padding-bottom:clamp(34px,4cqw,52px);margin-bottom:clamp(34px,4cqw,52px);border-bottom:1px solid #dcdcdc">
+            <div style="flex:1 1 300px;min-width:0">
+              <div style="font-size:11px;letter-spacing:0.22em;text-transform:uppercase;color:#00BF63;margin-bottom:14px">Newsletter</div>
+              <div style="color:#fff;font-size:clamp(18px,2cqw,24px);line-height:1.25;max-width:32ch">Course dates and early-bird deadlines, sent when they are confirmed.</div>
+            </div>
+            <form onSubmit="{{ subscribe }}" style="flex:1 1 300px;min-width:0;display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end">
+              <label style="flex:1 1 200px;min-width:0;display:flex;flex-direction:column;gap:9px;font-size:11px;letter-spacing:0.16em;text-transform:uppercase;color:#00BF63">Email address
+                <input type="email" value="{{ subEmail }}" onChange="{{ setSubEmail }}" placeholder="name@institution.go.ke" style="width:100%;height:52px;padding:0 15px;border:1px solid #6b6b6b;border-radius:2px;font-size:16px;color:#fff;background:#000" />
+              </label>
+              <button type="submit" style="flex:0 0 auto;background:#00BF63;border:0;color:#000;padding:0 26px;height:52px;cursor:pointer;font-size:12px;letter-spacing:0.14em;text-transform:uppercase;white-space:nowrap;border-radius:2px">{{ subLabel }}</button>
+            </form>
+            <sc-if value="{{ subscribed }}" hint-placeholder-val="{{ false }}">
+              <p style="flex:1 1 100%;margin:0;color:#00BF63;font-size:13.5px;line-height:1.6">Confirmed. A note goes out whenever new dates are published.</p>
+            </sc-if>
+          </div>
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,200px),1fr));gap:clamp(28px,4cqw,56px)">
+            <div>
+              <div style="display:flex;align-items:center;gap:11px;margin-bottom:18px">
+                <svg width="22" height="26" viewBox="0 0 26 30" aria-hidden="true"><path d="M13 1.6 24.4 5.6v9.6c0 7-4.9 11.6-11.4 13.1C6.5 26.8 1.6 22.2 1.6 15.2V5.6L13 1.6Z" fill="none" stroke="#00BF63" stroke-width="1.5"></path><circle cx="13" cy="12.2" r="4.1" fill="none" stroke="#fff" stroke-width="1.1"></circle><path d="M13 16.3v4.2M8.9 12.2H4.6M21.4 12.2h-4.3" stroke="#fff" stroke-width="1.1" stroke-linecap="round"></path><circle cx="13" cy="12.2" r="1.2" fill="#00BF63"></circle></svg>
+                <span style="color:#fff;font-size:14px;letter-spacing:0.16em;text-transform:uppercase">Prosperminds</span>
+              </div>
+              <p style="margin:0;color:rgba(255,255,255,0.6);font-size:14px;line-height:1.7;max-width:32ch">Protecting and growing the mind to achieve prosperity.</p>
+            </div>
+            <div>
+              <div style="color:#00BF63;font-size:11px;letter-spacing:0.22em;text-transform:uppercase;margin-bottom:16px">Site</div>
+              <div style="display:flex;flex-direction:column;gap:11px;align-items:flex-start">
+                <sc-for list="{{ siteNav }}" as="l" hint-placeholder-count="5">
+                  <button onClick="{{ l.go }}" style="background:none;border:0;padding:0;cursor:pointer;color:rgba(255,255,255,0.72);font-size:14px">{{ l.label }}</button>
+                </sc-for>
+              </div>
+            </div>
+            <div>
+              <div style="color:#00BF63;font-size:11px;letter-spacing:0.22em;text-transform:uppercase;margin-bottom:16px">Nairobi HQ</div>
+              <p style="margin:0;color:rgba(255,255,255,0.72);font-size:14px;line-height:1.8">Twiga Towers, Moi Avenue<br />Nairobi, Kenya<br />Mon to Fri, 8am to 5pm</p>
+            </div>
+            <div>
+              <div style="color:#00BF63;font-size:11px;letter-spacing:0.22em;text-transform:uppercase;margin-bottom:16px">Contact</div>
+              <p style="margin:0;color:rgba(255,255,255,0.72);font-size:14px;line-height:1.8">info@prosper-minds.com<br />+254 740 582302<br />+254 741 174909</p>
+            </div>
+          </div>
+          <div style="display:flex;flex-wrap:wrap;gap:16px;margin-top:clamp(34px,4cqw,56px);padding-top:24px;border-top:1px solid rgba(255,255,255,0.14)">
+            <span style="color:rgba(255,255,255,0.45);font-size:12.5px">&copy; 2026 Prosperminds. All rights reserved.</span>
+            <button onClick="{{ nav.notfound }}" style="margin-left:auto;background:none;border:0;padding:0;cursor:pointer;color:rgba(255,255,255,0.45);font-size:12.5px">Broken link demo</button>
+          </div>
+        </div>
+      </footer>
+
+    </div>
+  </div>
+</div>
+
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1500,&quot;height&quot;:1000},&quot;startPage&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;home&quot;,&quot;events&quot;,&quot;event&quot;,&quot;register&quot;,&quot;about&quot;,&quot;services&quot;,&quot;sponsorship&quot;,&quot;contact&quot;,&quot;notfound&quot;],&quot;default&quot;:&quot;home&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Prototype&quot;},&quot;device&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;desktop&quot;,&quot;mobile&quot;],&quot;default&quot;:&quot;desktop&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Prototype&quot;},&quot;showTreatmentNotes&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:false,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Prototype&quot;}}">
+const EVENTS = [
+  {
+    title: "Future-Ready PFM Leaders in the Age of AI & Automation",
+    city: "Cape Town, South Africa",
+    dates: "19 to 23 October 2026",
+    dayRange: "19–23", monthYear: "Oct 2026",
+    audienceShort: "Treasury and budget leadership",
+    earlyBird: "20% until 15 Jul",
+    past: false,
+    summary: "A five-day executive school on running a public finance function when automation, analytics and AI are already changing how reporting, audit and control work.",
+    agenda: [
+      { day: "Day 1", title: "Leadership context", items: ["The public finance mandate under fiscal pressure", "Where automation changes accountability, and where it does not", "Country case reviews: Kenya, Ghana, Rwanda"] },
+      { day: "Day 2", title: "Process and data foundations", items: ["Mapping the reporting cycle end to end", "Data quality controls that survive audit", "Building a single source of financial truth"] },
+      { day: "Day 3", title: "Automation in practice", items: ["Reconciliation, consolidation and variance workflows", "Robotic process automation for treasury operations", "Controls and segregation of duties in automated flows"] },
+      { day: "Day 4", title: "AI-assisted analysis", items: ["Forecasting revenue and expenditure with public data", "Anomaly detection for audit and fraud risk", "Governance, ethics and procurement of AI tools"] },
+      { day: "Day 5", title: "Synthesis and certification", items: ["Departmental action plan clinic", "Peer review and faculty feedback", "Certification and CPD hours"] }
+    ],
+    audience: ["Accountants General and deputies", "Chief accountants and finance directors", "Internal and external auditors", "Budget controllers and treasury leaders", "Heads of ICT in finance ministries"]
+  },
+  {
+    title: "IPSAS Clean-Audit Mastery & Intelligent Assets Accounting",
+    city: "Kuala Lumpur, Malaysia",
+    dates: "16 to 20 November 2026",
+    dayRange: "16–20", monthYear: "Nov 2026",
+    audienceShort: "Audit and financial reporting",
+    earlyBird: "15% until 20 Aug",
+    past: false,
+    summary: "Accrual accounting, asset recognition and audit readiness under IPSAS, worked through with real statements and real audit findings.",
+    agenda: [
+      { day: "Day 1", title: "The clean audit mandate", items: ["What auditors look for first", "Common qualification triggers", "Governance of the reporting timetable"] },
+      { day: "Day 2", title: "IPSAS core standards", items: ["Presentation and disclosure requirements", "Revenue from exchange and non-exchange transactions", "Provisions, contingencies and commitments"] },
+      { day: "Day 3", title: "Assets and infrastructure", items: ["Recognition, measurement and componentisation", "Impairment testing for public assets", "Asset registers that reconcile to the ledger"] },
+      { day: "Day 4", title: "Consolidation and transition", items: ["Controlled entities and consolidation boundaries", "Cash to accrual transition sequencing", "Working with IFRS-reporting state corporations"] },
+      { day: "Day 5", title: "Audit file and certification", items: ["Building a defensible audit file", "Responding to management letters", "Certification and CPD hours"] }
+    ],
+    audience: ["Financial reporting managers", "Auditors General and audit managers", "IPSAS transition project leads", "Asset and infrastructure accountants", "Public entity finance directors"]
+  },
+  {
+    title: "Data-Driven Budget Control, Revenue Growth & Funding Breakthroughs",
+    city: "Bali, Indonesia",
+    dates: "7 to 11 December 2026",
+    dayRange: "7–11", monthYear: "Dec 2026",
+    audienceShort: "Budget and revenue functions",
+    earlyBird: "15% until 10 Sep",
+    past: false,
+    summary: "Budget execution, revenue mobilisation and funding strategy, taught through the numbers a controller actually reports each month.",
+    agenda: [
+      { day: "Day 1", title: "Fiscal strategy context", items: ["Reading the fiscal position honestly", "Expenditure pressure and political constraint", "Setting control priorities for the year"] },
+      { day: "Day 2", title: "Budget control mechanics", items: ["Commitment control and cash rationing", "Virement, reallocation and supplementary budgets", "In-year monitoring that changes decisions"] },
+      { day: "Day 3", title: "Revenue growth", items: ["Own-source revenue diagnostics", "Compliance analytics and collection efficiency", "Non-tax revenue and user charges"] },
+      { day: "Day 4", title: "Funding and partnerships", items: ["Concessional finance and donor conditions", "Public private partnership fundamentals", "Debt sustainability basics for controllers"] },
+      { day: "Day 5", title: "Synthesis and certification", items: ["Building the departmental control calendar", "Action plan presentations", "Certification and CPD hours"] }
+    ],
+    audience: ["Budget controllers and analysts", "Revenue authority managers", "County and provincial finance officers", "Planning and economic affairs officials", "Debt management office staff"]
+  },
+  {
+    title: "The Christmas PFM Mastery School for the Digital Finance Era",
+    city: "Mombasa, Kenya",
+    dates: "14 to 18 December 2026",
+    dayRange: "14–18", monthYear: "Dec 2026",
+    audienceShort: "Cross-functional finance teams",
+    earlyBird: "10% until 15 Oct",
+    past: false,
+    summary: "A year-end school covering the full PFM cycle with a digital finance emphasis, designed for teams attending together.",
+    agenda: [
+      { day: "Day 1", title: "The PFM cycle in review", items: ["Where the year was won and lost", "Digital maturity self-assessment", "Setting team priorities for the new year"] },
+      { day: "Day 2", title: "Systems and integration", items: ["IFMIS and payroll integration issues", "Interfacing revenue and expenditure systems", "Data governance responsibilities"] },
+      { day: "Day 3", title: "Reporting and disclosure", items: ["Year-end closure discipline", "Sustainability and climate-related disclosure basics", "Reporting to oversight committees"] },
+      { day: "Day 4", title: "Analytics for decisions", items: ["Dashboards that leadership actually uses", "Cost analysis for service delivery", "Scenario planning workshop"] },
+      { day: "Day 5", title: "Synthesis and certification", items: ["Team action plans", "Faculty roundtable", "Certification and CPD hours"] }
+    ],
+    audience: ["Finance department teams", "Sub-national finance officers", "Procurement and supply chain leads", "Monitoring and evaluation officers", "Public sector ICT managers"]
+  }
+];
+
+const PILLARS = [
+  {
+    key: "pfm",
+    num: "01",
+    name: "PFM, IPSAS & IFRS Mastery",
+    promise: "Build the technical foundation your finance teams need.",
+    intro: "Accrual accounting, disclosure and audit readiness for institutions that are judged on their financial statements.",
+    outcomes: ["Statements that reconcile to the ledger and survive audit", "A defensible position on asset recognition and measurement", "A transition plan from cash to accrual reporting", "Reporting timetables that hold under pressure"],
+    topics: ["IPSAS presentation and disclosure", "Revenue and expenditure recognition", "Asset registers and componentisation", "Consolidation boundaries", "Audit file construction", "IFRS for state corporations"]
+  },
+  {
+    key: "data",
+    num: "02",
+    name: "Data Analytics & AI Automation",
+    promise: "Transform reporting from burden to strategic advantage.",
+    intro: "Practical analytics and automation for finance functions that still spend most of the month closing the books.",
+    outcomes: ["Reconciliation and consolidation work reduced to hours", "Forecasts leadership is willing to act on", "Anomaly detection built into the audit cycle", "A governance position on AI tools before procurement"],
+    topics: ["Reporting cycle automation", "Data quality controls", "Revenue and expenditure forecasting", "Fraud and anomaly analytics", "Dashboard design for oversight", "AI governance and procurement"]
+  },
+  {
+    key: "sustainability",
+    num: "03",
+    name: "Sustainability Reporting",
+    promise: "Meet global standards while strengthening transparency.",
+    intro: "Climate and sustainability disclosure for public institutions now being asked for it by lenders, auditors and citizens.",
+    outcomes: ["A disclosure scope decision you can defend", "Data collection assigned to real owners", "Alignment with lender and donor requirements", "Reporting integrated with the financial calendar"],
+    topics: ["Disclosure frameworks and their public sector fit", "Materiality assessment", "Emissions and resource data collection", "Climate risk in fiscal planning", "Assurance readiness", "Reporting to oversight and lenders"]
+  }
+];
+
+const TESTIMONIALS = [
+  { quote: "The reconciliation workflow we built during the automation module cut our monthly reporting time by nine days. It is still running two years later.", role: "Chief Accountant", org: "Ministry of Finance, Kenya" },
+  { quote: "We arrived with three unresolved audit queries on asset recognition. We left with a documented position on all three and the working papers to support it.", role: "Auditor General's office", org: "Ghana" },
+  { quote: "The faculty had done the job. That mattered. Nobody was explaining accrual accounting to us from a textbook.", role: "Treasury Leader", org: "Federal Ministry of Finance, Nigeria" },
+  { quote: "Our budget monitoring pack went from a backward-looking report to something the cabinet secretary reads before decisions. That change started in Bali.", role: "Strategy Director", org: "Ministry of Finance, Rwanda" }
+];
+
+const NOTES = {
+  home: [
+    { tone: "White", text: "Hero. White with the node motif in green, black uppercase headline. Contrast comes from type size and the hairline grid, not from a dark field." },
+    { tone: "White", text: "Four flagship events. The designed banner tile is the top of each card, full bleed to the card edge, with a hairline under it." },
+    { tone: "Grey", text: "Three pillars. Near-white #F6F6F4 to separate the section without going dark." },
+    { tone: "White", text: "Track record. The 25 years and 875 leaders figures set large in black." },
+    { tone: "Grey", text: "Testimonials. Bordered cards on near-white, full quotes visible, no carousel to break." },
+    { tone: "Green", text: "Closing band. The single green field on the page, carrying a real deadline. Black text on green for contrast." }
+  ],
+  events: [
+    { tone: "White", text: "Page header. White, with a green rule marking the eyebrow label. No dark band." },
+    { tone: "White", text: "Calendar list. Each row leads with the event's own banner tile, then the date, then the detail." },
+    { tone: "Grey", text: "Banner library. Near-white surface so the banners themselves carry the colour. Download and copy actions per tile." }
+  ],
+  event: [
+    { tone: "White", text: "Event header on white. The early-bird cell is the one green block, because it carries a real deadline." },
+    { tone: "White", text: "Agenda. Five-day structure, day numerals in black at display size." },
+    { tone: "Grey", text: "Pricing tiers. Selected tier marked by a 2px green border rather than a coloured card." },
+    { tone: "Black", text: "Closing call to action. The one deliberate dark band on this page, before the footer." }
+  ],
+  register: [
+    { tone: "White", text: "Step rail. White, with the active step marked by a 3px green rule and completed steps in grey." },
+    { tone: "White", text: "Form surface. Single column, real labels, 52px controls." },
+    { tone: "White", text: "Invoice summary. Bordered panel on the right, updates live, total set large in black." },
+    { tone: "Black", text: "Confirmation. The one dark block in the flow, used to mark the commitment as complete." }
+  ],
+  about: [
+    { tone: "White", text: "Statement header. The institutional claim set large in black on white." },
+    { tone: "White", text: "History and faculty. Long-form reading measure capped at 62 characters." },
+    { tone: "White", text: "Figures band. 25 years, 875 leaders, 14 countries, five-day format, in a hairline grid." },
+    { tone: "White", text: "Pillars in depth, each linking through to its service page." }
+  ],
+  services: [
+    { tone: "White", text: "Pillar header with the three-way switch. Active pillar marked by a green rule above the label." },
+    { tone: "White", text: "Outcomes and curriculum. Two column at desktop, stacked on mobile, curriculum panel on near-white." },
+    { tone: "Grey", text: "Related events band on near-white, pulling the calendar into the service page." }
+  ],
+  contact: [
+    { tone: "White", text: "Header with the Nairobi address, hours and both phone numbers in a hairline grid." },
+    { tone: "White", text: "Form and map. Labelled fields, map drawn as a flat light schematic with the route in green." }
+  ],
+  sponsorship: [
+    { tone: "White", text: "Statement header. The claim is the boldest type on the site, matching the energy of the live sponsorship page rather than the calmer marketing pages." },
+    { tone: "White", text: "The four events, as a hairline grid. Mombasa is included, which the live page is missing." },
+    { tone: "White", text: "Tier matrix. Four columns, each with its real slot count, ordered by value rather than highlighted with colour." },
+    { tone: "Grey", text: "Entry packages and add-ons on near-white, set as two lists rather than twelve identical cards." },
+    { tone: "Black", text: "Enquiry form on the one dark band, with the 48-hour response promise stated." }
+  ],
+  notfound: [
+    { tone: "White", text: "White with the node motif and four routes out. No illustration, no apology copy." }
+  ]
+};
+
+const SPONSOR_TIERS = [
+  { name: "Platinum", price: "$15,000", slots: "2 slots remaining", benefits: ["Keynote speaking slot on day one", "Six VIP delegate passes", "Primary branding on stage, badges and delegate materials", "Premium exhibition space", "Press release and post-event feature"] },
+  { name: "Gold", price: "$7,500", slots: "4 slots remaining", benefits: ["Panel speaking slot", "Three VIP delegate passes", "Branding on programme and event signage", "Standard exhibition space", "Named in the post-event report"] },
+  { name: "Silver", price: "$4,000", slots: "6 slots remaining", benefits: ["Two delegate passes", "Branding on programme and delegate bag", "Shared exhibition table", "Logo on the event page"] },
+  { name: "Bronze", price: "$2,000", slots: "8 slots remaining", benefits: ["One delegate pass", "Logo on programme and event page", "Delegate list summary after the event"] }
+];
+
+const SPONSOR_PACKAGES = [
+  { name: "Gala Dinner", price: "$1,000", note: "Host the closing dinner. Branding on table settings, a two-minute address before service and named acknowledgement in the programme." },
+  { name: "Digital Experience", price: "$1,000", note: "Sponsor the session recordings and delegate portal. Branding on the login screen, session intros and follow-up mailings." },
+  { name: "Exhibitor", price: "$1,000", note: "A staffed stand in the delegate break area for all five days, with one delegate pass included." }
+];
+
+const SPONSOR_ADDONS = [
+  { name: "Lanyard sponsorship", note: "Your mark on every delegate lanyard for the full five days." },
+  { name: "Delegate bag", note: "Branding on the bag issued to each delegate at registration." },
+  { name: "Conference Wi-Fi", note: "Named on the network and the daily access card." },
+  { name: "Mobile app", note: "Branding on the agenda app splash and session reminders." },
+  { name: "Water station", note: "Branding at refreshment points across the venue." }
+];
+
+const PRICES = { regular: 599, vip: 1999, vvip: 2899 };
+
+class Component extends DCLogic {
+  state = {
+    page: null, device: null, notes: null, menuOpen: false,
+    filter: "upcoming", ev: 0, pillar: "pfm",
+    step: 1, tier: "regular", count: 2, consentTerms: false, consentData: false,
+    subEmail: "", subscribed: false
+  };
+
+  go(page, extra) {
+    this.setState(Object.assign({ page: page, menuOpen: false }, extra || {}));
+    if (typeof window !== "undefined") window.scrollTo(0, 0);
+  }
+
+  money(n) { return "USD " + n.toLocaleString("en-US"); }
+
+  renderVals() {
+    const p = this.props || {};
+    const s = Object.assign({}, this.state, {
+      page: this.state.page || p.startPage || "home",
+      device: this.state.device || p.device || "desktop",
+      notes: this.state.notes === null ? !!p.showTreatmentNotes : this.state.notes
+    });
+    const isMobileView = s.device === "mobile";
+    const pageLabels = { home: "Home", events: "Events", event: "Event detail", register: "Register", about: "About", services: "Services", contact: "Contact", sponsorship: "Sponsorship", notfound: "404" };
+
+    const nav = {};
+    Object.keys(pageLabels).forEach(k => { nav[k] = () => this.go(k); });
+
+    const tabs = Object.keys(pageLabels).map(k => ({
+      label: pageLabels[k], go: nav[k],
+      bg: s.page === k ? "#00BF63" : "rgba(255,255,255,0.07)",
+      fg: s.page === k ? "#000" : "rgba(255,255,255,0.7)"
+    }));
+
+    const siteNavDef = [["home", "Home"], ["events", "Events"], ["services", "Services"], ["about", "About"], ["sponsorship", "Sponsorship"], ["contact", "Contact"]];
+    const siteNav = siteNavDef.map(([k, label]) => ({
+      label: label, go: nav[k],
+      color: s.page === k ? "#000" : "#6b6b6b",
+      rule: s.page === k ? "#00BF63" : "transparent"
+    }));
+
+    const events = EVENTS.map((e, i) => Object.assign({}, e, {
+      index: "0" + (i + 1),
+      slotId: "banner-" + (i + 1),
+      priceFrom: "From USD 599",
+      duration: "5 days",
+      open: () => this.go("event", { ev: i })
+    }));
+
+    const pillars = PILLARS.map(p => Object.assign({}, p, {
+      open: () => this.go("services", { pillar: p.key })
+    }));
+
+    const ev = events[s.ev];
+    const agendaDays = ev.agenda.map((d, i) => Object.assign({}, d, { num: "0" + (i + 1) }));
+
+    const price = PRICES[s.tier];
+    const subtotal = price * s.count;
+    const discount = Math.round(subtotal * 0.2);
+    const total = subtotal - discount;
+    const tierLabels = { regular: "Regular", vip: "VIP", vvip: "VVIP" };
+
+    const tiers = [
+      { key: "regular", name: "Regular", price: "USD 599", perks: ["Five-day course and all materials", "CPD certification", "Daily lunch and refreshments", "Delegate handbook and templates"] },
+      { key: "vip", name: "VIP", price: "USD 1,999", perks: ["Everything in Regular", "Executive roundtable with faculty", "Priority seating and reserved workspace", "One post-course advisory call"] },
+      { key: "vvip", name: "VVIP", price: "USD 2,899", perks: ["Everything in VIP", "Gala dinner seat at the faculty table", "Airport transfers and concierge", "Two post-course advisory sessions"] }
+    ].map(t => ({
+      key: t.key, name: t.name, price: t.price, perks: t.perks,
+      select: () => this.setState({ tier: t.key }),
+      border: s.tier === t.key ? "2px solid #00BF63" : "1px solid #e2e2e2",
+      chip: s.tier === t.key ? "Selected" : "Select",
+      chipBg: s.tier === t.key ? "#00BF63" : "#fff",
+      chipFg: s.tier === t.key ? "#000" : "#000"
+    }));
+
+    const stepDefs = ["Event and tickets", "Contact and billing", "Delegates", "Review and consent", "Confirmation"];
+    const steps = stepDefs.map((label, i) => ({
+      n: "0" + (i + 1), label: label,
+      color: s.step === i + 1 ? "#000" : s.step > i + 1 ? "#6b6b6b" : "#6b6b6b",
+      rule: s.step === i + 1 ? "#00BF63" : s.step > i + 1 ? "rgba(0,191,99,0.45)" : "#dcdcdc"
+    }));
+
+    const delegateRows = [];
+    for (let i = 0; i < s.count; i++) delegateRows.push({ n: "Delegate 0" + (i + 1), first: i === 0 ? "Lead delegate" : "Delegate" });
+
+    const canContinue = s.step !== 4 || (s.consentTerms && s.consentData);
+    const filtered = EVENTS.map((e, i) => events[i]).filter(e => (s.filter === "upcoming" ? !e.past : e.past));
+
+    return {
+      pageTitle: pageLabels[s.page] || "Page",
+      isHome: s.page === "home", isEvents: s.page === "events", isEvent: s.page === "event",
+      isRegister: s.page === "register", isAbout: s.page === "about", isServices: s.page === "services",
+      isContact: s.page === "contact", isNotFound: s.page === "notfound",
+      isSponsorship: s.page === "sponsorship",
+      sponsorTiers: SPONSOR_TIERS, sponsorPackages: SPONSOR_PACKAGES, sponsorAddons: SPONSOR_ADDONS,
+      isMobileView: isMobileView, isDesktop: !isMobileView,
+      frameWidth: isMobileView ? "390px" : "1440px",
+      deskBg: isMobileView ? "transparent" : "#00BF63", deskFg: isMobileView ? "rgba(255,255,255,0.7)" : "#000",
+      mobBg: isMobileView ? "#00BF63" : "transparent", mobFg: isMobileView ? "#000" : "rgba(255,255,255,0.7)",
+      setDesktop: () => this.setState({ device: "desktop" }),
+      setMobile: () => this.setState({ device: "mobile" }),
+      notesOn: s.notes, toggleNotes: () => this.setState({ notes: !s.notes }),
+      notesBg: s.notes ? "#00BF63" : "transparent", notesFg: s.notes ? "#000" : "rgba(255,255,255,0.7)",
+      notes: (NOTES[s.page] || []).map(n => ({
+        tone: n.tone.toUpperCase(), text: n.text,
+        chipBg: n.tone === "Black" ? "#000" : n.tone === "Green" ? "#00BF63" : n.tone === "Grey" ? "#f6f6f4" : "#fff",
+        chipFg: n.tone === "Black" ? "#fff" : "#000"
+      })),
+      menuOpen: s.menuOpen && isMobileView,
+      toggleMenu: () => {
+        this.setState({ menuOpen: !s.menuOpen });
+        if (!s.menuOpen && typeof window !== "undefined") window.scrollTo(0, 0);
+      },
+      tabs: tabs, siteNav: siteNav, nav: nav,
+      heroFacts: [
+        { value: "25", label: "Years collective experience" },
+        { value: "875", label: "Leaders trained" },
+        { value: "4", label: "Schools in 2026" },
+        { value: "5", label: "Day residential format" }
+      ],
+      stats: [
+        { value: "25", label: "Years collective experience" },
+        { value: "875", label: "Leaders trained" },
+        { value: "14", label: "Countries represented" },
+        { value: "5", label: "Days per school" }
+      ],
+      events: events, pillars: pillars, testimonials: TESTIMONIALS,
+      filters: [
+        { label: "Upcoming", go: () => this.setState({ filter: "upcoming" }), bg: s.filter === "upcoming" ? "#000" : "#fff", fg: s.filter === "upcoming" ? "#fff" : "#000" },
+        { label: "Past cohorts", go: () => this.setState({ filter: "past" }), bg: s.filter === "past" ? "#000" : "#fff", fg: s.filter === "past" ? "#fff" : "#000" }
+      ],
+      filteredEvents: filtered,
+      resultCount: filtered.length + (s.filter === "upcoming" ? " scheduled schools" : " past cohorts on record"),
+      showPastNote: s.filter === "past",
+      ev: ev, agendaDays: agendaDays, tiers: tiers,
+      pillarTabs: PILLARS.map(p => ({
+        name: p.name, go: () => this.setState({ pillar: p.key }),
+        color: s.pillar === p.key ? "#000" : "#6b6b6b",
+        rule: s.pillar === p.key ? "#00BF63" : "#dcdcdc"
+      })),
+      pillar: PILLARS.find(p => p.key === s.pillar) || PILLARS[0],
+      step: s.step, steps: steps,
+      stepIsOne: s.step === 1, stepIsTwo: s.step === 2, stepIsThree: s.step === 3,
+      stepIsFour: s.step === 4, stepIsFive: s.step === 5,
+      stepLabel: "Step " + s.step + " of 5",
+      showNav: s.step < 5, canBack: s.step > 1,
+      next: () => { if (canContinue) this.setState({ step: Math.min(5, s.step + 1) }); if (typeof window !== "undefined") window.scrollTo(0, 0); },
+      back: () => { this.setState({ step: Math.max(1, s.step - 1) }); if (typeof window !== "undefined") window.scrollTo(0, 0); },
+      restart: () => this.setState({ step: 1, consentTerms: false, consentData: false }),
+      nextLabel: s.step === 4 ? "Confirm and generate invoice" : "Continue",
+      nextBg: canContinue ? "#00BF63" : "#e2e2e2",
+      nextFg: canContinue ? "#000" : "#9a9a9a",
+      count: s.count,
+      inc: () => this.setState({ count: Math.min(12, s.count + 1) }),
+      dec: () => this.setState({ count: Math.max(1, s.count - 1) }),
+      delegateRows: delegateRows,
+      tierName: tierLabels[s.tier],
+      lineLabel: tierLabels[s.tier] + " delegate x " + s.count,
+      unitPrice: this.money(price),
+      subtotal: this.money(subtotal),
+      discountLine: "- " + this.money(discount),
+      total: this.money(total),
+      consentTerms: s.consentTerms, consentData: s.consentData,
+      termsBox: s.consentTerms ? "#00BF63" : "#fff", dataBox: s.consentData ? "#00BF63" : "#fff",
+      termsMark: s.consentTerms ? "✓" : "", dataMark: s.consentData ? "✓" : "",
+      subEmail: s.subEmail, subscribed: s.subscribed,
+      subLabel: s.subscribed ? "Subscribed" : "Subscribe",
+      setSubEmail: (e) => this.setState({ subEmail: e.target.value, subscribed: false }),
+      subscribe: (e) => { e.preventDefault(); if (s.subEmail.indexOf("@") > 0) this.setState({ subscribed: true }); },
+      toggleTerms: () => this.setState({ consentTerms: !s.consentTerms }),
+      toggleData: () => this.setState({ consentData: !s.consentData })
+    };
+  }
+}
+
+</script>
+</body>
+</html>

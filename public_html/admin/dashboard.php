@@ -215,8 +215,8 @@ include 'header.php';
                             <span style="font-weight:600;"><?php echo htmlspecialchars($item['category']); ?></span>
                             <span style="font-weight:700;color:var(--primary);"><?php echo accountingCurrency((float) $item['total']); ?></span>
                         </div>
-                        <div style="background:var(--gray-200);border-radius:20px;height:8px;">
-                            <div style="background:linear-gradient(90deg, #00B140, #0f766e);width:<?php echo $pct; ?>%;height:8px;border-radius:20px;"></div>
+                        <div style="background:var(--gray-200);border-radius:2px;height:8px;">
+                            <div style="background:var(--pma-green);width:<?php echo $pct; ?>%;height:8px;border-radius:2px;"></div>
                         </div>
                     </div>
                 <?php endforeach; ?>
@@ -251,11 +251,11 @@ include 'header.php';
                     <?php foreach ($recent as $r): ?>
                     <tr>
                         <td><strong><?php echo htmlspecialchars($r['first_name'] . ' ' . $r['last_name']); ?></strong></td>
-                        <td style="color:#475569;"><?php echo htmlspecialchars($r['email']); ?></td>
+                        <td style="color:#3d3d3d;"><?php echo htmlspecialchars($r['email']); ?></td>
                         <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="<?php echo htmlspecialchars($r['event_name']); ?>">
                             <?php echo htmlspecialchars($r['event_name']); ?>
                         </td>
-                        <td style="color:#94a3b8;white-space:nowrap;"><?php echo date('M d, Y', strtotime($r['created_at'])); ?></td>
+                        <td style="color:#6b6b6b;white-space:nowrap;"><?php echo date('M d, Y', strtotime($r['created_at'])); ?></td>
                     </tr>
                     <?php endforeach; ?>
                 <?php else: ?>
@@ -289,7 +289,7 @@ include 'header.php';
                         <tr>
                             <td>
                                 <strong><?php echo htmlspecialchars($invoice['first_name'] . ' ' . $invoice['last_name']); ?></strong><br>
-                                <span style="color:#94a3b8;font-size:12px;"><?php echo htmlspecialchars($invoice['organization'] ?: '-'); ?></span>
+                                <span style="color:#6b6b6b;font-size:12px;"><?php echo htmlspecialchars($invoice['organization'] ?: '-'); ?></span>
                             </td>
                             <td>
                                 <span class="badge <?php echo $invoice['payment_status'] === 'paid' ? 'badge-green' : ($invoice['payment_status'] === 'partial' ? 'badge-orange' : 'badge-red'); ?>">
@@ -360,8 +360,8 @@ include 'header.php';
                     </span>
                     <span style="font-size:12.5px;font-weight:700;color:var(--primary);"><?php echo $eb['total']; ?></span>
                 </div>
-                <div style="background:var(--gray-200);border-radius:20px;height:6px;">
-                    <div style="background:var(--primary);width:<?php echo $pct; ?>%;height:6px;border-radius:20px;"></div>
+                <div style="background:var(--gray-200);border-radius:2px;height:6px;">
+                    <div style="background:var(--primary);width:<?php echo $pct; ?>%;height:6px;border-radius:2px;"></div>
                 </div>
             </div>
             <?php endforeach; ?>
@@ -384,7 +384,7 @@ include 'header.php';
                     <?php $contribution = (float) $eventRow['revenue'] - (float) $eventRow['expenses']; ?>
                     <div style="padding:14px 20px;border-bottom:1px solid var(--gray-200);">
                         <div style="font-weight:700;color:var(--gray-800);"><?php echo htmlspecialchars($eventRow['title']); ?></div>
-                        <div style="font-size:12px;color:#94a3b8;margin:2px 0 8px;"><?php echo htmlspecialchars($eventRow['location'] . ' | ' . $eventRow['date_display']); ?></div>
+                        <div style="font-size:12px;color:#6b6b6b;margin:2px 0 8px;"><?php echo htmlspecialchars($eventRow['location'] . ' | ' . $eventRow['date_display']); ?></div>
                         <div style="display:flex;justify-content:space-between;font-size:12.5px;margin-bottom:4px;">
                             <span>Revenue</span>
                             <strong><?php echo accountingCurrency((float) $eventRow['revenue']); ?></strong>

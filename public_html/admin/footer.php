@@ -1,5 +1,5 @@
-        </div><!-- /.content-body -->
+        </div>
     </main>
-</div><!-- /.admin-wrapper -->
+</div>
 </body>
 </html>

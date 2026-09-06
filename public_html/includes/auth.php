@@ -17,10 +17,28 @@ function startAdminSession(): void {
 }
 
 function requireAdminAuth(): void {
-    if (!isset($_SESSION['admin_logged_in']) || $_SESSION['admin_logged_in'] !== true) {
-        header('Location: login.php');
-        exit;
+    if (isset($_SESSION['admin_logged_in']) && $_SESSION['admin_logged_in'] === true) {
+        return;
     }
+
+    // No session, but the browser may still hold a valid remember-me cookie.
+    global $pdo;
+    if ($pdo instanceof PDO && is_file(__DIR__ . '/adminsession.php')) {
+        require_once __DIR__ . '/adminsession.php';
+        $resumed = pmRememberResume($pdo);
+
+        if ($resumed !== null) {
+            if (is_file(__DIR__ . '/audit.php')) {
+                require_once __DIR__ . '/audit.php';
+                pmAudit($pdo, 'login_resumed', 'Signed in again from a remembered browser');
+            }
+
+            return;
+        }
+    }
+
+    header('Location: login.php');
+    exit;
 }
 
 // ── Roles ──────────────────────────────────────────────────
@@ -47,6 +65,19 @@ function getPermissionFeatures(): array {
                             'delete' => 'Delete', 'toggle' => 'Toggle Active'],
         'users'         => ['view'   => 'View', 'create' => 'Create', 'edit'   => 'Edit', 'delete' => 'Delete'],
         'settings'      => ['view'   => 'View', 'edit'   => 'Save Changes'],
+
+        // Phase 5. Listed from the start so a screen's permissions are settled
+        // in one place before the screen itself exists.
+        'content'       => ['view'   => 'View', 'create' => 'Create', 'edit' => 'Edit',
+                            'publish' => 'Publish', 'delete' => 'Move to Trash'],
+        'media'         => ['view'   => 'View', 'upload' => 'Upload', 'edit' => 'Edit Details',
+                            'delete' => 'Delete'],
+        'menus'         => ['view'   => 'View', 'edit'   => 'Edit'],
+        'submissions'   => ['view'   => 'View', 'handle' => 'Mark Handled', 'export' => 'Export CSV'],
+        'seo'           => ['view'   => 'View', 'edit'   => 'Edit'],
+        'redirects'     => ['view'   => 'View', 'edit'   => 'Manage Redirects'],
+        'audit'         => ['view'   => 'View'],
+        'health'        => ['view'   => 'View'],
     ];
 }
 

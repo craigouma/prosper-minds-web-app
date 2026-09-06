@@ -441,40 +441,24 @@ include 'header.php';
 <?php endif; ?>
 
 <div class="finance-shell">
-    <div class="finance-topbar finance-topbar-compact">
-        <div class="finance-brand">
-            <div class="finance-brand-icon"><i class="fas fa-book"></i></div>
-            <div>
-                <strong>Prosperminds Finance</strong>
-                <span>Sales, payables and reporting workspace</span>
+    <div class="pma-financetabs">
+<?php
+$pmFinanceGroups = [
+    'Dashboard'  => ['overview' => 'Executive summary', 'collections' => 'Collections pipeline', 'reporting' => 'Reporting'],
+    'Sales'      => ['customers' => 'Customers', 'invoices' => 'Invoices', 'credit-notes' => 'Credit notes'],
+    'Purchasing' => ['vendors' => 'Vendors', 'vendor-bills' => 'Vendor bills', 'expenses' => 'Expenses'],
+];
+foreach ($pmFinanceGroups as $pmGroupLabel => $pmItems): ?>
+        <div class="pma-financegroup">
+            <span class="pma-financegroup-label"><?php echo htmlspecialchars($pmGroupLabel); ?></span>
+            <div class="pma-financegroup-items">
+<?php   foreach ($pmItems as $pmKey => $pmLabel): ?>
+                <a class="tab-btn <?php echo $section === $pmKey ? 'active' : ''; ?>" style="text-decoration:none"
+                   href="accounting.php?section=<?php echo $pmKey; ?>"><?php echo htmlspecialchars($pmLabel); ?></a>
+<?php   endforeach; ?>
             </div>
         </div>
-        <nav class="finance-menu finance-menu-dropdown">
-            <details class="finance-dropdown" <?php echo in_array($section, ['overview', 'collections', 'reporting'], true) ? 'open' : ''; ?>>
-                <summary class="finance-menu-item">Dashboard</summary>
-                <div class="finance-dropdown-panel">
-                    <a href="accounting.php?section=overview">Executive Summary</a>
-                    <a href="accounting.php?section=collections">Collections Pipeline</a>
-                    <a href="accounting.php?section=reporting">Reporting</a>
-                </div>
-            </details>
-            <details class="finance-dropdown" <?php echo in_array($section, ['customers', 'invoices', 'credit-notes'], true) ? 'open' : ''; ?>>
-                <summary class="finance-menu-item">Sales</summary>
-                <div class="finance-dropdown-panel">
-                    <a href="accounting.php?section=customers">Customers</a>
-                    <a href="accounting.php?section=invoices">Invoices</a>
-                    <a href="accounting.php?section=credit-notes">Credit Notes</a>
-                </div>
-            </details>
-            <details class="finance-dropdown" <?php echo in_array($section, ['vendors', 'vendor-bills', 'expenses'], true) ? 'open' : ''; ?>>
-                <summary class="finance-menu-item">Purchasing</summary>
-                <div class="finance-dropdown-panel">
-                    <a href="accounting.php?section=vendors">Vendors</a>
-                    <a href="accounting.php?section=vendor-bills">Vendor Bills</a>
-                    <a href="accounting.php?section=expenses">Expenses</a>
-                </div>
-            </details>
-        </nav>
+<?php endforeach; ?>
     </div>
 
     <div class="stats-grid" style="margin-top:18px;">
@@ -513,10 +497,10 @@ include 'header.php';
                         <thead><tr><th>Type</th><th>Reference</th><th>Amount</th></tr></thead>
                         <tbody>
                             <?php foreach (array_slice($invoices, 0, 4) as $row): ?>
-                                <tr><td>Invoice</td><td><?php echo htmlspecialchars($row['invoice_number']); ?><br><span style="color:#94a3b8;font-size:12px;"><?php echo htmlspecialchars($row['customer_name'] ?: '-'); ?></span></td><td><?php echo accountingCurrency((float) $row['total_amount'], $row['currency_code']); ?></td></tr>
+                                <tr><td>Invoice</td><td><?php echo htmlspecialchars($row['invoice_number']); ?><br><span style="color:#6b6b6b;font-size:12px;"><?php echo htmlspecialchars($row['customer_name'] ?: '-'); ?></span></td><td><?php echo accountingCurrency((float) $row['total_amount'], $row['currency_code']); ?></td></tr>
                             <?php endforeach; ?>
                             <?php foreach (array_slice($vendorBills, 0, 3) as $row): ?>
-                                <tr><td>Vendor Bill</td><td><?php echo htmlspecialchars($row['bill_number']); ?><br><span style="color:#94a3b8;font-size:12px;"><?php echo htmlspecialchars($row['vendor_name'] ?: '-'); ?></span></td><td><?php echo accountingCurrency((float) $row['total_amount'], $row['currency_code']); ?></td></tr>
+                                <tr><td>Vendor Bill</td><td><?php echo htmlspecialchars($row['bill_number']); ?><br><span style="color:#6b6b6b;font-size:12px;"><?php echo htmlspecialchars($row['vendor_name'] ?: '-'); ?></span></td><td><?php echo accountingCurrency((float) $row['total_amount'], $row['currency_code']); ?></td></tr>
                             <?php endforeach; ?>
                             <?php if (empty($invoices) && empty($vendorBills)): ?>
                                 <tr><td colspan="3" class="empty-state"><i class="fas fa-folder-open"></i>No finance records yet</td></tr>
@@ -556,8 +540,8 @@ include 'header.php';
                         <tbody>
                             <?php if ($customers): foreach ($customers as $customer): ?>
                                 <tr>
-                                    <td><strong><?php echo htmlspecialchars($customer['customer_name']); ?></strong><br><span style="color:#94a3b8;font-size:12px;"><?php echo htmlspecialchars($customer['organization'] ?: '-'); ?></span></td>
-                                    <td><?php echo htmlspecialchars($customer['contact_person'] ?: '-'); ?><br><span style="color:#94a3b8;font-size:12px;"><?php echo htmlspecialchars($customer['email'] ?: ($customer['phone'] ?: '-')); ?></span></td>
+                                    <td><strong><?php echo htmlspecialchars($customer['customer_name']); ?></strong><br><span style="color:#6b6b6b;font-size:12px;"><?php echo htmlspecialchars($customer['organization'] ?: '-'); ?></span></td>
+                                    <td><?php echo htmlspecialchars($customer['contact_person'] ?: '-'); ?><br><span style="color:#6b6b6b;font-size:12px;"><?php echo htmlspecialchars($customer['email'] ?: ($customer['phone'] ?: '-')); ?></span></td>
                                     <td><?php echo nl2br(htmlspecialchars($customer['address'] ?: '-')); ?></td>
                                 </tr>
                             <?php endforeach; else: ?>
@@ -598,9 +582,9 @@ include 'header.php';
                         <tbody>
                             <?php if ($vendors): foreach ($vendors as $vendor): ?>
                                 <tr>
-                                    <td><strong><?php echo htmlspecialchars($vendor['vendor_name']); ?></strong><br><span style="color:#94a3b8;font-size:12px;"><?php echo htmlspecialchars($vendor['contact_person'] ?: '-'); ?></span></td>
+                                    <td><strong><?php echo htmlspecialchars($vendor['vendor_name']); ?></strong><br><span style="color:#6b6b6b;font-size:12px;"><?php echo htmlspecialchars($vendor['contact_person'] ?: '-'); ?></span></td>
                                     <td><?php echo htmlspecialchars($vendor['category'] ?: '-'); ?></td>
-                                    <td><?php echo htmlspecialchars($vendor['email'] ?: '-'); ?><br><span style="color:#94a3b8;font-size:12px;"><?php echo htmlspecialchars($vendor['phone'] ?: '-'); ?></span></td>
+                                    <td><?php echo htmlspecialchars($vendor['email'] ?: '-'); ?><br><span style="color:#6b6b6b;font-size:12px;"><?php echo htmlspecialchars($vendor['phone'] ?: '-'); ?></span></td>
                                 </tr>
                             <?php endforeach; else: ?>
                                 <tr><td colspan="3" class="empty-state"><i class="fas fa-truck"></i>No vendors yet</td></tr>
@@ -650,6 +634,9 @@ include 'header.php';
                             <strong>Invoice Lines</strong>
                             <button type="button" class="btn btn-outline btn-sm" onclick="addFinanceLine('invoiceLinesBody','invoice')">Add Line</button>
                         </div>
+                        <div class="finance-line-head">
+                            <span>Applies to</span><span>Description</span><span>Qty</span><span>Unit price</span><span></span>
+                        </div>
                         <div id="invoiceLinesBody"></div>
                     </div>
                     <div class="form-group" style="margin-top:16px;"><label>Notes</label><textarea name="notes" class="form-control"></textarea></div>
@@ -664,7 +651,7 @@ include 'header.php';
                         <tbody>
                         <?php if ($invoices): foreach ($invoices as $invoice): ?>
                             <tr>
-                                <td><strong><?php echo htmlspecialchars($invoice['invoice_number']); ?></strong><br><span style="color:#94a3b8;font-size:12px;"><?php echo htmlspecialchars($invoice['customer_name'] ?: '-'); ?></span></td>
+                                <td><strong><?php echo htmlspecialchars($invoice['invoice_number']); ?></strong><br><span style="color:#6b6b6b;font-size:12px;"><?php echo htmlspecialchars($invoice['customer_name'] ?: '-'); ?></span></td>
                                 <td><span class="badge <?php echo $invoice['status'] === 'paid' ? 'badge-green' : ($invoice['status'] === 'draft' ? 'badge-gray' : 'badge-orange'); ?>"><?php echo htmlspecialchars(ucfirst($invoice['status'])); ?></span></td>
                                 <td><?php echo accountingCurrency((float) $invoice['total_amount'], $invoice['currency_code']); ?></td>
                             </tr>
@@ -716,7 +703,7 @@ include 'header.php';
                         <tbody>
                         <?php if ($creditNotes): foreach ($creditNotes as $note): ?>
                             <tr>
-                                <td><strong><?php echo htmlspecialchars($note['credit_note_number']); ?></strong><br><span style="color:#94a3b8;font-size:12px;"><?php echo htmlspecialchars(date('M d, Y', strtotime($note['credit_date']))); ?></span></td>
+                                <td><strong><?php echo htmlspecialchars($note['credit_note_number']); ?></strong><br><span style="color:#6b6b6b;font-size:12px;"><?php echo htmlspecialchars(date('M d, Y', strtotime($note['credit_date']))); ?></span></td>
                                 <td><?php echo htmlspecialchars(($note['invoice_number'] ?: '-') . ' / ' . ($note['customer_name'] ?: '-')); ?></td>
                                 <td><?php echo accountingCurrency((float) $note['amount']); ?></td>
                             </tr>
@@ -768,6 +755,9 @@ include 'header.php';
                             <strong>Bill Lines</strong>
                             <button type="button" class="btn btn-outline btn-sm" onclick="addFinanceLine('billLinesBody','bill')">Add Line</button>
                         </div>
+                        <div class="finance-line-head">
+                            <span>Applies to</span><span>Description</span><span>Qty</span><span>Unit price</span><span></span>
+                        </div>
                         <div id="billLinesBody"></div>
                     </div>
                     <div class="form-group" style="margin-top:16px;"><label>Notes</label><textarea name="notes" class="form-control"></textarea></div>
@@ -782,7 +772,7 @@ include 'header.php';
                         <tbody>
                         <?php if ($vendorBills): foreach ($vendorBills as $bill): ?>
                             <tr>
-                                <td><strong><?php echo htmlspecialchars($bill['bill_number']); ?></strong><br><span style="color:#94a3b8;font-size:12px;"><?php echo htmlspecialchars($bill['vendor_name'] ?: '-'); ?></span></td>
+                                <td><strong><?php echo htmlspecialchars($bill['bill_number']); ?></strong><br><span style="color:#6b6b6b;font-size:12px;"><?php echo htmlspecialchars($bill['vendor_name'] ?: '-'); ?></span></td>
                                 <td><span class="badge <?php echo $bill['status'] === 'paid' ? 'badge-green' : ($bill['status'] === 'open' ? 'badge-orange' : 'badge-gray'); ?>"><?php echo htmlspecialchars(ucfirst($bill['status'])); ?></span></td>
                                 <td><?php echo accountingCurrency((float) $bill['total_amount'], $bill['currency_code']); ?></td>
                             </tr>
@@ -839,8 +829,8 @@ include 'header.php';
                         <tbody>
                         <?php if ($recentExpenses): foreach ($recentExpenses as $expense): ?>
                             <tr>
-                                <td><?php echo date('M d, Y', strtotime($expense['expense_date'])); ?><br><span style="color:#94a3b8;font-size:12px;"><?php echo htmlspecialchars($expense['vendor'] ?: ($expense['event_title'] ?: '-')); ?></span></td>
-                                <td><strong><?php echo htmlspecialchars($expense['category']); ?></strong><br><span style="color:#94a3b8;font-size:12px;"><?php echo htmlspecialchars($expense['description']); ?></span></td>
+                                <td><?php echo date('M d, Y', strtotime($expense['expense_date'])); ?><br><span style="color:#6b6b6b;font-size:12px;"><?php echo htmlspecialchars($expense['vendor'] ?: ($expense['event_title'] ?: '-')); ?></span></td>
+                                <td><strong><?php echo htmlspecialchars($expense['category']); ?></strong><br><span style="color:#6b6b6b;font-size:12px;"><?php echo htmlspecialchars($expense['description']); ?></span></td>
                                 <td><?php echo accountingCurrency((float) $expense['amount'], $expense['currency_code']); ?></td>
                             </tr>
                         <?php endforeach; else: ?>
@@ -861,7 +851,7 @@ include 'header.php';
                     <?php if ($paymentPipeline): foreach ($paymentPipeline as $invoice): ?>
                         <?php $outstanding = max(0, (float) $invoice['total_amount'] - (float) $invoice['amount_paid']); ?>
                         <tr>
-                            <td><strong><?php echo htmlspecialchars($invoice['first_name'] . ' ' . $invoice['last_name']); ?></strong><br><span style="color:#94a3b8;font-size:12px;"><?php echo htmlspecialchars($invoice['organization'] ?: '-'); ?></span></td>
+                            <td><strong><?php echo htmlspecialchars($invoice['first_name'] . ' ' . $invoice['last_name']); ?></strong><br><span style="color:#6b6b6b;font-size:12px;"><?php echo htmlspecialchars($invoice['organization'] ?: '-'); ?></span></td>
                             <td style="max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="<?php echo htmlspecialchars($invoice['event_name']); ?>"><?php echo htmlspecialchars($invoice['event_name']); ?></td>
                             <td><span class="badge <?php echo $invoice['payment_status'] === 'paid' ? 'badge-green' : ($invoice['payment_status'] === 'partial' ? 'badge-orange' : 'badge-red'); ?>"><?php echo htmlspecialchars(ucfirst($invoice['payment_status'])); ?></span></td>
                             <td><?php echo accountingCurrency($outstanding); ?></td>
@@ -914,7 +904,7 @@ include 'header.php';
                         <?php if ($eventProfitability): foreach ($eventProfitability as $eventRow): ?>
                             <?php $contribution = (float) $eventRow['registration_revenue'] - (float) $eventRow['direct_expenses']; ?>
                             <tr>
-                                <td><strong><?php echo htmlspecialchars($eventRow['title']); ?></strong><br><span style="color:#94a3b8;font-size:12px;"><?php echo htmlspecialchars($eventRow['location'] . ' | ' . $eventRow['date_display']); ?></span></td>
+                                <td><strong><?php echo htmlspecialchars($eventRow['title']); ?></strong><br><span style="color:#6b6b6b;font-size:12px;"><?php echo htmlspecialchars($eventRow['location'] . ' | ' . $eventRow['date_display']); ?></span></td>
                                 <td><?php echo accountingCurrency((float) $eventRow['registration_revenue']); ?></td>
                                 <td><?php echo accountingCurrency((float) $eventRow['direct_expenses']); ?></td>
                                 <td class="<?php echo $contribution >= 0 ? 'text-success' : 'text-danger'; ?>"><?php echo accountingCurrency($contribution); ?></td>
@@ -943,10 +933,10 @@ function financeLineRow(type) {
 
     return `
         <div class="finance-line-row">
-            <select name="${eventFieldName}" class="form-control">${optionsHtml}</select>
-            <input type="text" name="${descFieldName}" class="form-control" placeholder="Description" required>
-            <input type="number" step="0.01" min="0.01" name="${qtyFieldName}" class="form-control" placeholder="Qty" value="1" required>
-            <input type="number" step="0.01" min="0" name="${priceFieldName}" class="form-control" placeholder="Unit Price" value="0.00" required>
+            <select name="${eventFieldName}" class="form-control" aria-label="What this line is for">${optionsHtml}</select>
+            <input type="text" name="${descFieldName}" class="form-control" aria-label="Description" placeholder="What is being charged for" required>
+            <input type="number" step="1" min="1" name="${qtyFieldName}" class="form-control" aria-label="Quantity" value="1" required>
+            <input type="number" step="0.01" min="0" name="${priceFieldName}" class="form-control" aria-label="Unit price" value="0.00" required>
             <button type="button" class="btn btn-outline btn-sm" onclick="this.parentElement.remove()">Remove</button>
         </div>
     `;

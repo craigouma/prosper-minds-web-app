@@ -28,7 +28,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_id'])) {
         exit;
     }
     if (validateCsrfToken($_POST['csrf_token'] ?? '')) {
-        $pdo->prepare("DELETE FROM events WHERE id = ?")->execute([(int)$_POST['delete_id']]);
+        require_once '../includes/trash.php';
+        $doomedId = (int) $_POST['delete_id'];
+        $stmt = $pdo->prepare("SELECT * FROM events WHERE id = ?");
+        $stmt->execute([$doomedId]);
+        $doomed = $stmt->fetch();
+
+        if ($doomed && pmTrashPut($pdo, 'event', $doomedId, (string) $doomed['title'], $doomed,
+                                  (string) ($_SESSION['admin_username'] ?? 'unknown'), 'Programme')) {
+            $pdo->prepare("DELETE FROM events WHERE id = ?")->execute([$doomedId]);
+        }
     }
     header('Location: events.php?msg=deleted');
     exit;
@@ -194,13 +203,13 @@ include 'header.php';
     <div class="alert alert-danger"><i class="fas fa-exclamation-circle"></i> <?php echo htmlspecialchars($error); ?></div>
 <?php endif; ?>
 
-<div style="display:grid;grid-template-columns:1fr 380px;gap:24px;align-items:start;">
+<div class="pma-split">
 
     <!-- Events list -->
     <div class="table-card">
         <div class="table-card-header">
             <div>
-                <div class="card-title">All Events</div>
+                <h2 class="card-title">All events</h2>
                 <div class="card-subtitle"><?php echo count($events); ?> total</div>
             </div>
             <a href="events.php" class="btn btn-primary btn-sm">
@@ -225,14 +234,14 @@ include 'header.php';
                         <td>
                             <?php if ($ev['image_path']): ?>
                                 <img src="../<?php echo htmlspecialchars($ev['image_path']); ?>"
-                                     style="width:50px;height:36px;object-fit:cover;border-radius:4px;margin-right:10px;vertical-align:middle;">
+                                     style="width:50px;height:36px;object-fit:cover;border-radius:2px;margin-right:10px;vertical-align:middle;">
                             <?php endif; ?>
                             <strong><?php echo htmlspecialchars($ev['title']); ?></strong><br>
-                            <span style="font-size:12px;color:#94a3b8;"><?php echo htmlspecialchars($ev['tagline']); ?></span>
+                            <span style="font-size:12px;color:#6b6b6b;"><?php echo htmlspecialchars($ev['tagline']); ?></span>
                         </td>
                         <td>
                             <span style="font-size:13px;"><?php echo htmlspecialchars($ev['date_display']); ?></span><br>
-                            <span style="font-size:12px;color:#94a3b8;"><i class="fas fa-map-marker-alt"></i> <?php echo htmlspecialchars($ev['location']); ?></span>
+                            <span style="font-size:12px;color:#6b6b6b;"><i class="fas fa-map-marker-alt"></i> <?php echo htmlspecialchars($ev['location']); ?></span>
                         </td>
                         <td style="white-space:nowrap;"><?php echo htmlspecialchars($ev['price']); ?></td>
                         <td>
@@ -247,17 +256,13 @@ include 'header.php';
                         </td>
                         <td>
                             <a href="events.php?edit=<?php echo $ev['id']; ?>"
-                               class="btn btn-outline btn-sm btn-icon" title="Edit">
-                                <i class="fas fa-edit"></i>
-                            </a>
+                               class="btn btn-outline btn-sm">Edit</a>
                             <?php if (isSuper()): ?>
                             <form method="POST" style="display:inline;"
-                                  onsubmit="return confirm('Delete this event? Existing registration records are kept.');">
+                                  onsubmit="return confirm('Move this event to the trash? Registrations are kept, and you can restore it for 30 days.');">
                                 <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrfToken); ?>">
                                 <input type="hidden" name="delete_id" value="<?php echo $ev['id']; ?>">
-                                <button type="submit" class="btn btn-danger btn-sm btn-icon" title="Delete">
-                                    <i class="fas fa-trash"></i>
-                                </button>
+                                <button type="submit" class="btn btn-danger btn-sm" title="Delete">Delete</button>
                             </form>
                             <?php endif; ?>
                         </td>
@@ -276,7 +281,7 @@ include 'header.php';
     <!-- Add / Edit form -->
     <div class="card">
         <div class="card-title" style="margin-bottom:4px;">
-            <?php echo $editEvent ? '<i class="fas fa-edit" style="color:var(--primary);margin-right:6px;"></i>Edit Event' : '<i class="fas fa-plus-circle" style="color:var(--primary);margin-right:6px;"></i>New Event'; ?>
+            <?php echo $editEvent ? 'Edit event' : 'New event'; ?>
         </div>
         <div class="card-subtitle" style="margin-bottom:20px;">
             <?php echo $editEvent ? 'Update the event details below' : 'Fill in the details below'; ?>
@@ -476,7 +481,7 @@ include 'header.php';
                 <div class="form-hint">JPG, PNG, WEBP – max 5 MB</div>
                 <?php if (!empty($editEvent['image_path'])): ?>
                     <img src="../<?php echo htmlspecialchars($editEvent['image_path']); ?>"
-                         style="width:100%;max-height:120px;object-fit:cover;border-radius:6px;margin-top:10px;border:1.5px solid var(--gray-200);">
+                         style="width:100%;max-height:120px;object-fit:cover;border-radius:2px;margin-top:10px;border:1.5px solid var(--gray-200);">
                     <div class="form-hint">Current image — upload new to replace</div>
                 <?php endif; ?>
                 <img id="imgPreview" class="img-preview">

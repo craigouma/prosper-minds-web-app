@@ -35,13 +35,30 @@ UPDATE `event_registrations`
 -- LOCAL CONTAINER ONLY. This is not a credential: the throwaway database is
 -- rebuilt from the dumps on every verify.sh run and is reachable on loopback
 -- only. It must never be inserted into a production database.
---   username: localtest
+-- It is named Craig so the panel and the audit log read as a person rather than
+-- a fixture while the work is being reviewed. That makes the warning above more
+-- important, not less: a row carrying a real name is the one somebody is most
+-- likely to copy into production by mistake. The password below is published in
+-- this repository and is therefore not a secret.
+--   username: Craig
 --   password: localtest-analytics-pw
 INSERT INTO `admin_users`
   (`username`, `password`, `role`, `first_name`, `last_name`, `email`,
    `department`, `is_administrator`, `is_staff`, `permissions`)
 VALUES
-  ('localtest',
+  ('Craig',
    '$2y$12$giO77eJa0QkaVtgtZmQMReV/wzHhY/8DeY5yo9XNMDshpMf5R7aZW',
-   'super_admin', 'Local', 'Tester', 'localtest@example.test',
+   'super_admin', 'Craig', 'Ouma', 'craig@example.test',
    'QA', 1, 1, NULL);
+
+-- Real site identity, so a local rebuild does not leave the footer and the
+-- Settings screen looking empty. These are public details, not credentials.
+INSERT INTO `site_settings` (`setting_key`, `setting_value`) VALUES
+  ('site_title',      'Prosperminds'),
+  ('site_tagline',    'Public finance training for the people who sign the accounts'),
+  ('contact_email',   'info@prosper-minds.com'),
+  ('contact_phone',   '+254 740 582302'),
+  ('contact_address', 'Nairobi, Kenya'),
+  ('social_linkedin', 'https://www.linkedin.com/company/prosper-minds-technologies/'),
+  ('social_facebook', 'https://www.facebook.com/share/1EvKA1GF5w/?mibextid=wwXIfr')
+ON DUPLICATE KEY UPDATE `setting_value` = VALUES(`setting_value`);
