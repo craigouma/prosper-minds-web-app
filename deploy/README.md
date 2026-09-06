@@ -22,7 +22,7 @@ cPanel, **phpMyAdmin**, select `kidsmone_Prosperminds_website`, **Export** tab, 
 
 Do this now, not from the copy you sent me on 4 September. Anything registered since then is only in the live database.
 
-This backup is the whole rollback plan for the data. The rollback for the code is step 9.
+This backup is the whole rollback plan for the data. The rollback for the code is step 10.
 
 ---
 
@@ -53,11 +53,11 @@ That one page does the setup. The new system stores things in twenty tables that
 
 **What you should see:** a row at the top of the table reading
 
-> **Database tables** | Fine | All 20 are present.
+> **Database tables** | Fine | All 22 are present.
 
 If it says some could not be created, stop and send me the line. It names them.
 
-The rest of that page is the health report, which you will come back to in step 10.
+The rest of that page is the health report, which you will come back to in step 11.
 
 ---
 
@@ -185,11 +185,44 @@ cPanel, **File Manager**, in `public_html`:
 
 And if the CPD subdomain still exists, in `cpd.prosper-minds.com` delete `setup_database.php`, `insert_events.php` and `test_email.php`. Two of those accept unauthenticated writes on any request.
 
-You do not have to remember this list. Step 10 tells you what is still there.
+You do not have to remember this list. Step 11 tells you what is still there.
 
 ---
 
-## 9. If something is wrong
+## 9. Set up the reminder cron
+
+This is what sends the "you did not finish registering" email. Without it, unfinished registrations are recorded and nothing is ever sent, which the health page will tell you about.
+
+cPanel, **Advanced, Cron Jobs**. Under **Add New Cron Job**:
+
+- **Common Settings**: choose *Twice Per Hour* (`0,30 * * * *`)
+- **Command**: paste this exactly
+
+```
+/usr/local/bin/php /home2/kidsmone/public_html/tools/send-registration-reminders.php --send --quiet
+```
+
+Then **Add New Cron Job**.
+
+**Check the path first.** In File Manager, confirm `public_html/tools/send-registration-reminders.php` is there after the deploy. If your document root is not `/home2/kidsmone/public_html`, use whatever the Git Version Control page showed as the repository path with `/public_html/tools/...` on the end.
+
+**What it does on each run.** Finds anybody who typed their email into the registration form more than an hour ago and never finished, and sends them one message with a link back to the form already filled in. One message per person per course, ever.
+
+**What it will not do**, all checked on every run:
+
+- anyone who has since registered, on any device, is skipped
+- anyone who clicked "do not remind me" is skipped for good
+- a course taken off the calendar is never promoted
+- anything abandoned more than seven days ago is left alone, so if the cron is off for a fortnight it cannot wake up and mail everybody it missed
+- records are deleted after thirty days
+
+**Try it without sending anything first.** Change the command to leave off `--send`, let it run once, and check the cron output email: it prints who it would have written to and why the others were skipped. Then add `--send` back.
+
+**The consent position, so you can answer it if asked.** These are people who entered their address into your registration form and did not finish. The email is about that specific registration, says so in the first line, and carries a one-click opt-out that is honoured permanently. It is not a mailing list and nothing feeds one. If Lydia would rather only email people who explicitly ticked a box, say so and I will move it behind a checkbox on the form instead.
+
+---
+
+## 10. If something is wrong
 
 In Git Version Control, deploy the previous commit. The code goes back.
 
@@ -197,11 +230,11 @@ If the data needs to go back too, restore the export from step 1 through phpMyAd
 
 ---
 
-## 10. Check it worked
+## 11. Check it worked
 
-Open **Site health** again. It runs twelve checks on the spot and sorts the worst first:
+Open **Site health** again. It runs thirteen checks on the spot and sorts the worst first:
 
-- are all twenty tables present
+- are all twenty-two tables present
 - is the database reachable
 - is mail configured, and did anything fail to send in the last seven days
 - are registrations still arriving
@@ -211,10 +244,11 @@ Open **Site health** again. It runs twelve checks on the spot and sorts the wors
 - are the uploads, invoices and logs directories writable
 - is the content layer populated
 - are any scheduled pages waiting
+- **are unfinished registrations being reminded, or is the cron dead**
 - **are any leftover setup scripts still present**
 - what PHP version is running, and the largest upload it accepts
 
-The three in bold are the ones that would have caught the problems found during this engagement. If step 8 was done properly, the leftover scripts check reads clean.
+The four in bold are the ones that would have caught a real problem. If step 8 was done properly, the leftover scripts check reads clean, and if step 9 was done properly the reminder check does too.
 
 Then look at the public site: the homepage, an event page, and the footer, where LinkedIn and Facebook should now appear.
 

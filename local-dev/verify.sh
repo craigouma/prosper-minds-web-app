@@ -2361,7 +2361,7 @@ check "the invoice directory is still denied" "1" \
 
 echo "  ---- site health ----"
 HE="$(curl -s -b "$GJAR" "$MAIN/admin/health.php")"
-check "health runs every check" "12" "$(printf '%s' "$HE" | grep -c 'class="badge badge-\(green\|orange\|red\)"')"
+check "health runs every check" "13" "$(printf '%s' "$HE" | grep -c 'class="badge badge-\(green\|orange\|red\)"')"
 check "it notices unsent mail"    "1" "$(printf '%s' "$HE" | grep -c 'failed to send in the last seven days')"
 check "it checks the invoice directory" "1" "$(printf '%s' "$HE" | grep -c 'Delegates receive a signed link')"
 check "it checks uploads cannot run code" "1" "$(printf '%s' "$HE" | grep -c 'PHP engine is off')"
@@ -2771,6 +2771,156 @@ rm -f "$AJ"
 
 check "a missing asset returns the path rather than failing" "/assets/css/nope.css" \
   "$(php -r 'require "public_html/includes/config.php"; echo pmAssetUrl("/assets/css/nope.css");' 2>/dev/null)"
+
+echo
+echo "=== 27. Unfinished registrations get one reminder ==="
+
+RES=$MAIN/track-registration-resume.php
+RESJ=/tmp/verify-resume.txt
+rm -f "$RESJ"
+# The form page is what sets pm_funnel_sid and mints the CSRF token. The beacon
+# is only reachable with both, exactly as a real visitor would have them.
+RFORM="$(curl -s -c "$RESJ" "$MAIN/event-registration.php?id=1")"
+RTOK="$(printf '%s' "$RFORM" | sed -n 's/.*name="csrf_token" value="\([^"]*\)".*/\1/p' | head -1)"
+
+resume_post() {
+  curl -s -b "$RESJ" -o /dev/null -X POST "$RES" \
+    --data-urlencode "csrf_token=$1" -d "event_id=$2" \
+    --data-urlencode "email=$3" --data-urlencode "first_name=$4" \
+    --data-urlencode "last_name=Otieno" --data-urlencode "organization=Ministry of Devolution" \
+    --data-urlencode "phone=+254700111222" --data-urlencode "country=Kenya" -d "last_step=3"
+}
+res_rows() { fq "SELECT COUNT(*) FROM registration_resumes WHERE email='$1'"; }
+
+check "the beacon endpoint exists" "204" \
+  "$(curl -s -b "$RESJ" -o /dev/null -w '%{http_code}' -X POST "$RES")"
+
+echo "  ---- CRITICAL: it must not be writable from another origin ----"
+resume_post "not-the-token" 1 "forged@example.test" "Forged"
+check "a bad CSRF token stores nothing" "0" "$(res_rows forged@example.test)"
+
+resume_post "$RTOK" 1 "not-an-email" "Broken"
+check "a half typed address stores nothing" "0" \
+  "$(fq "SELECT COUNT(*) FROM registration_resumes WHERE email='not-an-email'")"
+
+resume_post "$RTOK" 1 "amina@example.test" "Amina"
+check "cms_resumes was created on demand" "1" "$(table_exists registration_resumes)"
+check "a real abandonment is stored"      "1" "$(res_rows amina@example.test)"
+check "with the fields they had typed"    "Ministry of Devolution" \
+  "$(fq "SELECT organization FROM registration_resumes WHERE email='amina@example.test'")"
+check "and the step they got to"          "3" \
+  "$(fq "SELECT last_step FROM registration_resumes WHERE email='amina@example.test'")"
+
+resume_post "$RTOK" 1 "amina@example.test" "Amina"
+check "typing more updates one row rather than adding another" "1" "$(res_rows amina@example.test)"
+
+echo "  ---- the emailed link hands the form back filled in ----"
+RTOKEN="$(fq "SELECT token FROM registration_resumes WHERE email='amina@example.test'")"
+RPAGE="$(curl -s "$MAIN/event-registration.php?id=1&resume=$RTOKEN" | tr '\n' ' ')"
+check "the resume link prefills every field they gave" "6" \
+  "$(printf '%s' "$RPAGE" | grep -o 'value="\(Amina\|Otieno\|Ministry of Devolution\|amina@example.test\|Kenya\|+254700111222\)"' | wc -l | tr -d ' ')"
+check "an unknown token opens a blank form" "0" \
+  "$(curl -s "$MAIN/event-registration.php?id=1&resume=deadbeefdeadbeefdeadbeefdeadbeef" | grep -c 'value="Amina"')"
+check "a token for another course does not prefill it" "0" \
+  "$(curl -s "$MAIN/event-registration.php?id=5&resume=$RTOKEN" | grep -c 'value="Amina"')"
+check "a token that is not 32 hex is rejected before any query" "0" \
+  "$(curl -s "$MAIN/event-registration.php?id=1&resume=' OR 1=1 --" | grep -c 'value="Amina"')"
+
+echo "  ---- the sweep waits, then sends exactly once ----"
+SWEEP="php tools/send-registration-reminders.php"
+check "nothing is chased in the first hour" "0" \
+  "$(cd public_html && $SWEEP | grep -c 'WOULD SEND')"
+fq "UPDATE registration_resumes SET updated_at = DATE_SUB(NOW(), INTERVAL 90 MINUTE) WHERE email='amina@example.test'" >/dev/null
+check "after an hour it is due" "1" \
+  "$(cd public_html && $SWEEP | grep -c 'WOULD SEND')"
+check "a dry run sends nothing"  "0" \
+  "$(fq "SELECT COUNT(*) FROM registration_resumes WHERE email='amina@example.test' AND reminded_at IS NOT NULL")"
+
+clearmail
+(cd public_html && $SWEEP --send >/dev/null 2>&1)
+check "the real run sends one message" "1" "$(mailcount)"
+check "and stamps the row"             "1" \
+  "$(fq "SELECT COUNT(*) FROM registration_resumes WHERE email='amina@example.test' AND reminded_at IS NOT NULL")"
+
+echo "  ---- CRITICAL: stamping a reminder must not rewrite when they left ----"
+check "updated_at is untouched by the send" "1" \
+  "$(fq "SELECT COUNT(*) FROM registration_resumes WHERE email='amina@example.test' AND updated_at < DATE_SUB(NOW(), INTERVAL 60 MINUTE)")"
+
+clearmail
+(cd public_html && $SWEEP --send >/dev/null 2>&1)
+check "CRITICAL: a second sweep sends nothing" "0" "$(mailcount)"
+
+echo "  ---- every reason a reminder is suppressed ----"
+fq "DELETE FROM registration_resumes" >/dev/null
+fq "DELETE FROM registration_reminder_optouts" >/dev/null
+fq "INSERT INTO registration_resumes (token, session_id, event_id, email, last_step, updated_at) VALUES
+    ('aaaa1111aaaa1111aaaa1111aaaa1111','v-opt', 1,'v-optout@example.test',2, DATE_SUB(NOW(), INTERVAL 90 MINUTE)),
+    ('bbbb2222bbbb2222bbbb2222bbbb2222','v-done',1,'v-done@example.test',  2, DATE_SUB(NOW(), INTERVAL 90 MINUTE)),
+    ('cccc3333cccc3333cccc3333cccc3333','v-off', 3,'v-off@example.test',   2, DATE_SUB(NOW(), INTERVAL 90 MINUTE)),
+    ('dddd4444dddd4444dddd4444dddd4444','v-old', 1,'v-stale@example.test', 2, DATE_SUB(NOW(), INTERVAL 20 DAY)),
+    ('ffff6666ffff6666ffff6666ffff6666','v-ok',  1,'v-good@example.test',  2, DATE_SUB(NOW(), INTERVAL 90 MINUTE))" >/dev/null
+fq "INSERT INTO registration_reminder_optouts (email) VALUES ('v-optout@example.test')" >/dev/null
+fq "INSERT INTO event_registrations (event_id, event_name, first_name, last_name, email, phone,
+      organization, country, gender, meal_preference, address, attendee_count, total_amount, currency_code)
+    VALUES (1,'Verify','Done','Person','v-done@example.test','+254700000000','Ministry','Kenya',
+            'Female','None','Nairobi',1,599,'USD')" >/dev/null
+fq "UPDATE events SET is_active = 0 WHERE id = 3" >/dev/null
+
+RSWEEP="$(cd public_html && $SWEEP)"
+check "somebody who opted out is left alone"      "1" "$(printf '%s' "$RSWEEP" | grep -c 'v-optout@example.test.*opted out')"
+check "somebody who has since registered is not chased" "1" \
+  "$(printf '%s' "$RSWEEP" | grep -c 'v-done@example.test.*already registered')"
+check "a course taken off the calendar is not promoted" "1" \
+  "$(printf '%s' "$RSWEEP" | grep -c 'v-off@example.test.*not on the calendar')"
+check "a fortnight old abandonment is never woken up" "0" \
+  "$(printf '%s' "$RSWEEP" | grep -c 'v-stale@example.test')"
+check "and the one genuine case still sends"      "1" \
+  "$(printf '%s' "$RSWEEP" | grep -c 'WOULD SEND.*v-good@example.test')"
+fq "UPDATE events SET is_active = 1 WHERE id = 3" >/dev/null
+
+echo "  ---- finishing the form closes the reminder, on any device ----"
+fq "UPDATE registration_resumes SET reminded_at = NULL, completed_at = NULL WHERE email='v-good@example.test'" >/dev/null
+php -r '
+require "public_html/includes/config.php";
+require "public_html/includes/resume.php";
+pmResumeMarkCompleted($pdo, "v-good@example.test", 1);
+' >/dev/null 2>&1
+check "a completed registration closes the row" "1" \
+  "$(fq "SELECT COUNT(*) FROM registration_resumes WHERE email='v-good@example.test' AND completed_at IS NOT NULL")"
+check "and it is no longer due"                 "0" \
+  "$(cd public_html && $SWEEP | grep -c 'v-good@example.test')"
+
+echo "  ---- one click to never hear about it again ----"
+OPTTOKEN="$(fq "SELECT token FROM registration_resumes WHERE email='v-off@example.test'")"
+check "the opt-out page answers 200" "200" \
+  "$(curl -s -o /dev/null -w '%{http_code}' "$MAIN/registration-reminder-optout.php?t=$OPTTOKEN")"
+check "and the address is suppressed" "1" \
+  "$(fq "SELECT COUNT(*) FROM registration_reminder_optouts WHERE email='v-off@example.test'")"
+check "an unknown token answers the same page" "200" \
+  "$(curl -s -o /dev/null -w '%{http_code}' "$MAIN/registration-reminder-optout.php?t=deadbeefdeadbeefdeadbeefdeadbeef")"
+check "so it cannot be used to test an address" "2" \
+  "$(fq "SELECT COUNT(*) FROM registration_reminder_optouts")"
+
+echo "  ---- the sweep is not a web page ----"
+check "it refuses to run over HTTP" "404" \
+  "$(curl -s -o /dev/null -w '%{http_code}' "$MAIN/tools/send-registration-reminders.php")"
+
+echo "  ---- retention: these hold a name and an employer ----"
+fq "UPDATE registration_resumes SET updated_at = DATE_SUB(NOW(), INTERVAL 40 DAY) WHERE email='v-stale@example.test'" >/dev/null
+php -r '
+require "public_html/includes/config.php";
+require "public_html/includes/resume.php";
+pmResumePurge($pdo);
+' >/dev/null 2>&1
+check "anything older than 30 days is deleted" "0" \
+  "$(fq "SELECT COUNT(*) FROM registration_resumes WHERE email='v-stale@example.test'")"
+check "opt-outs are never purged" "1" \
+  "$(fq "SELECT COUNT(*) FROM registration_reminder_optouts WHERE email='v-off@example.test'")"
+
+fq "DELETE FROM registration_resumes" >/dev/null
+fq "DELETE FROM registration_reminder_optouts" >/dev/null
+fq "DELETE FROM event_registrations WHERE email LIKE '%@example.test'" >/dev/null
+rm -f "$RESJ"
 
 echo
 printf '\n%s\npassed=%d failed=%d\n%s\n' "$(printf '=%.0s' {1..78})" "$pass" "$fail" "$(printf '=%.0s' {1..78})"
