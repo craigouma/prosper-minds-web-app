@@ -58,11 +58,11 @@ $pmBodyClass = trim('pm ' . (string) ($pmPage['body_class'] ?? ''));
          is used for every character on the page including the first heading;
          crossorigin is required even same-origin for font fetches. -->
     <link rel="preload" href="/assets/fonts/Maharlika-Regular.ttf" as="font" type="font/ttf" crossorigin>
-    <link rel="stylesheet" href="/assets/css/pm-design-system.css">
+    <link rel="stylesheet" href="<?php echo pmAssetUrl('/assets/css/pm-design-system.css'); ?>">
 <?php // Per-page stylesheets, after the design system so a page can override
       // and never the other way round. Paths only, escaped: see pmPageConfig().
       foreach ((array) ($pmPage['styles'] ?? []) as $pmStyle): ?>
-    <link rel="stylesheet" href="<?php echo pmEsc((string) $pmStyle); ?>">
+    <link rel="stylesheet" href="<?php echo pmEsc(pmAssetUrl((string) $pmStyle)); ?>">
 <?php endforeach; ?>
 
     <!-- Marks the document as script-capable before first paint, so the mobile

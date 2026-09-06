@@ -42,7 +42,7 @@ $csrfToken = generateCsrfToken();
     <meta name="robots" content="noindex, nofollow">
     <title>Choose a new password | Prosperminds Admin</title>
     <link rel="icon" href="../assets/images/favicon-32.png" sizes="32x32">
-    <link rel="stylesheet" href="../assets/css/pm-admin.css">
+    <link rel="stylesheet" href="<?php echo pmAssetUrl('/assets/css/pm-admin.css'); ?>">
 </head>
 <body class="pma">
 <div class="pma-login">

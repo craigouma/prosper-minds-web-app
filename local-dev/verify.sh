@@ -2741,5 +2741,37 @@ check "a figure is never clipped by a too-narrow column" "1" \
 check "pm-admin.css still carries one comment only" "1" "$(grep -c '/\*' $CSS)"
 
 echo
+echo "=== 26. Stylesheets and scripts survive a deploy ==="
+
+echo "  ---- CRITICAL: a 7 day max-age with no version strands the old CSS ----"
+check "no unversioned stylesheet is left anywhere" "0" \
+  "$(grep -rn 'link rel="stylesheet" href="[/.]' public_html/admin public_html/includes/layout | grep -vc 'pmAssetUrl')"
+check "nor an unversioned local script" "0" \
+  "$(grep -rn 'script src="[/.][^"]*\.js"' public_html/admin public_html/includes/layout | grep -vc 'pmAssetUrl')"
+
+check "the public page stamps its stylesheet" "1" \
+  "$(curl -s "$MAIN/events.php" | grep -c 'pm-design-system\.css?v=[0-9]')"
+check "and its script"                        "1" \
+  "$(curl -s "$MAIN/events.php" | grep -c 'pm-layout\.js?v=[0-9]')"
+check "a per-page script is stamped too"      "1" \
+  "$(curl -s "$MAIN/events.php" | grep -c 'pm-copy-link\.js?v=[0-9]')"
+check "the sign in screen stamps its stylesheet" "1" \
+  "$(curl -s "$MAIN/admin/login.php" | grep -c 'pm-admin\.css?v=[0-9]')"
+
+AJ=/tmp/verify-assets.txt
+rm -f "$AJ"
+ATOK="$(curl -s -c "$AJ" "$MAIN/admin/login.php" | sed -n 's/.*name="csrf_token" value="\([^"]*\)".*/\1/p' | head -1)"
+curl -s -b "$AJ" -c "$AJ" -o /dev/null --data-urlencode "csrf_token=$ATOK" \
+  --data-urlencode "username=Craig" --data-urlencode "password=localtest-analytics-pw" "$MAIN/admin/login.php"
+check "a signed in admin screen stamps both" "2" \
+  "$(curl -s -b "$AJ" "$MAIN/admin/registrations.php" | grep -c 'pm-admin\.\(css\|js\)?v=[0-9]')"
+check "the stamp is the file's own mtime" "1" \
+  "$(curl -s -b "$AJ" "$MAIN/admin/registrations.php" | grep -c "pm-admin\.css?v=$(php -r 'echo filemtime("public_html/assets/css/pm-admin.css");')")"
+rm -f "$AJ"
+
+check "a missing asset returns the path rather than failing" "/assets/css/nope.css" \
+  "$(php -r 'require "public_html/includes/config.php"; echo pmAssetUrl("/assets/css/nope.css");' 2>/dev/null)"
+
+echo
 printf '\n%s\npassed=%d failed=%d\n%s\n' "$(printf '=%.0s' {1..78})" "$pass" "$fail" "$(printf '=%.0s' {1..78})"
 exit $((fail > 0 ? 1 : 0))

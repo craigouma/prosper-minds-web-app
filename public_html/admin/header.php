@@ -26,8 +26,8 @@ $pmInitials = substr($pmInitials, 0, 2) ?: strtoupper(substr($pmUser, 0, 2));
     <title><?php echo htmlspecialchars($pmTitle); ?> | Prosperminds Admin</title>
     <link rel="icon" href="../assets/images/favicon-32.png" sizes="32x32">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <link rel="stylesheet" href="../assets/css/pm-admin.css">
-    <script src="../assets/js/pm-admin.js" defer></script>
+    <link rel="stylesheet" href="<?php echo pmAssetUrl('/assets/css/pm-admin.css'); ?>">
+    <script src="<?php echo pmAssetUrl('/assets/js/pm-admin.js'); ?>" defer></script>
 </head>
 <body class="pma">
 <div class="pma-shell">
