@@ -2,7 +2,7 @@
 
 Everything below is done in the cPanel web interface. Nothing here needs SSH.
 
-Three tools: **cPanel Git Version Control** to deploy the code, the **admin panel** to set itself up, and **phpMyAdmin** to back up first and run two SQL files after.
+Three tools: **cPanel Git Version Control** to deploy the code, the **admin panel** to set itself up, and **phpMyAdmin** to back up first and run three SQL files after.
 
 Each step below says exactly what to click and exactly what you should see. If what you see does not match, stop at that step and tell me.
 
@@ -22,7 +22,7 @@ cPanel, **phpMyAdmin**, select `kidsmone_Prosperminds_website`, **Export** tab, 
 
 Do this now, not from the copy you sent me on 4 September. Anything registered since then is only in the live database.
 
-This backup is the whole rollback plan for the data. The rollback for the code is step 7.
+This backup is the whole rollback plan for the data. The rollback for the code is step 8.
 
 ---
 
@@ -57,7 +57,7 @@ That one page does the setup. The new system stores things in twenty tables that
 
 If it says some could not be created, stop and send me the line. It names them.
 
-The rest of that page is the health report, which you will come back to in step 8.
+The rest of that page is the health report, which you will come back to in step 9.
 
 ---
 
@@ -128,7 +128,29 @@ If anything went wrong partway, paste `deploy/CHECK-utf8mb4.sql` instead. It cha
 
 ---
 
-## 6. Delete two things by hand
+## 6. Load the website copy
+
+Same place: **phpMyAdmin**, the **SQL** tab. Paste `deploy/2026-09-06-page-content.sql` and click **Go**.
+
+**Why.** Site health reports *"No content rows. Pages are falling back to their built-in copy."* The tables the new system needs create themselves, but the copy that goes in them ships as migration files, and nothing had run those against the live database.
+
+Nothing is broken while it is missing. Every page carries its own copy as a fallback, which is exactly why the site reads correctly today. What is missing is the **editable** version: search titles show empty on the SEO screen, and there is no stored copy for anyone to change.
+
+**Is it safe.** Every statement is `INSERT IGNORE`, so running it twice adds nothing, and it will never overwrite copy somebody has already edited. Tested both ways.
+
+**What you should see.**
+
+| content_rows_should_be_349 |
+|---|
+| 349 |
+
+Then a second table listing thirteen pages with their row counts, `sponsorship` being the largest at 60.
+
+Afterwards, Site health's Content layer row turns from **Look** to **Fine**.
+
+---
+
+## 7. Delete two things by hand
 
 The deploy copies files over the live site and never deletes, so anything removed from the repository stays on the server until you remove it.
 
@@ -139,11 +161,11 @@ cPanel, **File Manager**, in `public_html`:
 
 And if the CPD subdomain still exists, in `cpd.prosper-minds.com` delete `setup_database.php`, `insert_events.php` and `test_email.php`. Two of those accept unauthenticated writes on any request.
 
-You do not have to remember this list. Step 8 tells you what is still there.
+You do not have to remember this list. Step 9 tells you what is still there.
 
 ---
 
-## 7. If something is wrong
+## 8. If something is wrong
 
 In Git Version Control, deploy the previous commit. The code goes back.
 
@@ -151,7 +173,7 @@ If the data needs to go back too, restore the export from step 1 through phpMyAd
 
 ---
 
-## 8. Check it worked
+## 9. Check it worked
 
 Open **Site health** again. It runs twelve checks on the spot and sorts the worst first:
 
@@ -168,7 +190,7 @@ Open **Site health** again. It runs twelve checks on the spot and sorts the wors
 - **are any leftover setup scripts still present**
 - what PHP version is running, and the largest upload it accepts
 
-The three in bold are the ones that would have caught the problems found during this engagement. If step 6 was done properly, the leftover scripts check reads clean.
+The three in bold are the ones that would have caught the problems found during this engagement. If step 7 was done properly, the leftover scripts check reads clean.
 
 Then look at the public site: the homepage, an event page, and the footer, where LinkedIn and Facebook should now appear.
 
