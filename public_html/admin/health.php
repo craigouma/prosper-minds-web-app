@@ -3,6 +3,7 @@ require_once '../includes/auth.php';
 startAdminSession();
 require_once '../includes/config.php';
 require_once '../includes/media.php';
+require_once '../includes/schemas.php';
 requireAdminAuth();
 requirePermission('health', 'view');
 
@@ -24,7 +25,23 @@ function pmCheck(string $title, callable $probe, string $why): array
     return $result + ['title' => $title, 'why' => $why, 'state' => 'bad', 'detail' => ''];
 }
 
+// Opening this screen sets up anything missing, so a deployment does not
+// depend on somebody visiting the right screens in the right order.
+$pmTables = pmEnsureAllSchemas($pdo);
+
 $checks = [];
+
+$checks[] = pmCheck('Database tables', static function () use ($pmTables) {
+    $missing = array_keys(array_filter($pmTables, static fn ($ok) => !$ok));
+    $total   = count($pmTables);
+
+    if ($missing) {
+        return ['state' => 'bad', 'detail' => count($missing) . ' of ' . $total
+            . ' could not be created: ' . implode(', ', array_slice($missing, 0, 6))];
+    }
+
+    return ['state' => 'good', 'detail' => 'All ' . $total . ' are present. Opening this page creates any that are missing.'];
+}, 'A deployment should not depend on somebody opening the right screens in the right order.');
 
 $checks[] = pmCheck('Database', static function () use ($pdo) {
     $n = (int) $pdo->query('SELECT COUNT(*) FROM events')->fetchColumn();

@@ -44,9 +44,20 @@ INSERT INTO `site_settings` (`setting_key`, `setting_value`) VALUES
 ON DUPLICATE KEY UPDATE `setting_value` = VALUES(`setting_value`);
 
 -- 4. Only Cape Town and Mombasa run for now.
---    Kuala Lumpur and Bali come off the site. Nothing is deleted: is_active = 0
---    keeps the rows, the registrations against them and the past-cohort page,
---    and the two events come back by setting it to 1.
+--
+--    READ THIS BEFORE RUNNING. Taking an event off the site also makes its page
+--    return 404, because a page stays reachable only while the event is active
+--    or its date has already passed. Both of these are still in the future.
+--
+--    Bali has no registrations, so nothing is affected.
+--
+--    Kuala Lumpur has THREE registrations totalling USD 2,396. Those delegates
+--    would find a dead page if they returned to the course they paid for. If
+--    that is not what you want, delete the line for event 2 below and it stays
+--    live; everything else in this file is unaffected.
+--
+--    Nothing is deleted either way. The rows, the registrations and the
+--    invoices all remain, and an event returns by setting is_active back to 1.
 UPDATE `events` SET `is_active` = 1 WHERE `id` IN (1, 5);
 UPDATE `events` SET `is_active` = 0 WHERE `id` IN (2, 3);
 

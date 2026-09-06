@@ -2361,11 +2361,13 @@ check "the invoice directory is still denied" "1" \
 
 echo "  ---- site health ----"
 HE="$(curl -s -b "$GJAR" "$MAIN/admin/health.php")"
-check "health runs every check" "11" "$(printf '%s' "$HE" | grep -c 'class="badge badge-\(green\|orange\|red\)"')"
+check "health runs every check" "12" "$(printf '%s' "$HE" | grep -c 'class="badge badge-\(green\|orange\|red\)"')"
 check "it notices unsent mail"    "1" "$(printf '%s' "$HE" | grep -c 'failed to send in the last seven days')"
 check "it checks the invoice directory" "1" "$(printf '%s' "$HE" | grep -c 'Delegates receive a signed link')"
 check "it checks uploads cannot run code" "1" "$(printf '%s' "$HE" | grep -c 'PHP engine is off')"
 check "a failing check cannot take the page down" "1" "$(grep -c 'This check failed' public_html/admin/health.php)"
+check "opening health sets the tables up"        "1" "$(grep -c 'pmEnsureAllSchemas' public_html/admin/health.php)"
+check "and it reports what is missing"           "1" "$(grep -c 'could not be created' public_html/admin/health.php)"
 
 echo "  ---- redirects and the 404 log ----"
 "${DB_MAIN[@]}" "DELETE FROM cms_redirects" >/dev/null 2>&1
