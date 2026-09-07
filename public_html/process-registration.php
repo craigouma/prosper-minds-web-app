@@ -6,6 +6,7 @@ require_once 'includes/csrf.php';
 require_once 'includes/invoice.php';
 require_once 'includes/mail-template-user.php';
 require_once 'includes/mail-template-admin.php';
+require_once 'includes/resume.php';
 
 header('Content-Type: application/json');
 
@@ -260,6 +261,14 @@ try {
     ]);
 } catch (Throwable $funnelError) {
     error_log('Funnel submit_success failed (ignored): ' . $funnelError->getMessage());
+}
+
+// Close any unfinished attempt this person left behind, on any device, so the
+// reminder sweep cannot chase somebody who has just registered.
+try {
+    pmResumeMarkCompleted($pdo, (string) $email, (int) $eventRecord['id']);
+} catch (Throwable $resumeError) {
+    error_log('Resume completion failed (ignored): ' . $resumeError->getMessage());
 }
 
 // ── Phase 2: notify (best effort) ────────────────────────────────────────────

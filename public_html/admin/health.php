@@ -157,6 +157,21 @@ $checks[] = pmCheck('Scheduled pages', static function () use ($pdo) {
         : 'Nothing waiting.'];
 }, 'Scheduling is evaluated when a page is read, so it cannot silently stall.');
 
+$checks[] = pmCheck('Unfinished registrations', static function () use ($pdo) {
+    $waiting = (int) $pdo->query('SELECT COUNT(*) FROM registration_resumes
+                                   WHERE reminded_at IS NULL AND completed_at IS NULL')->fetchColumn();
+    $overdue = (int) $pdo->query('SELECT COUNT(*) FROM registration_resumes
+                                   WHERE reminded_at IS NULL AND completed_at IS NULL
+                                     AND updated_at <= DATE_SUB(NOW(), INTERVAL 3 HOUR)')->fetchColumn();
+
+    if ($overdue > 0) {
+        return ['state' => 'bad', 'detail' => $overdue . ' have been waiting more than three hours. '
+            . 'The reminder cron is probably not running.'];
+    }
+
+    return ['state' => 'good', 'detail' => $waiting . ' waiting for their reminder, none overdue.'];
+}, 'The reminder runs on cron, and a cron that stops fails silently.');
+
 $checks[] = pmCheck('Leftover setup scripts', static function () {
     $found = [];
     foreach (['setup_database.php', 'insert_events.php', 'test_email.php', '_phase1-preview.php'] as $file) {

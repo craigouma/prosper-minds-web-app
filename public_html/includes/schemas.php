@@ -17,7 +17,7 @@ function pmEnsureAllSchemas(PDO $pdo): array
 {
     $files = ['config', 'invoice', 'funnel', 'content', 'contact', 'newsletter', 'sponsorship',
               'audit', 'media', 'menus', 'pages', 'trash', 'redirects', 'testimonials',
-              'adminsession', 'accounting'];
+              'adminsession', 'accounting', 'resume'];
 
     foreach ($files as $file) {
         $path = __DIR__ . '/' . $file . '.php';
@@ -31,7 +31,7 @@ function pmEnsureAllSchemas(PDO $pdo): array
                 'ensureNewsletterSubscriberSchema', 'ensureSponsorshipEnquirySchema',
                 'pmAuditEnsureSchema', 'ensureMediaSchema', 'ensureMenuSchema', 'ensurePagesSchema',
                 'ensureTrashSchema', 'ensureRedirectSchema', 'ensureTestimonialSchema',
-                'ensureAdminSessionSchema', 'ensureAccountingSchema'];
+                'ensureAdminSessionSchema', 'ensureAccountingSchema', 'ensureResumeSchema'];
 
     foreach ($callers as $fn) {
         if (!function_exists($fn)) {
@@ -57,6 +57,7 @@ function pmSchemaState(PDO $pdo): array
         'cms_menu_items', 'cms_pages', 'cms_page_blocks', 'cms_revisions', 'cms_preview_tokens',
         'cms_trash', 'cms_redirects', 'cms_not_found', 'cms_testimonials',
         'admin_remember_tokens', 'admin_password_resets',
+        'registration_resumes', 'registration_reminder_optouts',
     ];
 
     $present = [];

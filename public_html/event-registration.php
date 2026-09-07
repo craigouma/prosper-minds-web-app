@@ -1,6 +1,7 @@
 <?php
 
 require_once __DIR__ . '/includes/layout/page.php';
+require_once __DIR__ . '/includes/resume.php';
 
 /*
  * FIELD NAMES ARE FIXED BY process-registration.php AND MUST NOT BE RENAMED.
@@ -72,6 +73,17 @@ try {
 } catch (Throwable $funnelError) {
     error_log('Funnel page_view failed (ignored): ' . $funnelError->getMessage());
 }
+
+// An emailed "finish your registration" link. An unknown, expired or already
+// completed token simply opens a blank form: the reminder is a convenience, not
+// a credential for anything.
+$pmResume = pmResumeByToken($pdo, $_GET['resume'] ?? null);
+$pmResume = is_array($pmResume) && (int) $pmResume['event_id'] === (int) $pmEvent['id'] ? $pmResume : null;
+
+/** A step two value to put back in the form, escaped, or ''. */
+$pmPrefill = static function (string $field) use ($pmResume): string {
+    return $pmResume === null ? '' : pmEsc((string) ($pmResume[$field] ?? ''));
+};
 
 $pmTitle    = pmEventProse((string) ($pmEvent['title'] ?? ''));
 $pmLocation = pmEventProse((string) ($pmEvent['location'] ?? ''));
@@ -270,14 +282,14 @@ pmPageBegin([
               <label class="pm-field__label" for="pm-reg-first"><?php
                 echo pmContentSafe($pdo, 'register', 'label_first', 'Billing contact first name'); ?></label>
               <input class="pm-input" type="text" id="pm-reg-first" name="first_name"
-                     autocomplete="given-name" required>
+                     autocomplete="given-name" value="<?php echo $pmPrefill('first_name'); ?>" required>
             </div>
 
             <div class="pm-field">
               <label class="pm-field__label" for="pm-reg-last"><?php
                 echo pmContentSafe($pdo, 'register', 'label_last', 'Billing contact last name'); ?></label>
               <input class="pm-input" type="text" id="pm-reg-last" name="last_name"
-                     autocomplete="family-name" required>
+                     autocomplete="family-name" value="<?php echo $pmPrefill('last_name'); ?>" required>
             </div>
 
             <div class="pm-field">
@@ -285,14 +297,16 @@ pmPageBegin([
                 echo pmContentSafe($pdo, 'register', 'label_org', 'Institution'); ?></label>
               <input class="pm-input" type="text" id="pm-reg-org" name="organization"
                      autocomplete="organization"
-                     placeholder="Ministry, county or authority" required>
+                     placeholder="Ministry, county or authority"
+                     value="<?php echo $pmPrefill('organization'); ?>" required>
             </div>
 
             <div class="pm-field">
               <label class="pm-field__label" for="pm-reg-email"><?php
                 echo pmContentSafe($pdo, 'register', 'label_email', 'Email'); ?></label>
               <input class="pm-input" type="email" id="pm-reg-email" name="email"
-                     autocomplete="email" placeholder="name@institution.go.ke" required>
+                     autocomplete="email" placeholder="name@institution.go.ke"
+                     value="<?php echo $pmPrefill('email'); ?>" required>
             </div>
 
             <div class="pm-field">
@@ -303,14 +317,16 @@ pmPageBegin([
               <input class="pm-input" type="tel" id="pm-reg-phone" name="phone"
                      autocomplete="tel" placeholder="+254 700 000000"
                      pattern="[\d\+\-\s\(\)]{8,20}"
-                     title="8 to 20 characters, digits and + - ( ) only" required>
+                     title="8 to 20 characters, digits and + - ( ) only"
+                     value="<?php echo $pmPrefill('phone'); ?>" required>
             </div>
 
             <div class="pm-field">
               <label class="pm-field__label" for="pm-reg-country"><?php
                 echo pmContentSafe($pdo, 'register', 'label_country', 'Country'); ?></label>
               <input class="pm-input" type="text" id="pm-reg-country" name="country"
-                     autocomplete="country-name" placeholder="Kenya" required>
+                     autocomplete="country-name" placeholder="Kenya"
+                     value="<?php echo $pmPrefill('country'); ?>" required>
             </div>
           </div>
 
@@ -574,6 +590,74 @@ pmPageBegin([
 
         form.addEventListener('focusin', trackFormStarted);
         form.addEventListener('input', trackFormStarted);
+    })();
+
+    // ── Unfinished registrations ────────────────────────────────────────
+    // Sends the step two identity fields once they are complete, so somebody
+    // who leaves before the end can be sent a link back. Separate IIFE from the
+    // funnel beacon above on purpose: check-beacon-js.js extracts that one by
+    // its marker comment and runs it in isolation, and it must keep working
+    // whether or not this exists.
+    (function () {
+        var form = document.getElementById('standaloneRegForm');
+        if (!form) { return; }
+
+        var FIELDS = ['first_name', 'last_name', 'organization', 'email', 'phone', 'country'];
+        var lastSent = '';
+        var timer = null;
+
+        function value(name) {
+            var field = form.querySelector('[name="' + name + '"]');
+            return field ? String(field.value || '').trim() : '';
+        }
+
+        function capture() {
+            var email = value('email');
+            // The browser's own idea of a valid address. Nothing is stored
+            // while somebody is still halfway through typing one.
+            var field = form.querySelector('[name="email"]');
+            if (!email || (field && field.checkValidity && !field.checkValidity())) { return; }
+
+            var payload = new FormData();
+            payload.append('event_id', '<?php echo (int) $pmEvent['id']; ?>');
+            FIELDS.forEach(function (name) { payload.append(name, value(name)); });
+
+            var current = document.querySelector('[data-pm-step][data-pm-current]');
+            payload.append('last_step', current ? current.getAttribute('data-pm-step') : '2');
+
+            var token = form.querySelector('input[name="csrf_token"]');
+            if (token) { payload.append('csrf_token', token.value); }
+
+            // One row per person per course, so resending an unchanged set is
+            // only load. The step is included: moving forward is worth recording.
+            var stamp = FIELDS.map(value).join('\u0001') + '\u0001' + payload.get('last_step');
+            if (stamp === lastSent) { return; }
+            lastSent = stamp;
+
+            try {
+                if (navigator.sendBeacon && navigator.sendBeacon('track-registration-resume.php', payload)) {
+                    return;
+                }
+                fetch('track-registration-resume.php', {
+                    method: 'POST', body: payload, keepalive: true
+                }).catch(function () { /* best effort */ });
+            } catch (e) { /* best effort */ }
+        }
+
+        function captureSoon() {
+            if (timer) { clearTimeout(timer); }
+            timer = setTimeout(capture, 800);
+        }
+
+        form.addEventListener('change', captureSoon);
+        form.addEventListener('click', function (event) {
+            if (event.target.closest('[data-pm-next], [data-pm-back]')) { captureSoon(); }
+        });
+
+        // The last chance to hear from somebody who is leaving.
+        document.addEventListener('visibilitychange', function () {
+            if (document.visibilityState === 'hidden') { capture(); }
+        });
     })();
 </script>
 
