@@ -2973,5 +2973,52 @@ check "and putting it back restores the hit" "1" \
   "$(curl -s "$MAIN/event-registration.php?id=1" | grep -c "pmAdsPurchaseConversion = '$ADS_LABEL'")"
 
 echo
+echo "=== 29. Google Tag Manager ==="
+
+GTMF=public_html/includes/gtm.php
+GTM_ID=GTM-TS7N8L9D
+HOME="$(curl -s "$MAIN/index.php")"
+
+check "the container id is declared once, in one file" "1" \
+  "$(grep -c "const PM_GTM_ID = '$GTM_ID'" $GTMF)"
+check "and neither snippet hardcodes it" "0" \
+  "$(grep -c "'$GTM_ID'" public_html/includes/layout/head.php)"
+
+check "the loader is on the page"   "1" "$(printf '%s' "$HOME" | grep -c "'script','dataLayer','$GTM_ID'")"
+check "so is the noscript fallback" "1" "$(printf '%s' "$HOME" | grep -c "ns.html?id=$GTM_ID")"
+
+echo "  ---- Google asks for one high in the head and one just after body ----"
+GTM_LINE="$(printf '%s' "$HOME" | grep -n "dataLayer','$GTM_ID'" | cut -d: -f1)"
+TITLE_LINE="$(printf '%s' "$HOME" | grep -n '<title>' | cut -d: -f1)"
+check "the loader sits above the title" "yes" \
+  "$([ "$GTM_LINE" -lt "$TITLE_LINE" ] && echo yes || echo no)"
+BODY_LINE="$(printf '%s' "$HOME" | grep -n '<body class=' | cut -d: -f1)"
+NOSCRIPT_LINE="$(printf '%s' "$HOME" | grep -n "ns.html?id=$GTM_ID" | cut -d: -f1)"
+check "the noscript sits below the body tag" "yes" \
+  "$([ "$NOSCRIPT_LINE" -gt "$BODY_LINE" ] && echo yes || echo no)"
+check "and above the skip link, so nothing is pushed out of reach" "yes" \
+  "$(SKIP="$(printf '%s' "$HOME" | grep -n 'pm-skip-link' | head -1 | cut -d: -f1)"; \
+     [ "$NOSCRIPT_LINE" -lt "$SKIP" ] && echo yes || echo no)"
+
+echo "  ---- CRITICAL: GTM must not double tag what the page already sends ----"
+# Google's own guide warns about this. The on-page gtag already configures both
+# destinations, so a GA4 or Ads tag added inside the container counts everything
+# twice. The file has to say so where the next person will read it.
+check "the warning is recorded beside the container id" "1" \
+  "$(grep -c 'DO NOT ALSO CONFIGURE GA4 OR GOOGLE ADS INSIDE THIS CONTAINER' $GTMF)"
+check "the GA4 property is still configured on the page, once" "1" \
+  "$(printf '%s' "$HOME" | grep -c "gtag('config', 'G-H030354F23')")"
+check "and the Ads account once"                                "1" \
+  "$(printf '%s' "$HOME" | grep -c "gtag('config', 'AW-18352784550')")"
+check "only one gtag.js loader is on the page" "1" \
+  "$(printf '%s' "$HOME" | grep -c 'gtag/js?id=')"
+
+echo "  ---- staff are not tracked ----"
+check "the admin panel carries no container" "0" \
+  "$(curl -s "$MAIN/admin/login.php" | grep -c "$GTM_ID")"
+check "nor the GA4 or Ads tag"               "0" \
+  "$(curl -s "$MAIN/admin/login.php" | grep -c 'gtag/js?id=')"
+
+echo
 printf '\n%s\npassed=%d failed=%d\n%s\n' "$(printf '=%.0s' {1..78})" "$pass" "$fail" "$(printf '=%.0s' {1..78})"
 exit $((fail > 0 ? 1 : 0))
