@@ -13,6 +13,13 @@
   schedule rather than at the moment of sale, and Tag Assistant cannot verify
   it, which is why testing the tag looked broken when it was not.
 
+  THE LABEL BELOW IS THE ONE ON THE LIVE ACTION, not the one Google emailed.
+  The share-a-tag email of 10 Sep 2026 carried upCfCLTBgt0cEKaJpa9E, which
+  belongs to a conversion action that no longer exists in the account: pasting
+  it sends every registration to a destination that silently records nothing.
+  The value here came from Goals, Purchase, Data sources, See event snippet.
+  Take any future label from there rather than from an email.
+
   ONLY ONE OF THE TWO MAY COUNT. If the Ads account still imports the GA4
   `purchase` key event as a conversion action AND the label below is set, every
   registration is counted twice and Smart Bidding is fed a number that is
@@ -29,5 +36,5 @@
   gtag('config', 'G-H030354F23');
   gtag('config', 'AW-18352784550');
 
-  window.pmAdsPurchaseConversion = 'AW-18352784550/upCfCLTBgt0cEKaJpa9E';
+  window.pmAdsPurchaseConversion = 'AW-18352784550/dAlqCMPfm9ccEKaJpa9E';
 </script>

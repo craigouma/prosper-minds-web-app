@@ -2927,7 +2927,7 @@ echo "=== 28. Google Ads conversion tracking ==="
 
 GTAG=public_html/includes/google-tag.php
 REGJS=public_html/assets/js/pm-register.js
-ADS_LABEL='AW-18352784550/upCfCLTBgt0cEKaJpa9E'
+ADS_LABEL='AW-18352784550/dAlqCMPfm9ccEKaJpa9E'
 
 G_CONFIGS="$(grep -c "gtag('config', '\(G-H030354F23\|AW-18352784550\)')" $GTAG)"
 check "the GA4 property and the Ads account are both configured" "2" "$G_CONFIGS"
