@@ -21,6 +21,7 @@ $pmBodyClass = trim('pm ' . (string) ($pmPage['body_class'] ?? ''));
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<?php require_once __DIR__ . '/../gtm.php'; pmGtmHead(); ?>
     <title><?php echo pmEsc($pmTitle); ?></title>
     <meta name="description" content="<?php echo pmEsc($pmDescription); ?>">
 <?php if (!empty($pmPage['noindex'])): ?>
@@ -74,4 +75,5 @@ $pmBodyClass = trim('pm ' . (string) ($pmPage['body_class'] ?? ''));
     <?php include __DIR__ . '/../google-tag.php'; ?>
 </head>
 <body class="<?php echo pmEsc($pmBodyClass); ?>">
+<?php pmGtmBody(); ?>
 <a class="pm-skip-link" href="#pm-main">Skip to content</a>
