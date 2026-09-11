@@ -1544,7 +1544,7 @@ check "purchase event is in the flow script" "1" "$(grep -c "'purchase'" "$REG_J
 for f in transaction_id currency item_id item_name quantity; do
   check "purchase payload carries $f" "yes" "$(grep -q "$f" "$REG_JS" && echo yes || echo no)"
 done
-check "value comes from the server response" "1" \
+check "value comes from the server response" "2" \
   "$(grep -c 'value: parseFloat(data.total_amount)' "$REG_JS")"
 check "price comes from the server response" "1" \
   "$(grep -c 'price: parseFloat(data.unit_price_amount)' "$REG_JS")"
@@ -2921,6 +2921,56 @@ fq "DELETE FROM registration_resumes" >/dev/null
 fq "DELETE FROM registration_reminder_optouts" >/dev/null
 fq "DELETE FROM event_registrations WHERE email LIKE '%@example.test'" >/dev/null
 rm -f "$RESJ"
+
+echo
+echo "=== 28. Google Ads conversion tracking ==="
+
+GTAG=public_html/includes/google-tag.php
+REGJS=public_html/assets/js/pm-register.js
+ADS_LABEL='AW-18352784550/upCfCLTBgt0cEKaJpa9E'
+
+G_CONFIGS="$(grep -c "gtag('config', '\(G-H030354F23\|AW-18352784550\)')" $GTAG)"
+check "the GA4 property and the Ads account are both configured" "2" "$G_CONFIGS"
+
+G_DECL="$(grep -c "window.pmAdsPurchaseConversion = '$ADS_LABEL'" $GTAG)"
+check "the Ads conversion label is declared once, in the tag file" "1" "$G_DECL"
+check "and is not also hardcoded in the JavaScript" "0" "$(grep -c "$ADS_LABEL" $REGJS)"
+
+echo "  ---- both hits, on a confirmed save only ----"
+G_PURCHASE="$(grep -c "gtag('event', 'purchase'" $REGJS)"
+G_CONV="$(grep -c "gtag('event', 'conversion'" $REGJS)"
+check "the GA4 purchase event still fires"   "1" "$G_PURCHASE"
+check "the Ads conversion hit fires beside it" "1" "$G_CONV"
+
+G_INSIDE="$(awk '/function confirmSuccess/,/if \(done\)/' $REGJS | grep -c "gtag('event'")"
+check "both sit inside confirmSuccess, never on page load" "2" "$G_INSIDE"
+
+echo "  ---- CRITICAL: a blank transaction_id double counts on a reload ----"
+check "both hits send the invoice number" "2" "$(grep -c 'transaction_id: data.invoice_number' $REGJS)"
+G_BLANK="$(grep -c "transaction_id: ''" $REGJS)"
+check "and never an empty string" "0" "$G_BLANK"
+check "the value is the committed total, not the placeholder" "0" "$(grep -c 'value: 1.0' $REGJS)"
+
+check "the label reaches the rendered page" "1" \
+  "$(curl -s "$MAIN/event-registration.php?id=1" | grep -c "pmAdsPurchaseConversion = '$ADS_LABEL'")"
+
+echo "  ---- CRITICAL: one line must switch the Ads hit off ----"
+# Deleting the label is the documented way to stop double counting against a
+# GA4-imported conversion action. Proved here rather than trusted.
+cp $GTAG /tmp/verify-gtag-backup.php
+grep -v 'window.pmAdsPurchaseConversion' /tmp/verify-gtag-backup.php > $GTAG
+sleep 3
+check "removing that line drops it from the page" "0" \
+  "$(curl -s "$MAIN/event-registration.php?id=1" | grep -c 'pmAdsPurchaseConversion')"
+check "the guard means no Ads hit can then be sent" "1" \
+  "$(grep -c 'if (window.pmAdsPurchaseConversion)' $REGJS)"
+check "and GA4 tracking is untouched by it" "1" \
+  "$(curl -s "$MAIN/event-registration.php?id=1" | grep -c "gtag('config', 'G-H030354F23')")"
+cp /tmp/verify-gtag-backup.php $GTAG
+rm -f /tmp/verify-gtag-backup.php
+sleep 3
+check "and putting it back restores the hit" "1" \
+  "$(curl -s "$MAIN/event-registration.php?id=1" | grep -c "pmAdsPurchaseConversion = '$ADS_LABEL'")"
 
 echo
 printf '\n%s\npassed=%d failed=%d\n%s\n' "$(printf '=%.0s' {1..78})" "$pass" "$fail" "$(printf '=%.0s' {1..78})"

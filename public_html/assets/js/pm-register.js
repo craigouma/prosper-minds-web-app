@@ -420,10 +420,28 @@
               quantity: submittedCount
             }]
           });
+
+          // The Google Ads conversion action, sent as its own hit rather than
+          // left to the GA4 import. The import is not a live Ads conversion, so
+          // it cannot be verified with Tag Assistant and arrives hours later.
+          //
+          // Fires ONLY when includes/google-tag.php defines the label. Removing
+          // that one line turns this off without touching this file, which is
+          // what stops it double counting against the GA4-imported action.
+          if (window.pmAdsPurchaseConversion) {
+            window.gtag('event', 'conversion', {
+              send_to: window.pmAdsPurchaseConversion,
+              value: parseFloat(data.total_amount),
+              currency: data.currency_code,
+              // Never blank. An empty transaction_id makes Google count a
+              // second conversion if the visitor reloads the confirmation.
+              transaction_id: data.invoice_number
+            });
+          }
         }
       } catch (gtagError) {
         if (window.console && window.console.error) {
-          window.console.error('GA4 purchase event failed (ignored):', gtagError);
+          window.console.error('Conversion tracking failed (ignored):', gtagError);
         }
       }
 
