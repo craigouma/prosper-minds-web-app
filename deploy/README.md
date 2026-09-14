@@ -49,11 +49,11 @@ Your username and password have not changed. Neither have Evans's, Shillah's or 
 
 Now click **Site health**, at the bottom of the left sidebar under SYSTEM.
 
-That one page does the setup. The new system stores things in twenty tables that do not exist yet on the live database, and opening Site health creates all of them. It takes a second or two and there is nothing to type, import or upload.
+That one page does the setup. The new system stores things in twenty-four tables that do not exist yet on the live database, and opening Site health creates all of them. It takes a second or two and there is nothing to type, import or upload.
 
 **What you should see:** a row at the top of the table reading
 
-> **Database tables** | Fine | All 22 are present.
+> **Database tables** | Fine | All 24 are present.
 
 If it says some could not be created, stop and send me the line. It names them.
 
@@ -189,9 +189,9 @@ You do not have to remember this list. Step 11 tells you what is still there.
 
 ---
 
-## 9. Set up the reminder cron
+## 9. Set up the two cron jobs
 
-This is what sends the "you did not finish registering" email. Without it, unfinished registrations are recorded and nothing is ever sent, which the health page will tell you about.
+Two scheduled jobs. The first sends the "you did not finish registering" email. The second sends any newsletter somebody has pressed Send on. Without them, both queues fill up and nothing ever goes out, which the health page will tell you about.
 
 cPanel, **Advanced, Cron Jobs**. Under **Add New Cron Job**:
 
@@ -202,7 +202,11 @@ cPanel, **Advanced, Cron Jobs**. Under **Add New Cron Job**:
 /usr/local/bin/php /home2/kidsmone/public_html/tools/send-registration-reminders.php --send --quiet
 ```
 
-Then **Add New Cron Job**.
+Then **Add New Cron Job**. Now add a second one, same schedule, with this command:
+
+```
+/usr/local/bin/php /home2/kidsmone/public_html/tools/send-newsletter-queue.php --send --quiet
+```
 
 **Check the path first.** In File Manager, confirm `public_html/tools/send-registration-reminders.php` is there after the deploy. If your document root is not `/home2/kidsmone/public_html`, use whatever the Git Version Control page showed as the repository path with `/public_html/tools/...` on the end.
 
@@ -217,6 +221,14 @@ Then **Add New Cron Job**.
 - records are deleted after thirty days
 
 **Try it without sending anything first.** Change the command to leave off `--send`, let it run once, and check the cron output email: it prints who it would have written to and why the others were skipped. Then add `--send` back.
+
+**The newsletter needs two things in Brevo before it can deliver anything.**
+
+1. **An API key.** In Brevo: *SMTP & API*, *API keys*, generate one. It starts with `xkeysib-`. Paste it into the admin panel under **Settings**, in the **Newsletter sending** card. Nobody else needs a Brevo login: staff write and send newsletters from the admin panel with their own accounts, which is what avoids Brevo's one-seat limit on the free plan.
+
+2. **Domain authentication.** In Brevo: *Senders, Domains & Dedicated IPs*. Add `prosper-minds.com` and add the DNS records it gives you in cPanel, **Zone Editor**. Skipping this is the usual reason a newsletter sends without errors and still lands in spam or is rejected outright.
+
+The free plan is 300 emails a day, shared between marketing and transactional. Only the newsletter goes through Brevo. Registration confirmations, invoices and reminders keep using the mail server in the SMTP card, so a busy registration day cannot eat the newsletter allowance.
 
 **The consent position, so you can answer it if asked.** These are people who entered their address into your registration form and did not finish. The email is about that specific registration, says so in the first line, and carries a one-click opt-out that is honoured permanently. It is not a mailing list and nothing feeds one. If Lydia would rather only email people who explicitly ticked a box, say so and I will move it behind a checkbox on the form instead.
 
@@ -234,7 +246,7 @@ If the data needs to go back too, restore the export from step 1 through phpMyAd
 
 Open **Site health** again. It runs thirteen checks on the spot and sorts the worst first:
 
-- are all twenty-two tables present
+- are all twenty-four tables present
 - is the database reachable
 - is mail configured, and did anything fail to send in the last seven days
 - are registrations still arriving

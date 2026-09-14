@@ -21,7 +21,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_settings'])) {
         $keys = ['admin_email', 'company_name', 'company_color',
                  'smtp_host', 'smtp_user', 'smtp_pass', 'smtp_port', 'smtp_secure', 'smtp_from_email',
                  'site_title', 'site_tagline', 'contact_email', 'contact_phone', 'contact_address',
-                 'social_linkedin', 'social_x', 'social_facebook', 'social_youtube'];
+                 'social_linkedin', 'social_x', 'social_facebook', 'social_youtube',
+                 'brevo_api_key', 'brevo_from_email'];
 
         $stmt = $pdo->prepare(
             "INSERT INTO site_settings (setting_key, setting_value)
@@ -31,7 +32,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_settings'])) {
 
         foreach ($keys as $key) {
             $val = trim($_POST[$key] ?? '');
-            if ($key === 'smtp_pass' && $val === '') {
+            // Same rule as the SMTP password: a blank box means "leave it alone",
+            // so the key is never wiped by somebody saving an unrelated field.
+            if (($key === 'smtp_pass' || $key === 'brevo_api_key') && $val === '') {
                 continue; // Keep existing password if left blank
             }
             $stmt->execute([$key, $val]);
@@ -276,6 +279,33 @@ foreach ([
                            value="<?php echo sv($settings, 'company_color', '#00BF63'); ?>"
                            placeholder="#00BF63" readonly>
                 </div>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-title" style="margin-bottom:4px;">
+                <i class="fas fa-paper-plane" style="color:var(--primary);margin-right:6px;"></i>Newsletter sending
+            </div>
+            <div class="card-subtitle" style="margin-bottom:20px;">
+                The newsletter goes out through Brevo rather than the mail server below, because
+                shared hosting caps how much it will send in an hour. Registration confirmations
+                and invoices are not affected by anything in this card.
+            </div>
+
+            <div class="form-group">
+                <label>Brevo API key</label>
+                <input type="password" name="brevo_api_key" class="form-control"
+                       placeholder="<?php echo sv($settings, 'brevo_api_key', '') === ''
+                           ? 'Not set, so nothing can be sent' : 'Leave blank to keep current'; ?>">
+                <small class="text-muted">Brevo, SMTP &amp; API, API keys. Starts with xkeysib-.</small>
+            </div>
+            <div class="form-group">
+                <label>Send newsletters from</label>
+                <input type="email" name="brevo_from_email" class="form-control"
+                       value="<?php echo sv($settings, 'brevo_from_email', ''); ?>"
+                       placeholder="<?php echo sv($settings, 'contact_email', 'info@prosper-minds.com'); ?>">
+                <small class="text-muted">This address must be verified in Brevo, and its domain
+                    authenticated there, or the newsletter will be rejected or land in spam.</small>
             </div>
         </div>
 

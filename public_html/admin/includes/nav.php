@@ -45,6 +45,7 @@ function pmAdminNav(): array {
             ['key' => 'menus',       'label' => 'Menus',           'href' => 'menus.php',       'module' => 'menus',       'crumb' => 'Content', 'built' => true],
             ['key' => 'submissions', 'label' => 'Submissions',     'href' => 'submissions.php', 'module' => 'submissions', 'crumb' => 'Content', 'built' => true, 'phone' => true],
             ['key' => 'testimonials','label' => 'Delegate reviews','href' => 'testimonials.php','module' => 'content',     'crumb' => 'Content', 'built' => true, 'phone' => true, 'everyone' => true],
+            ['key' => 'newsletter',  'label' => 'Newsletter',      'href' => 'newsletter.php',  'module' => 'content',     'crumb' => 'Content', 'built' => true],
             ['key' => 'seo',         'label' => 'SEO and schema',  'href' => 'seo.php',         'module' => 'seo',         'crumb' => 'Content', 'built' => true],
             ['key' => 'trash',       'label' => 'Trash',           'href' => 'trash.php',       'module' => 'content',     'crumb' => 'Content', 'built' => true],
             ['key' => 'templates',   'label' => 'Reusable blocks', 'href' => '#',               'module' => 'content',     'crumb' => 'Content', 'built' => false, 'soon' => true],

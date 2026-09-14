@@ -1737,10 +1737,10 @@ check "the shell is marked noindex"          "1"   "$(grep -c 'noindex' $HDR)"
 
 check "nav registry lists four groups"       "4"   "$(php -r "
   require 'public_html/admin/includes/nav.php'; echo count(pmAdminNav());")"
-check "nav registry covers 20 screens"       "20"  "$(php -r "
+check "nav registry covers 21 screens"       "21"  "$(php -r "
   require 'public_html/admin/includes/nav.php';
   \$n=0; foreach (pmAdminNav() as \$g) { \$n += count(\$g['items']); } echo \$n;")"
-check "nineteen screens are built so far"    "19"   "$(php -r "
+check "twenty screens are built so far"      "20"   "$(php -r "
   require 'public_html/admin/includes/nav.php';
   \$n=0; foreach (pmAdminNav() as \$g) foreach (\$g['items'] as \$i) if (!empty(\$i['built'])) \$n++; echo \$n;")"
 check "the CMS permission modules exist"     "8"   "$(php -r "
@@ -2315,7 +2315,7 @@ g_login
 for s in earlybird banners health audit redirects seo; do
   check "$s.php returns 200" "200" "$(curl -s -b "$GJAR" -o /dev/null -w '%{http_code}' "$MAIN/admin/$s.php")"
 done
-check "nineteen screens are built" "19" "$(php -r "
+check "twenty screens are built" "20" "$(php -r "
   require 'public_html/admin/includes/nav.php';
   \$n=0; foreach (pmAdminNav() as \$g) foreach (\$g['items'] as \$i) if (!empty(\$i['built'])) \$n++; echo \$n;")"
 
@@ -2977,27 +2977,27 @@ echo "=== 29. Google Tag Manager ==="
 
 GTMF=public_html/includes/gtm.php
 GTM_ID=GTM-TS7N8L9D
-HOME="$(curl -s "$MAIN/index.php")"
+GTM_PAGE="$(curl -s "$MAIN/index.php")"
 
 check "the container id is declared once, in one file" "1" \
   "$(grep -c "const PM_GTM_ID = '$GTM_ID'" $GTMF)"
 check "and neither snippet hardcodes it" "0" \
   "$(grep -c "'$GTM_ID'" public_html/includes/layout/head.php)"
 
-check "the loader is on the page"   "1" "$(printf '%s' "$HOME" | grep -c "'script','dataLayer','$GTM_ID'")"
-check "so is the noscript fallback" "1" "$(printf '%s' "$HOME" | grep -c "ns.html?id=$GTM_ID")"
+check "the loader is on the page"   "1" "$(printf '%s' "$GTM_PAGE" | grep -c "'script','dataLayer','$GTM_ID'")"
+check "so is the noscript fallback" "1" "$(printf '%s' "$GTM_PAGE" | grep -c "ns.html?id=$GTM_ID")"
 
 echo "  ---- Google asks for one high in the head and one just after body ----"
-GTM_LINE="$(printf '%s' "$HOME" | grep -n "dataLayer','$GTM_ID'" | cut -d: -f1)"
-TITLE_LINE="$(printf '%s' "$HOME" | grep -n '<title>' | cut -d: -f1)"
+GTM_LINE="$(printf '%s' "$GTM_PAGE" | grep -n "dataLayer','$GTM_ID'" | cut -d: -f1)"
+TITLE_LINE="$(printf '%s' "$GTM_PAGE" | grep -n '<title>' | cut -d: -f1)"
 check "the loader sits above the title" "yes" \
   "$([ "$GTM_LINE" -lt "$TITLE_LINE" ] && echo yes || echo no)"
-BODY_LINE="$(printf '%s' "$HOME" | grep -n '<body class=' | cut -d: -f1)"
-NOSCRIPT_LINE="$(printf '%s' "$HOME" | grep -n "ns.html?id=$GTM_ID" | cut -d: -f1)"
+BODY_LINE="$(printf '%s' "$GTM_PAGE" | grep -n '<body class=' | cut -d: -f1)"
+NOSCRIPT_LINE="$(printf '%s' "$GTM_PAGE" | grep -n "ns.html?id=$GTM_ID" | cut -d: -f1)"
 check "the noscript sits below the body tag" "yes" \
   "$([ "$NOSCRIPT_LINE" -gt "$BODY_LINE" ] && echo yes || echo no)"
 check "and above the skip link, so nothing is pushed out of reach" "yes" \
-  "$(SKIP="$(printf '%s' "$HOME" | grep -n 'pm-skip-link' | head -1 | cut -d: -f1)"; \
+  "$(SKIP="$(printf '%s' "$GTM_PAGE" | grep -n 'pm-skip-link' | head -1 | cut -d: -f1)"; \
      [ "$NOSCRIPT_LINE" -lt "$SKIP" ] && echo yes || echo no)"
 
 echo "  ---- CRITICAL: GTM must not double tag what the page already sends ----"
@@ -3007,17 +3007,146 @@ echo "  ---- CRITICAL: GTM must not double tag what the page already sends ----"
 check "the warning is recorded beside the container id" "1" \
   "$(grep -c 'DO NOT ALSO CONFIGURE GA4 OR GOOGLE ADS INSIDE THIS CONTAINER' $GTMF)"
 check "the GA4 property is still configured on the page, once" "1" \
-  "$(printf '%s' "$HOME" | grep -c "gtag('config', 'G-H030354F23')")"
+  "$(printf '%s' "$GTM_PAGE" | grep -c "gtag('config', 'G-H030354F23')")"
 check "and the Ads account once"                                "1" \
-  "$(printf '%s' "$HOME" | grep -c "gtag('config', 'AW-18352784550')")"
+  "$(printf '%s' "$GTM_PAGE" | grep -c "gtag('config', 'AW-18352784550')")"
 check "only one gtag.js loader is on the page" "1" \
-  "$(printf '%s' "$HOME" | grep -c 'gtag/js?id=')"
+  "$(printf '%s' "$GTM_PAGE" | grep -c 'gtag/js?id=')"
 
 echo "  ---- staff are not tracked ----"
 check "the admin panel carries no container" "0" \
   "$(curl -s "$MAIN/admin/login.php" | grep -c "$GTM_ID")"
 check "nor the GA4 or Ads tag"               "0" \
   "$(curl -s "$MAIN/admin/login.php" | grep -c 'gtag/js?id=')"
+
+echo
+echo "=== 30. Newsletter ==="
+
+NLJ=/tmp/verify-newsletter.txt
+rm -f "$NLJ"
+nl_login() {
+  local tok
+  tok="$(curl -s -c "$NLJ" "$MAIN/admin/login.php" | sed -n 's/.*name="csrf_token" value="\([^"]*\)".*/\1/p' | head -1)"
+  curl -s -b "$NLJ" -c "$NLJ" -o /dev/null --data-urlencode "csrf_token=$tok" \
+    --data-urlencode "username=Craig" --data-urlencode "password=localtest-analytics-pw" "$MAIN/admin/login.php"
+}
+nl_tok() { curl -s -b "$NLJ" "$MAIN/admin/newsletter.php" | sed -n 's/.*name="csrf_token" value="\([^"]*\)".*/\1/p' | head -1; }
+NLU="$MAIN/admin/newsletter.php"
+
+nl_login
+check "the newsletter screen returns 200" "200" "$(curl -s -b "$NLJ" -o /dev/null -w '%{http_code}' "$NLU")"
+check "opening it creates the campaign tables" "1" "$(table_exists newsletter_campaigns)"
+check "and the recipient queue"                "1" "$(table_exists newsletter_campaign_recipients)"
+
+fq "INSERT IGNORE INTO newsletter_subscribers (email, source) VALUES
+    ('nl-a@example.test','footer'),('nl-b@example.test','footer'),('nl-gone@example.test','footer')" >/dev/null
+fq "UPDATE newsletter_subscribers SET unsubscribed_at = NOW() WHERE email='nl-gone@example.test'" >/dev/null
+curl -s -b "$NLJ" -o /dev/null "$NLU"
+check "every subscriber gets an unsubscribe token" "0" \
+  "$(fq "SELECT COUNT(*) FROM newsletter_subscribers WHERE unsubscribe_token IS NULL")"
+
+echo "  ---- a draft is only a draft ----"
+curl -s -b "$NLJ" -o /dev/null -X POST "$NLU" --data-urlencode "csrf_token=$(nl_tok)" \
+  -d "action=save" -d "id=0" --data-urlencode "subject=Verify newsletter" \
+  --data-urlencode "body_html=<p>Hello.</p>"
+NLID="$(fq "SELECT id FROM newsletter_campaigns WHERE subject='Verify newsletter'")"
+check "saving stores it as a draft" "draft" "$(fq "SELECT status FROM newsletter_campaigns WHERE id=$NLID")"
+check "and queues nobody"           "0"     "$(fq "SELECT COUNT(*) FROM newsletter_campaign_recipients WHERE campaign_id=$NLID")"
+check "it records who wrote it"     "Craig" "$(fq "SELECT created_by FROM newsletter_campaigns WHERE id=$NLID")"
+
+echo "  ---- CRITICAL: no key means no queue, however the form is posted ----"
+fq "DELETE FROM site_settings WHERE setting_key='brevo_api_key'" >/dev/null
+NL_REFUSE="$(curl -s -b "$NLJ" -X POST "$NLU" --data-urlencode "csrf_token=$(nl_tok)" -d "action=send" -d "id=$NLID")"
+check "a direct post is refused, not just the disabled button" "1" \
+  "$(printf '%s' "$NL_REFUSE" | grep -c 'nothing can be sent. Add it under Settings')"
+check "and nothing was queued behind it" "0" \
+  "$(fq "SELECT COUNT(*) FROM newsletter_campaign_recipients WHERE campaign_id=$NLID")"
+
+fq "INSERT INTO site_settings (setting_key, setting_value) VALUES ('brevo_api_key','xkeysib-verify-not-real')
+    ON DUPLICATE KEY UPDATE setting_value=VALUES(setting_value)" >/dev/null
+sleep 3
+
+echo "  ---- the audience is frozen at the moment Send is pressed ----"
+curl -s -b "$NLJ" -o /dev/null -X POST "$NLU" --data-urlencode "csrf_token=$(nl_tok)" -d "action=send" -d "id=$NLID"
+check "it queues the subscribed"        "1" \
+  "$(fq "SELECT COUNT(*) FROM newsletter_campaign_recipients WHERE campaign_id=$NLID AND email='nl-a@example.test'")"
+check "CRITICAL: never the unsubscribed" "0" \
+  "$(fq "SELECT COUNT(*) FROM newsletter_campaign_recipients WHERE campaign_id=$NLID AND email='nl-gone@example.test'")"
+check "and the campaign moves to sending" "sending" "$(fq "SELECT status FROM newsletter_campaigns WHERE id=$NLID")"
+
+fq "INSERT IGNORE INTO newsletter_subscribers (email, source) VALUES ('nl-late@example.test','footer')" >/dev/null
+check "somebody subscribing after Send is not added to it" "0" \
+  "$(fq "SELECT COUNT(*) FROM newsletter_campaign_recipients WHERE campaign_id=$NLID AND email='nl-late@example.test'")"
+
+echo "  ---- the queue drains in batches and records each outcome ----"
+NL_BEFORE="$(fq "SELECT COUNT(*) FROM newsletter_campaign_recipients WHERE campaign_id=$NLID AND status='pending'")"
+check "a dry run sends nothing" "$NL_BEFORE" \
+  "$(cd public_html && php tools/send-newsletter-queue.php >/dev/null 2>&1; fq "SELECT COUNT(*) FROM newsletter_campaign_recipients WHERE campaign_id=$NLID AND status='pending'")"
+(cd public_html && php tools/send-newsletter-queue.php --send --limit=1 >/dev/null 2>&1)
+check "a real run takes only its batch" "1" \
+  "$(fq "SELECT COUNT(*) FROM newsletter_campaign_recipients WHERE campaign_id=$NLID AND status<>'pending'")"
+check "and the failure names the reason" "1" \
+  "$(fq "SELECT COUNT(*) FROM newsletter_campaign_recipients WHERE campaign_id=$NLID AND error LIKE '%401%'")"
+
+echo "  ---- CRITICAL: a newsletter nobody received must not look sent ----"
+(cd public_html && php tools/send-newsletter-queue.php --send >/dev/null 2>&1)
+check "every message failing closes it as failed" "failed" \
+  "$(fq "SELECT status FROM newsletter_campaigns WHERE id=$NLID")"
+fq "UPDATE newsletter_campaigns SET status='sending' WHERE id=$NLID" >/dev/null
+fq "UPDATE newsletter_campaign_recipients SET status='sent' WHERE campaign_id=$NLID LIMIT 1" >/dev/null
+(cd public_html && php tools/send-newsletter-queue.php --send >/dev/null 2>&1)
+check "one success closes it as sent" "sent" "$(fq "SELECT status FROM newsletter_campaigns WHERE id=$NLID")"
+
+echo "  ---- every copy carries a working opt-out ----"
+NL_BODY="$(php -r '
+require "public_html/includes/config.php"; require "public_html/includes/campaigns.php";
+echo pmCampaignPersonalise($pdo, "<p>Body.</p>", "nl-a@example.test");' 2>/dev/null)"
+check "the footer is appended without being asked for" "1" \
+  "$(printf '%s' "$NL_BODY" | grep -c 'newsletter-unsubscribe.php?t=')"
+check "it carries that subscriber's own token" "1" \
+  "$(NLT="$(fq "SELECT unsubscribe_token FROM newsletter_subscribers WHERE email='nl-a@example.test'")"; \
+     printf '%s' "$NL_BODY" | grep -c "$NLT")"
+
+NLT="$(fq "SELECT unsubscribe_token FROM newsletter_subscribers WHERE email='nl-a@example.test'")"
+check "the opt-out page answers 200" "200" \
+  "$(curl -s -o /dev/null -w '%{http_code}' "$MAIN/newsletter-unsubscribe.php?t=$NLT")"
+check "and the address leaves the audience" "1" \
+  "$(fq "SELECT COUNT(*) FROM newsletter_subscribers WHERE email='nl-a@example.test' AND unsubscribed_at IS NOT NULL")"
+check "an unknown token answers the same page" "200" \
+  "$(curl -s -o /dev/null -w '%{http_code}' "$MAIN/newsletter-unsubscribe.php?t=deadbeefdeadbeefdeadbeefdeadbeef")"
+check "it is kept out of search results" "1" \
+  "$(curl -s "$MAIN/newsletter-unsubscribe.php?t=$NLT" | grep -c 'noindex')"
+
+echo "  ---- CRITICAL: an attachment name must not reach outside the uploads dir ----"
+NL_TRAV="$(php -r '
+require "public_html/includes/config.php"; require "public_html/includes/campaigns.php";
+echo count(pmCampaignAttachments(["attachments" => json_encode(
+    ["../../includes/db-credentials.php", "/etc/passwd", "ok.pdf"])]));' 2>/dev/null)"
+check "traversal and absolute paths are dropped" "1" "$NL_TRAV"
+
+echo "  ---- the sweep is not a web page, and staff are not tracked ----"
+check "the queue tool refuses over HTTP" "404" \
+  "$(curl -s -o /dev/null -w '%{http_code}' "$MAIN/tools/send-newsletter-queue.php")"
+check "a signed out visitor cannot reach the screen" "0" \
+  "$(curl -s -o /dev/null -w '%{http_code}' "$NLU" | grep -c '^200$')"
+
+echo "  ---- the screen uses the design system, not invented classes ----"
+check "no class that pm-admin.css does not define" "0" \
+  "$(grep -c 'pma-form\|form-actions\|badge-grey' public_html/admin/newsletter.php)"
+check "no deprecated curl_close in the API client" "0" \
+  "$(grep -c '^\s*curl_close(' public_html/includes/brevo.php)"
+# Half the staff are not on a Mac. Instructions that name only one platform
+# read as "this is not for you" to everybody else.
+check "no Mac-only keyboard instruction" "0" \
+  "$(grep -c 'Hold Command to' public_html/admin/newsletter.php)"
+check "the hint names both platforms" "1" \
+  "$(grep -c 'Hold Ctrl, or Command on a Mac' public_html/admin/newsletter.php)"
+
+fq "DELETE FROM newsletter_campaign_recipients" >/dev/null
+fq "DELETE FROM newsletter_campaigns" >/dev/null
+fq "DELETE FROM newsletter_subscribers WHERE email LIKE 'nl-%@example.test'" >/dev/null
+fq "DELETE FROM site_settings WHERE setting_key='brevo_api_key'" >/dev/null
+rm -f "$NLJ"
 
 echo
 printf '\n%s\npassed=%d failed=%d\n%s\n' "$(printf '=%.0s' {1..78})" "$pass" "$fail" "$(printf '=%.0s' {1..78})"
