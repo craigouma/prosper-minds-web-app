@@ -226,7 +226,21 @@ Then **Add New Cron Job**. Now add a second one, same schedule, with this comman
 
 1. **An API key.** In Brevo: *SMTP & API*, *API keys*, generate one. It starts with `xkeysib-`. Paste it into the admin panel under **Settings**, in the **Newsletter sending** card. Nobody else needs a Brevo login: staff write and send newsletters from the admin panel with their own accounts, which is what avoids Brevo's one-seat limit on the free plan.
 
-2. **Domain authentication.** In Brevo: *Senders, Domains & Dedicated IPs*. Add `prosper-minds.com` and add the DNS records it gives you in cPanel, **Zone Editor**. Skipping this is the usual reason a newsletter sends without errors and still lands in spam or is rejected outright.
+2. **Authorise the server's IP address.** In Brevo: *Security, Authorised IPs*, or go straight to
+   `https://app.brevo.com/security/authorised_ips`. This account has IP allowlisting switched on, and a
+   perfectly good API key used from an address that is not on the list is rejected with the same 401 as a
+   wrong key. Add the server's outbound address. cPanel shows it on the right of the main page as
+   **Shared IP Address**, though an outbound address can differ from the one the site is served on.
+
+   You do not have to guess it. Send a newsletter to yourself with the test button and read the failure on
+   the Newsletter screen: Brevo names the exact address it saw, for example *"unrecognised IP address
+   41.90.67.21"*. Add that one.
+
+3. **Domain authentication.** In Brevo: *Senders, Domains & Dedicated IPs*. Add `prosper-minds.com` and add the DNS records it gives you in cPanel, **Zone Editor**. Skipping this is the usual reason a newsletter sends without errors and still lands in spam or is rejected outright.
+
+If a send fails, the reason is on the Newsletter screen against the person it failed for, in Brevo's own
+words. The three that account for almost every failure are a key from an unlisted IP, an unverified sender
+address, and the daily allowance being used up.
 
 The free plan is 300 emails a day, shared between marketing and transactional. Only the newsletter goes through Brevo. Registration confirmations, invoices and reminders keep using the mail server in the SMTP card, so a busy registration day cannot eat the newsletter allowance.
 
