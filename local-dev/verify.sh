@@ -3100,8 +3100,8 @@ check "one success closes it as sent" "sent" "$(fq "SELECT status FROM newslette
 echo "  ---- every copy carries a working opt-out ----"
 NL_BODY="$(php -r '
 require "public_html/includes/config.php"; require "public_html/includes/campaigns.php";
-echo pmCampaignPersonalise($pdo, "<p>Body.</p>", "nl-a@example.test");' 2>/dev/null)"
-check "the footer is appended without being asked for" "1" \
+echo pmCampaignRenderEmail($pdo, "Verify subject", "<p>Body.</p>", "nl-a@example.test");' 2>/dev/null)"
+check "the branded shell wraps what was typed" "1" \
   "$(printf '%s' "$NL_BODY" | grep -c 'newsletter-unsubscribe.php?t=')"
 check "it carries that subscriber's own token" "1" \
   "$(NLT="$(fq "SELECT unsubscribe_token FROM newsletter_subscribers WHERE email='nl-a@example.test'")"; \
@@ -3147,6 +3147,84 @@ fq "DELETE FROM newsletter_campaigns" >/dev/null
 fq "DELETE FROM newsletter_subscribers WHERE email LIKE 'nl-%@example.test'" >/dev/null
 fq "DELETE FROM site_settings WHERE setting_key='brevo_api_key'" >/dev/null
 rm -f "$NLJ"
+
+echo
+echo "=== 31. Newsletter design and attachments ==="
+
+NLT2=/tmp/verify-nl-render.html
+php -r '
+require "public_html/includes/config.php"; require "public_html/includes/campaigns.php";
+file_put_contents("/tmp/verify-nl-render.html",
+  pmCampaignRenderEmail($pdo, "September cohort dates", "<p>Dear colleague.</p>", "nl-x@example.test"));
+' >/dev/null 2>&1
+
+echo "  ---- the newsletter is dressed like the invoice email ----"
+check "the Prosperminds logo is in the header" "1" "$(grep -c 'fisrt-logo.png' $NLT2)"
+check "so is the brand green"                  "1" "$(grep -c '#00B140' $NLT2)"
+check "the subject titles it and heads it"     "2" "$(grep -c 'September cohort dates' $NLT2)"
+check "what was typed survives intact"         "1" "$(grep -c 'Dear colleague.' $NLT2)"
+check "it signs off as the invoice does"       "1" "$(grep -c 'The Prosperminds Team' $NLT2)"
+check "and still carries the opt-out"          "1" "$(grep -c 'newsletter-unsubscribe.php?t=' $NLT2)"
+
+echo "  ---- built for mail clients, not browsers ----"
+# Outlook ignores most of a <style> block, so the shell is tables and inline
+# styles. A newsletter that only holds together in Gmail is not finished.
+check "the layout is tables, not divs" "2" \
+  "$(grep -c 'role="presentation"' $NLT2)"
+check "no external stylesheet to be stripped" "0" \
+  "$(grep -c '<link rel="stylesheet"' $NLT2)"
+rm -f $NLT2
+
+echo "  ---- a PDF can be attached without visiting the media library ----"
+check "the form accepts a file at all" "1" \
+  "$(grep -c 'enctype="multipart/form-data"' public_html/admin/newsletter.php)"
+check "there is a file input"          "1" \
+  "$(grep -c 'name="attachment_file"' public_html/admin/newsletter.php)"
+check "it offers PDF"                  "1" \
+  "$(grep -c 'accept=".pdf' public_html/admin/newsletter.php)"
+check "the media store accepts PDFs"   "pdf" \
+  "$(php -r 'require "public_html/includes/media.php"; echo PM_MEDIA_TYPES["application/pdf"] ?? "no";' 2>/dev/null)"
+
+echo "  ---- CRITICAL: the type comes from the bytes, never the filename ----"
+printf 'GIF89a this is not a pdf' > /tmp/verify-fake.pdf
+cat > /tmp/verify-magic.php <<'PHPEOF'
+<?php
+require 'public_html/includes/media.php';
+$finfo = new finfo(FILEINFO_MIME_TYPE);
+$mime  = (string) $finfo->file('/tmp/verify-fake.pdf');
+// pmMediaStore keys off this, not the extension, so a renamed file is refused.
+echo isset(PM_MEDIA_TYPES[$mime]) && $mime === 'application/pdf' ? 'accepted' : 'refused';
+PHPEOF
+check "a .pdf that is not a PDF is refused" "refused" "$(php /tmp/verify-magic.php)"
+rm -f /tmp/verify-fake.pdf /tmp/verify-magic.php
+
+echo
+echo "=== 32. Vision and mission ==="
+
+VM="$(curl -s "$MAIN/about.php")"
+check "the vision is on the About page" "1" \
+  "$(printf '%s' "$VM" | grep -c 'An Africa where every public institution is trusted with its money')"
+check "so is the mission"                "1" \
+  "$(printf '%s' "$VM" | grep -c 'We prepare Africa')"
+check "both are labelled"                "2" \
+  "$(printf '%s' "$VM" | grep -c '>Vision<\|>Mission<')"
+
+echo "  ---- CRITICAL: the client's standing rule on em dashes ----"
+check "no em dash reaches the About page" "0" "$(printf '%s' "$VM" | grep -c '—')"
+check "nor sits in the template"          "0" "$(grep -c '—' public_html/about.php)"
+check "nor in the migration"              "0" \
+  "$(grep -c '—' public_html/database/migrations/2026-09-15-01-seed-vision-mission.up.sql)"
+
+"${DB_MAIN_FILE[@]}" < public_html/database/migrations/2026-09-15-01-seed-vision-mission.up.sql >/dev/null 2>&1
+check "the seed migration applies cleanly" "0" \
+  "$("${DB_MAIN_FILE[@]}" < public_html/database/migrations/2026-09-15-01-seed-vision-mission.up.sql >/dev/null 2>&1; echo $?)"
+check "the copy is editable, not only hardcoded" "4" \
+  "$(fq "SELECT COUNT(*) FROM page_content WHERE page_slug='about' AND section_key IN
+        ('vision_eyebrow','vision_body','mission_eyebrow','mission_body')")"
+check "the migration ships with its down half" "2" \
+  "$(ls public_html/database/migrations/2026-09-15-01-seed-vision-mission.*.sql 2>/dev/null | wc -l | tr -d ' ')"
+check "the production copy is tracked too" "1" \
+  "$(ls deploy/2026-09-15-vision-mission.sql 2>/dev/null | wc -l | tr -d ' ')"
 
 echo
 printf '\n%s\npassed=%d failed=%d\n%s\n' "$(printf '=%.0s' {1..78})" "$pass" "$fail" "$(printf '=%.0s' {1..78})"

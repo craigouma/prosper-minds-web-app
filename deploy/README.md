@@ -148,6 +148,12 @@ Then a second table listing thirteen pages with their row counts, `sponsorship` 
 
 Afterwards, Site health's Content layer row turns from **Look** to **Fine**.
 
+**Then one more, for copy added since.** Paste `deploy/2026-09-15-vision-mission.sql` and press Go. It adds the
+vision and mission statements to the About page as editable rows. Expect **4**.
+
+The About page shows that copy either way, because `about.php` carries the same wording as its built-in
+fallback. Running this only makes it editable rather than fixed in the template.
+
 ---
 
 ## 7. Add the seven cohorts that have already run

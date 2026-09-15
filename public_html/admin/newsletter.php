@@ -30,8 +30,39 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $body    = (string) ($_POST['body_html'] ?? '');
         $files   = array_values(array_filter((array) ($_POST['attachments'] ?? []), 'strlen'));
 
+        // A file picked here is stored in the media library like any other
+        // upload, which is what makes it reusable next time and keeps one set
+        // of rules about what may be uploaded. pmMediaStore decides the type
+        // from the magic bytes, not the name, so a .pdf that is really
+        // something else is refused.
+        $uploaded = false;
+        if (($_FILES['attachment_file']['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_NO_FILE) {
+            $stored = pmMediaStore($pdo, $_FILES['attachment_file'], $who);
+
+            if ($stored['ok']) {
+                $files[]  = $stored['filename'];
+                $uploaded = true;
+                pmAudit($pdo, 'media_upload', 'Uploaded ' . $stored['filename'] . ' from the newsletter screen',
+                    'cms_media', $stored['id']);
+            } else {
+                $error = $stored['error'];
+            }
+        }
+
         try {
-            if ($action === 'save') {
+            // Attaching happens whichever button was pressed, so a file picked
+            // just before Send me a test is not silently dropped.
+            if ($uploaded && $error === '' && $action !== 'save' && $id > 0) {
+                $existing = pmCampaignById($pdo, $id);
+                if ($existing !== null && ($existing['status'] ?? '') === 'draft') {
+                    pmCampaignSave($pdo, $id, (string) $existing['subject'],
+                        (string) $existing['body_html'], $files, $who);
+                }
+            }
+
+            if ($error !== '') {
+                $editId = $id;
+            } elseif ($action === 'save') {
                 if ($subject === '') {
                     $error = 'A newsletter needs a subject line.';
                 } else {
@@ -59,7 +90,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         $to,
                         '',
                         '[TEST] ' . $campaign['subject'],
-                        pmCampaignPersonalise($pdo, (string) $campaign['body_html'], $to),
+                        pmCampaignRenderEmail($pdo, '[TEST] ' . $campaign['subject'], (string) $campaign['body_html'], $to),
                         $from,
                         (string) getSetting('company_name', 'Prosperminds'),
                         $attachments,
@@ -141,7 +172,7 @@ require_once 'header.php';
 <?php endif; ?>
   </div>
 
-  <form method="post">
+  <form method="post" enctype="multipart/form-data">
     <input type="hidden" name="csrf_token" value="<?php echo generateCsrfToken(); ?>">
     <input type="hidden" name="id" value="<?php echo (int) ($editing['id'] ?? 0); ?>">
 
@@ -179,6 +210,14 @@ foreach ($library as $item):
 <?php endforeach; ?>
           </select>
           <p class="form-hint">From the media library. Hold Ctrl, or Command on a Mac, to pick more than one.</p>
+
+          <label for="nl-upload" style="margin-top:14px;">Or upload one now</label>
+          <input type="file" id="nl-upload" name="attachment_file" class="form-control"
+                 accept=".pdf,.jpg,.jpeg,.png,.webp,.gif"
+                 <?php echo $isDraft ? '' : 'disabled'; ?>>
+          <p class="form-hint">PDF or an image, up to <?php
+            echo htmlspecialchars(pmMediaHumanSize(pmMediaUploadLimitBytes())); ?>.
+            It is added to the media library as well, so it is there next time.</p>
         </div>
 
         <div class="form-group">
