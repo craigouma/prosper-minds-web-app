@@ -19,6 +19,11 @@ require_once __DIR__ . '/mail-template-newsletter.php';
 
 const PM_CAMPAIGN_BATCH = 40;
 
+// How many go out inside the admin request that pressed Send. Small enough that
+// the request cannot time out, large enough that a modest list is finished
+// before the page comes back. The rest waits for the sweep.
+const PM_CAMPAIGN_INLINE = 25;
+
 function ensureCampaignSchema(PDO $pdo): void
 {
     static $checked = false;

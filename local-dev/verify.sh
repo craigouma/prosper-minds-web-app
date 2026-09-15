@@ -2361,7 +2361,7 @@ check "the invoice directory is still denied" "1" \
 
 echo "  ---- site health ----"
 HE="$(curl -s -b "$GJAR" "$MAIN/admin/health.php")"
-check "health runs every check" "13" "$(printf '%s' "$HE" | grep -c 'class="badge badge-\(green\|orange\|red\)"')"
+check "health runs every check" "14" "$(printf '%s' "$HE" | grep -c 'class="badge badge-\(green\|orange\|red\)"')"
 check "it notices unsent mail"    "1" "$(printf '%s' "$HE" | grep -c 'failed to send in the last seven days')"
 check "it checks the invoice directory" "1" "$(printf '%s' "$HE" | grep -c 'Delegates receive a signed link')"
 check "it checks uploads cannot run code" "1" "$(printf '%s' "$HE" | grep -c 'PHP engine is off')"
@@ -3072,13 +3072,21 @@ check "it queues the subscribed"        "1" \
   "$(fq "SELECT COUNT(*) FROM newsletter_campaign_recipients WHERE campaign_id=$NLID AND email='nl-a@example.test'")"
 check "CRITICAL: never the unsubscribed" "0" \
   "$(fq "SELECT COUNT(*) FROM newsletter_campaign_recipients WHERE campaign_id=$NLID AND email='nl-gone@example.test'")"
-check "and the campaign moves to sending" "sending" "$(fq "SELECT status FROM newsletter_campaigns WHERE id=$NLID")"
+# Pressing Send now attempts delivery in the same request, so by here the
+# campaign has already left draft and, with a deliberately invalid key, closed
+# as failed rather than sitting on "sending".
+check "and the campaign leaves draft" "0" \
+  "$(fq "SELECT COUNT(*) FROM newsletter_campaigns WHERE id=$NLID AND status='draft'")"
 
 fq "INSERT IGNORE INTO newsletter_subscribers (email, source) VALUES ('nl-late@example.test','footer')" >/dev/null
 check "somebody subscribing after Send is not added to it" "0" \
   "$(fq "SELECT COUNT(*) FROM newsletter_campaign_recipients WHERE campaign_id=$NLID AND email='nl-late@example.test'")"
 
-echo "  ---- the queue drains in batches and records each outcome ----"
+echo "  ---- the cron drains what is left, in batches ----"
+# A list longer than PM_CAMPAIGN_INLINE leaves a remainder for the sweep. Put
+# the rows back to pending to stand in for that remainder.
+fq "UPDATE newsletter_campaigns SET status='sending' WHERE id=$NLID" >/dev/null
+fq "UPDATE newsletter_campaign_recipients SET status='pending', error=NULL WHERE campaign_id=$NLID" >/dev/null
 NL_BEFORE="$(fq "SELECT COUNT(*) FROM newsletter_campaign_recipients WHERE campaign_id=$NLID AND status='pending'")"
 check "a dry run sends nothing" "$NL_BEFORE" \
   "$(cd public_html && php tools/send-newsletter-queue.php >/dev/null 2>&1; fq "SELECT COUNT(*) FROM newsletter_campaign_recipients WHERE campaign_id=$NLID AND status='pending'")"
@@ -3258,6 +3266,63 @@ check "a heading somebody has since reworded is left alone" "Our 2027 schools" \
   "$(fq "SELECT content_value FROM page_content WHERE page_slug='home' AND section_key='events_title'")"
 fq "UPDATE page_content SET content_value='Flagship events'
      WHERE page_slug='home' AND section_key='events_title'" >/dev/null
+
+echo
+echo "=== 34. A newsletter must not depend on the cron to leave ==="
+
+NQJ=/tmp/verify-queue.txt
+rm -f "$NQJ"
+NQT="$(curl -s -c "$NQJ" "$MAIN/admin/login.php" | sed -n 's/.*name="csrf_token" value="\([^"]*\)".*/\1/p' | head -1)"
+curl -s -b "$NQJ" -c "$NQJ" -o /dev/null --data-urlencode "csrf_token=$NQT" \
+  --data-urlencode "username=Craig" --data-urlencode "password=localtest-analytics-pw" "$MAIN/admin/login.php"
+nq_tok() { curl -s -b "$NQJ" "$MAIN/admin/newsletter.php" | sed -n 's/.*name="csrf_token" value="\([^"]*\)".*/\1/p' | head -1; }
+
+fq "DELETE FROM newsletter_campaign_recipients" >/dev/null
+fq "DELETE FROM newsletter_campaigns" >/dev/null
+fq "INSERT IGNORE INTO newsletter_subscribers (email, source) VALUES ('nq@example.test','footer')" >/dev/null
+fq "INSERT INTO site_settings (setting_key, setting_value) VALUES ('brevo_api_key','xkeysib-verify-not-real')
+    ON DUPLICATE KEY UPDATE setting_value=VALUES(setting_value)" >/dev/null
+sleep 3
+
+curl -s -b "$NQJ" -o /dev/null -X POST "$MAIN/admin/newsletter.php" --data-urlencode "csrf_token=$(nq_tok)" \
+  -d "action=save" -d "id=0" --data-urlencode "subject=Queue verify" --data-urlencode "body_html=<p>Hello.</p>"
+NQID="$(fq "SELECT id FROM newsletter_campaigns WHERE subject='Queue verify'")"
+
+echo "  ---- CRITICAL: pressing Send must attempt delivery, not only queue ----"
+curl -s -b "$NQJ" -o /dev/null -X POST "$MAIN/admin/newsletter.php" --data-urlencode "csrf_token=$(nq_tok)" \
+  -d "action=send" -d "id=$NQID"
+check "no recipient is left untried" "0" \
+  "$(fq "SELECT COUNT(*) FROM newsletter_campaign_recipients WHERE campaign_id=$NQID AND status='pending'")"
+check "and every one carries the reason it failed" "0" \
+  "$(fq "SELECT COUNT(*) FROM newsletter_campaign_recipients WHERE campaign_id=$NQID AND error IS NULL")"
+
+echo "  ---- a queue the cron never touched can be flushed by hand ----"
+fq "UPDATE newsletter_campaigns SET status='sending', queued_at=DATE_SUB(NOW(), INTERVAL 3 HOUR) WHERE id=$NQID" >/dev/null
+fq "UPDATE newsletter_campaign_recipients SET status='pending', error=NULL WHERE campaign_id=$NQID" >/dev/null
+NQPAGE="$(curl -s -b "$NQJ" "$MAIN/admin/newsletter.php")"
+check "the screen says how many are stuck" "1" \
+  "$(printf '%s' "$NQPAGE" | grep -c 'waiting to go out')"
+check "and offers the button"              "1" \
+  "$(printf '%s' "$NQPAGE" | grep -c 'Send them now')"
+check "and names the likely cause"         "1" \
+  "$(printf '%s' "$NQPAGE" | grep -c 'cron job is not running')"
+
+curl -s -b "$NQJ" -o /dev/null -X POST "$MAIN/admin/newsletter.php" --data-urlencode "csrf_token=$(nq_tok)" \
+  -d "action=flush" -d "id=0"
+check "pressing it clears the queue" "0" \
+  "$(fq "SELECT COUNT(*) FROM newsletter_campaign_recipients WHERE campaign_id=$NQID AND status='pending'")"
+
+echo "  ---- and a stuck queue is visible on Site health ----"
+fq "UPDATE newsletter_campaigns SET status='sending', queued_at=DATE_SUB(NOW(), INTERVAL 3 HOUR) WHERE id=$NQID" >/dev/null
+fq "UPDATE newsletter_campaign_recipients SET status='pending' WHERE campaign_id=$NQID" >/dev/null
+check "health reports the cron is not running" "1" \
+  "$(curl -s -b "$NQJ" "$MAIN/admin/health.php" | grep -c 'newsletter cron is not running')"
+
+fq "DELETE FROM newsletter_campaign_recipients" >/dev/null
+fq "DELETE FROM newsletter_campaigns" >/dev/null
+fq "DELETE FROM newsletter_subscribers WHERE email='nq@example.test'" >/dev/null
+fq "DELETE FROM site_settings WHERE setting_key='brevo_api_key'" >/dev/null
+rm -f "$NQJ"
 
 echo
 printf '\n%s\npassed=%d failed=%d\n%s\n' "$(printf '=%.0s' {1..78})" "$pass" "$fail" "$(printf '=%.0s' {1..78})"

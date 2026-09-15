@@ -46,10 +46,12 @@ Newest first. Anything marked **outstanding** still needs doing.
 ### 14 September 2026, the newsletter
 
 - Done: the Brevo API key is in **Settings**, **Newsletter sending**.
-- **Outstanding: a second cron job.** Same schedule as the reminder one:
+- **Still worth adding: a second cron job.** Same schedule as the reminder one:
   `/usr/local/bin/php /home2/kidsmone/public_html/tools/send-newsletter-queue.php --send --quiet`
-  Without it, pressing Send queues the newsletter and nothing ever leaves. The screen shows a
-  "Waiting to send" count, so a stuck queue is visible.
+  Pressing Send now delivers up to 25 messages in that same request, so a small list goes out
+  immediately whether or not this exists. The cron matters once the list is bigger than that: it drains
+  the remainder. If it is not running, the Newsletter screen says how many are waiting and gives you a
+  **Send them now** button, and Site health reports it.
 - Already done: the sender is verified, the domain is authenticated, and both IP addresses are authorised.
 
 ### 11 September 2026, Google Ads conversion and Tag Manager
