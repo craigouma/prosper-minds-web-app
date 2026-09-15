@@ -15,6 +15,7 @@
 
 require_once __DIR__ . '/brevo.php';
 require_once __DIR__ . '/media.php';
+require_once __DIR__ . '/mail-template-newsletter.php';
 
 const PM_CAMPAIGN_BATCH = 40;
 
@@ -303,7 +304,7 @@ function pmCampaignDrain(PDO $pdo, int $limit = PM_CAMPAIGN_BATCH): array
             (string) $row['email'],
             '',
             (string) $row['subject'],
-            pmCampaignPersonalise($pdo, (string) $row['body_html'], (string) $row['email']),
+            pmCampaignRenderEmail($pdo, (string) $row['subject'], (string) $row['body_html'], (string) $row['email']),
             $fromEmail,
             $fromName,
             $attachments,
@@ -357,13 +358,18 @@ function pmCampaignCloseFinished(PDO $pdo): void
 }
 
 /**
- * Append the unsubscribe footer.
+ * Wrap what somebody typed in the branded shell, with their own opt-out link.
  *
- * Not optional and not left to whoever writes the newsletter to remember. A
- * marketing email without a working opt-out is the one thing here that is
- * actually unlawful, so it is added to every message on the way out.
+ * The unsubscribe link is built here rather than left to whoever writes the
+ * newsletter to remember. A marketing email without a working opt-out is the
+ * one thing here that is actually unlawful.
  */
-function pmCampaignPersonalise(PDO $pdo, string $html, string $email): string
+function pmCampaignRenderEmail(PDO $pdo, string $subject, string $bodyHtml, string $email): string
+{
+    return getNewsletterEmailTemplate($subject, $bodyHtml, pmCampaignUnsubscribeUrl($pdo, $email));
+}
+
+function pmCampaignUnsubscribeUrl(PDO $pdo, string $email): string
 {
     $token = '';
     try {
@@ -375,15 +381,8 @@ function pmCampaignPersonalise(PDO $pdo, string $html, string $email): string
     }
 
     $origin = defined('PM_SITE_ORIGIN') ? PM_SITE_ORIGIN : 'https://prosper-minds.com';
-    $link   = $origin . '/newsletter-unsubscribe.php?t=' . rawurlencode($token);
 
-    $footer = '<hr style="margin:32px 0 16px;border:none;border-top:1px solid #e5e7eb">'
-        . '<p style="font-family:Arial,sans-serif;font-size:12px;color:#64748b;line-height:1.6">'
-        . 'You are receiving this because you subscribed at prosper-minds.com. '
-        . '<a href="' . htmlspecialchars($link) . '" style="color:#64748b">Unsubscribe</a>.'
-        . '<br>Prosperminds, Twiga Towers, Moi Avenue, Nairobi, Kenya.</p>';
-
-    return $html . $footer;
+    return $origin . '/newsletter-unsubscribe.php?t=' . rawurlencode($token);
 }
 
 /** @return array{ok: bool, error: string} */

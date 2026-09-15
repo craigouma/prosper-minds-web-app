@@ -1,14 +1,73 @@
 # Deploying to production, with no terminal
 
-Everything below is done in the cPanel web interface. Nothing here needs SSH.
+Everything here is done in the cPanel web interface. Nothing needs SSH.
 
-Three tools: **cPanel Git Version Control** to deploy the code, the **admin panel** to set itself up, and **phpMyAdmin** to back up first and run four SQL files after.
+Two halves. **Routine changes** comes first and is what you use from now on: three steps, and a log saying
+whether a particular change needs anything beyond a deploy. **The first deployment** follows it, kept as the
+record of what was run during go-live in September 2026.
 
-Each step below says exactly what to click and exactly what you should see. If what you see does not match, stop at that step and tell me.
-
-Allow about twenty minutes, most of it waiting.
+Every instruction says what to click and what you should see. If what you see does not match, stop there and
+tell me.
 
 ---
+
+# Routine changes, after go-live
+
+**The numbered runbook further down is the one-time go-live, and it is done.** Do not work through it again.
+For any change after that, this is the whole procedure:
+
+1. In GitHub, merge `dev` into `main`.
+2. cPanel, **Files, Git Version Control**, **Manage**, **Pull or Deploy**: **Update from Remote**, then
+   **Deploy HEAD Commit**.
+3. Hard refresh the page you are checking. Stylesheets and scripts carry a version stamp now, so a changed
+   file gets a new URL and the browser cannot serve you a stale one.
+
+Then check the log below. Most changes need nothing else. Some need one SQL file pasted into phpMyAdmin, or
+one setting filled in, and those are listed against the change that introduced them.
+
+---
+
+## Changes log
+
+Newest first. Anything marked **outstanding** still needs doing.
+
+### 15 September 2026, newsletter branding, PDF attachments, vision and mission, heading wording
+
+- **Outstanding: deploy.** Merge and deploy as above.
+- **Outstanding: SQL.** Paste `deploy/2026-09-15-flagship-wording.sql` into phpMyAdmin. Expect **0** and **2**.
+  It drops the word "four" from the two headings that counted the events, on the homepage and the sponsorship
+  page. The live site reads those from the database, so deploying the code alone will not change them.
+  Both statements name the old wording, so running it twice does nothing and a heading somebody has since
+  reworded by hand is left alone.
+- **Outstanding, optional: SQL.** Paste `deploy/2026-09-15-vision-mission.sql` into phpMyAdmin. Expect **4**.
+  The About page shows the vision and mission either way, because `about.php` carries the same wording as its
+  built-in fallback. This only makes the copy editable rather than fixed in the template.
+
+### 14 September 2026, the newsletter
+
+- Done: the Brevo API key is in **Settings**, **Newsletter sending**.
+- **Outstanding: a second cron job.** Same schedule as the reminder one:
+  `/usr/local/bin/php /home2/kidsmone/public_html/tools/send-newsletter-queue.php --send --quiet`
+  Without it, pressing Send queues the newsletter and nothing ever leaves. The screen shows a
+  "Waiting to send" count, so a stuck queue is visible.
+- Already done: the sender is verified, the domain is authenticated, and both IP addresses are authorised.
+
+### 11 September 2026, Google Ads conversion and Tag Manager
+
+- Done. No SQL and no settings. The Purchase conversion is recording.
+
+### 6 September 2026, past cohorts, cache stamping, unfinished registrations
+
+- Done, including `deploy/2026-09-06-past-cohorts.sql`. Seven past cohorts are live.
+- The reminder cron from step 9 belongs to this change.
+
+---
+
+# The first deployment
+
+Everything below was done in September 2026. It is kept as the record of what was run and what each file did,
+and because the rollback instructions in step 10 still apply. **For a routine change, use the section above
+instead.**
 
 ## Before you start
 
@@ -147,6 +206,7 @@ Nothing is broken while it is missing. Every page carries its own copy as a fall
 Then a second table listing thirteen pages with their row counts, `sponsorship` being the largest at 60.
 
 Afterwards, Site health's Content layer row turns from **Look** to **Fine**.
+
 
 ---
 

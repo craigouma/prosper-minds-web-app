@@ -49,6 +49,32 @@ pmPageBegin([
 </section>
 
 
+<?php // ── Vision and mission ────────────────────────────────────────────── ?>
+<?php // The client's own wording, with the em dashes replaced by commas. Their
+      // standing instruction is that no user-visible copy carries one. ?>
+<section class="pm-section pm-section--tight">
+  <div class="pm-container">
+    <div class="pm-grid pm-grid--2">
+
+      <div>
+        <span class="pm-eyebrow"><?php echo pmContentSafe($pdo, 'about', 'vision_eyebrow',
+          'Vision'); ?></span>
+        <p class="pm-lede pm-mt-md pm-measure"><?php echo pmContentSafe($pdo, 'about', 'vision_body',
+          'An Africa where every public institution is trusted with its money, led by world-class finance minds.'); ?></p>
+      </div>
+
+      <div>
+        <span class="pm-eyebrow"><?php echo pmContentSafe($pdo, 'about', 'mission_eyebrow',
+          'Mission'); ?></span>
+        <p class="pm-lede pm-mt-md pm-measure"><?php echo pmContentSafe($pdo, 'about', 'mission_body',
+          'We prepare Africa\'s senior finance leaders, practitioner to practitioner, to master the standards, put AI to work, and disclose with integrity, so their institutions earn trust at home and respect worldwide.'); ?></p>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+
 <?php // ── How we work, and what a delegate leaves with ──────────────────── ?>
 <section class="pm-section pm-section--surface">
   <div class="pm-container pm-row">

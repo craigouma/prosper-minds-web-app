@@ -192,7 +192,7 @@ pmPageBegin([
       'Eligible events'); ?></span>
 
     <h2 class="pm-h2"><?php echo pmContentSafe($pdo, 'sponsorship', 'events_title',
-      'Four flagship schools in 2026'); ?></h2>
+      'Flagship schools in 2026'); ?></h2>
 
     <p class="pm-lede pm-mt-lg"><?php echo pmContentSafe($pdo, 'sponsorship', 'events_body',
       'Each school draws senior public finance officials from across the continent and beyond. Sponsor one, or take the whole 2026 calendar.'); ?></p>

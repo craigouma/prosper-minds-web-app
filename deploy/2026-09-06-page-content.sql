@@ -40,7 +40,7 @@ INSERT IGNORE INTO `page_content` (`page_slug`, `section_key`, `content_type`, `
 ('home', 'hero_cta_secondary', 'text', 'Register a delegate', 70),
 ('home', 'hero_facts',         'json', '[{"value":"25","label":"Years collective experience"},{"value":"875","label":"Leaders trained"},{"value":"4","label":"Schools in 2026"},{"value":"5","label":"Day residential format"}]', 80),
 ('home', 'events_eyebrow',     'text', 'Upcoming courses', 90),
-('home', 'events_title',       'text', 'Four flagship events', 100),
+('home', 'events_title',       'text', 'Flagship events', 100),
 ('home', 'pillars_eyebrow',    'text', 'What we teach', 110),
 ('home', 'pillars_title',      'text', 'Three pillars of public finance capability', 120),
 ('home', 'record_eyebrow',     'text', 'Track record', 130),
@@ -112,7 +112,7 @@ INSERT IGNORE INTO `page_content` (`page_slug`, `section_key`, `content_type`, `
 ('sponsorship', 'hero_title',       'text', 'Co-Author Africa''s Public Finance Future', 40),
 ('sponsorship', 'hero_body',        'text', 'This is a business-to-government partnership, not advertising space. Sponsors sit in the room with accountants general, auditors general, treasury leaders and budget controllers for five days, as contributors to the programme rather than names on a banner.', 50),
 ('sponsorship', 'events_eyebrow',   'text', 'Eligible events', 60),
-('sponsorship', 'events_title',     'text', 'Four flagship schools in 2026', 70);
+('sponsorship', 'events_title',     'text', 'Flagship schools in 2026', 70);
 
 -- ── 404 ────────────────────────────────────────────────────────────────────
 INSERT IGNORE INTO `page_content` (`page_slug`, `section_key`, `content_type`, `content_value`, `sort_order`) VALUES

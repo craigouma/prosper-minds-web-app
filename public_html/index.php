@@ -127,7 +127,7 @@ pmPageBegin([
         <span class="pm-eyebrow"><?php echo pmContentSafe($pdo, 'home', 'events_eyebrow',
           'Upcoming courses'); ?></span>
         <h2 class="pm-h2"><?php echo pmContentSafe($pdo, 'home', 'events_title',
-          'Four flagship events'); ?></h2>
+          'Flagship events'); ?></h2>
       </div>
       <?php // Added in Phase 3, when the standalone calendar became a real
             // page. The homepage grid shows what is coming; events.php is the
