@@ -31,18 +31,21 @@ one setting filled in, and those are listed against the change that introduced t
 
 Newest first. Anything marked **outstanding** still needs doing.
 
-### 15 September 2026, newsletter branding, PDF attachments, vision and mission
+### 15 September 2026, newsletter branding, PDF attachments, vision and mission, heading wording
 
-- **Outstanding: deploy.** `main` is one commit behind. Merge and deploy as above.
+- **Outstanding: deploy.** Merge and deploy as above.
+- **Outstanding: SQL.** Paste `deploy/2026-09-15-flagship-wording.sql` into phpMyAdmin. Expect **0** and **2**.
+  It drops the word "four" from the two headings that counted the events, on the homepage and the sponsorship
+  page. The live site reads those from the database, so deploying the code alone will not change them.
+  Both statements name the old wording, so running it twice does nothing and a heading somebody has since
+  reworded by hand is left alone.
 - **Outstanding, optional: SQL.** Paste `deploy/2026-09-15-vision-mission.sql` into phpMyAdmin. Expect **4**.
   The About page shows the vision and mission either way, because `about.php` carries the same wording as its
   built-in fallback. This only makes the copy editable rather than fixed in the template.
 
 ### 14 September 2026, the newsletter
 
-- **Outstanding: the Brevo API key.** Admin panel, **Settings**, **Newsletter sending**. Paste the key that
-  begins `xkeysib-`, and `info@prosper-minds.com` as the send-from address. Until this is set the Send button
-  stays disabled and says why.
+- Done: the Brevo API key is in **Settings**, **Newsletter sending**.
 - **Outstanding: a second cron job.** Same schedule as the reminder one:
   `/usr/local/bin/php /home2/kidsmone/public_html/tools/send-newsletter-queue.php --send --quiet`
   Without it, pressing Send queues the newsletter and nothing ever leaves. The screen shows a

@@ -3227,5 +3227,38 @@ check "the production copy is tracked too" "1" \
   "$(ls deploy/2026-09-15-vision-mission.sql 2>/dev/null | wc -l | tr -d ' ')"
 
 echo
+echo "=== 33. Headings do not count the events ==="
+
+# The calendar no longer has exactly four events and will keep changing, so a
+# heading that states a number goes stale on its own.
+check "no counted heading left in the templates" "0" \
+  "$(grep -ril 'four flagship' public_html --include='*.php' | wc -l | tr -d ' ')"
+# The correction file itself has to name the old wording in its WHERE clause,
+# which is what scopes it so a later human edit is never overwritten.
+check "nor in the seed migrations"               "0" \
+  "$(grep -ril 'four flagship' public_html/database/migrations deploy --include='*.sql' \
+     | grep -v '2026-09-15-flagship-wording.sql' | wc -l | tr -d ' ')"
+
+"${DB_MAIN_FILE[@]}" < deploy/2026-09-15-flagship-wording.sql >/dev/null 2>&1
+check "the correction applies cleanly" "0" \
+  "$("${DB_MAIN_FILE[@]}" < deploy/2026-09-15-flagship-wording.sql >/dev/null 2>&1; echo $?)"
+check "and no counted row survives it" "0" \
+  "$(fq "SELECT COUNT(*) FROM page_content WHERE content_value LIKE '%our flagship%'")"
+
+check "the homepage heading reads without a count" "1" \
+  "$(curl -s "$MAIN/index.php" | grep -c '>Flagship events<')"
+check "so does the sponsorship one"                "1" \
+  "$(curl -s "$MAIN/sponsorship.php" | grep -c 'Flagship schools in 2026')"
+
+echo "  ---- CRITICAL: a correction must not overwrite a human edit ----"
+fq "UPDATE page_content SET content_value='Our 2027 schools'
+     WHERE page_slug='home' AND section_key='events_title'" >/dev/null
+"${DB_MAIN_FILE[@]}" < deploy/2026-09-15-flagship-wording.sql >/dev/null 2>&1
+check "a heading somebody has since reworded is left alone" "Our 2027 schools" \
+  "$(fq "SELECT content_value FROM page_content WHERE page_slug='home' AND section_key='events_title'")"
+fq "UPDATE page_content SET content_value='Flagship events'
+     WHERE page_slug='home' AND section_key='events_title'" >/dev/null
+
+echo
 printf '\n%s\npassed=%d failed=%d\n%s\n' "$(printf '=%.0s' {1..78})" "$pass" "$fail" "$(printf '=%.0s' {1..78})"
 exit $((fail > 0 ? 1 : 0))
