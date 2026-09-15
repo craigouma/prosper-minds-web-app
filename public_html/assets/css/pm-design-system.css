@@ -933,20 +933,41 @@ body.pm {
 
 /* The banner tile that anchors an event card. The brief is explicit that the
    client's own designed event banners are the visual anchor and must not be
-   replaced with stock photography, so the tile is a fixed 16:9 slot with a
-   neutral placeholder behind it. */
+   replaced with stock photography.
+
+   CONTAIN, NOT COVER, AND SQUARE. It was 16:9 with object-fit:cover, which
+   suits a wide banner and destroys everything else: the September 2026 posters
+   are 1254x1254, and cover cropped 44% of their height away, taking the course
+   title off the top and the phone numbers off the bottom. These are finished
+   artwork from a designer and cannot be recropped, so the page has to fit the
+   image rather than the image the page.
+
+   The four live events carry three different shapes (1:1, 1.78 and a 0.83
+   portrait), so no single ratio flatters all of them. A grid still needs one
+   shape or the cards sit at different heights and read as separate components.
+   Square is the compromise: it is the shape the client's designer is now
+   producing, so those fill it exactly, and contain guarantees that anything
+   else is shown whole with a margin rather than cut. Nothing anybody uploads
+   later can be silently mangled. */
 .pm-banner {
   position: relative;
-  aspect-ratio: 16 / 9;
+  aspect-ratio: 1 / 1;
   background: var(--pm-surface);
   border-bottom: var(--pm-rule-light);
   overflow: hidden;
 }
 
 .pm-banner > img {
+  display: block;
   width: 100%;
   height: 100%;
-  object-fit: cover;
+  object-fit: contain;
+}
+
+/* The listing row's banner column is narrow and the row is already short, so a
+   square there would tower over the text beside it. */
+.pm-listing__row .pm-banner {
+  aspect-ratio: 4 / 3;
 }
 
 /* The stand-in when a cohort was listed as text and no banner was ever

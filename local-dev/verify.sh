@@ -3325,5 +3325,32 @@ fq "DELETE FROM site_settings WHERE setting_key='brevo_api_key'" >/dev/null
 rm -f "$NQJ"
 
 echo
+echo "=== 35. Designed artwork is never cropped ==="
+
+DS=public_html/assets/css/pm-design-system.css
+
+echo "  ---- CRITICAL: cover cut the title and phone numbers off the posters ----"
+# The September 2026 posters are 1254x1254. In the old 16:9 slot, object-fit
+# cover removed 44% of their height from the middle outwards.
+check "the banner no longer crops to fill" "0" \
+  "$(awk '/^\.pm-banner > img \{/,/^}/' $DS | grep -c 'object-fit: cover')"
+check "it contains the whole image instead" "1" \
+  "$(awk '/^\.pm-banner > img \{/,/^}/' $DS | grep -c 'object-fit: contain')"
+
+echo "  ---- one shape, so a row of cards is not ragged ----"
+check "the slot has a single ratio" "1" \
+  "$(awk '/^\.pm-banner \{/,/^}/' $DS | grep -c 'aspect-ratio: 1 / 1')"
+check "and the narrow listing column has its own" "1" \
+  "$(grep -c '^\.pm-listing__row \.pm-banner {' $DS)"
+
+echo "  ---- intrinsic size is emitted, so the page does not jump ----"
+check "the helper exists"                    "1" \
+  "$(grep -c 'function pmEventImageSize' public_html/includes/layout/event-card.php)"
+check "and the width attribute is rendered"  "1" \
+  "$(grep -c 'width="<?php echo \$size\[0\]' public_html/includes/layout/event-card.php)"
+check "an unmeasurable file just goes without" "1" \
+  "$(grep -c 'if (\$size !== null)' public_html/includes/layout/event-card.php)"
+
+echo
 printf '\n%s\npassed=%d failed=%d\n%s\n' "$(printf '=%.0s' {1..78})" "$pass" "$fail" "$(printf '=%.0s' {1..78})"
 exit $((fail > 0 ? 1 : 0))
