@@ -101,15 +101,32 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $error  = $sent['ok'] ? '' : $sent['error'];
                     $editId = $id;
                 }
-            } elseif ($action === 'send') {
-                $result = pmCampaignQueue($pdo, $id);
+            } elseif ($action === 'send' || $action === 'flush') {
+                $result = $action === 'flush'
+                    ? ['ok' => true, 'queued' => 0, 'error' => '']
+                    : pmCampaignQueue($pdo, $id);
 
                 if ($result['ok']) {
-                    pmAudit($pdo, 'newsletter_send',
-                        'Queued a newsletter for ' . $result['queued'] . ' subscriber(s)',
-                        'newsletter_campaigns', $id);
-                    $notice = 'Queued for ' . $result['queued'] . ' subscriber(s). '
-                        . 'They go out on the next sweep, within half an hour.';
+                    if ($action === 'send') {
+                        pmAudit($pdo, 'newsletter_send',
+                            'Queued a newsletter for ' . $result['queued'] . ' subscriber(s)',
+                            'newsletter_campaigns', $id);
+                    }
+
+                    // Send what we can here and now rather than making a list of
+                    // three people wait on a cron. Bounded, so a large list
+                    // cannot time out the request: whatever is left is drained
+                    // by the sweep, and the button below flushes it by hand if
+                    // the cron is not running yet.
+                    $drained = pmCampaignDrain($pdo, PM_CAMPAIGN_INLINE);
+
+                    $notice = 'Sent ' . $drained['sent'] . '.';
+                    if ($drained['failed'] > 0) {
+                        $notice .= ' ' . $drained['failed'] . ' failed, with the reason against each below.';
+                    }
+                    $notice .= $drained['remaining'] > 0
+                        ? ' ' . $drained['remaining'] . ' still to go, on the next sweep.'
+                        : '';
                 } else {
                     $error = $result['error'];
                     $editId = $id;
@@ -246,6 +263,29 @@ foreach ($library as $item):
 <?php endif; ?>
   </form>
 </div>
+
+<?php
+$pmPending = (int) $pdo->query('SELECT COUNT(*) FROM newsletter_campaign_recipients r
+                                  JOIN newsletter_campaigns c ON c.id = r.campaign_id
+                                 WHERE r.status = "pending" AND c.status = "sending"')->fetchColumn();
+?>
+<?php if ($pmPending > 0): ?>
+<div class="table-card">
+  <div class="table-card-header">
+    <div>
+      <h2 class="card-title"><?php echo $pmPending; ?> waiting to go out</h2>
+      <p class="card-subtitle">These send on the half-hourly sweep. If they have been sitting here longer
+        than that, the cron job is not running and this button sends them by hand.</p>
+    </div>
+    <form method="post" style="margin:0;">
+      <input type="hidden" name="csrf_token" value="<?php echo generateCsrfToken(); ?>">
+      <input type="hidden" name="id" value="0">
+      <button type="submit" name="action" value="flush" class="btn btn-primary btn-sm"
+        <?php echo $configured ? '' : 'disabled'; ?>>Send them now</button>
+    </form>
+  </div>
+</div>
+<?php endif; ?>
 
 <div class="table-card">
   <div class="table-card-header">

@@ -172,6 +172,25 @@ $checks[] = pmCheck('Unfinished registrations', static function () use ($pdo) {
     return ['state' => 'good', 'detail' => $waiting . ' waiting for their reminder, none overdue.'];
 }, 'The reminder runs on cron, and a cron that stops fails silently.');
 
+$checks[] = pmCheck('Newsletter queue', static function () use ($pdo) {
+    $pending = (int) $pdo->query('SELECT COUNT(*) FROM newsletter_campaign_recipients r
+                                    JOIN newsletter_campaigns c ON c.id = r.campaign_id
+                                   WHERE r.status = "pending" AND c.status = "sending"')->fetchColumn();
+    $stuck   = (int) $pdo->query('SELECT COUNT(*) FROM newsletter_campaign_recipients r
+                                    JOIN newsletter_campaigns c ON c.id = r.campaign_id
+                                   WHERE r.status = "pending" AND c.status = "sending"
+                                     AND c.queued_at <= DATE_SUB(NOW(), INTERVAL 2 HOUR)')->fetchColumn();
+
+    if ($stuck > 0) {
+        return ['state' => 'bad', 'detail' => $stuck . ' message(s) have been waiting more than two hours. '
+            . 'The newsletter cron is not running. The Newsletter screen has a button to send them by hand.'];
+    }
+
+    return ['state' => 'good', 'detail' => $pending === 0
+        ? 'Nothing waiting.'
+        : $pending . ' waiting for the next sweep.'];
+}, 'A newsletter that was sent but never left is invisible without this.');
+
 $checks[] = pmCheck('Leftover setup scripts', static function () {
     $found = [];
     foreach (['setup_database.php', 'insert_events.php', 'test_email.php', '_phase1-preview.php'] as $file) {
