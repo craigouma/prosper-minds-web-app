@@ -118,18 +118,55 @@ function pmEventMonogram(array $event): string
  * Shared by the tile cards and the calendar's listing rows so the two cannot
  * drift into answering the missing-banner case differently.
  */
+/**
+ * The real pixel size of a banner, or null.
+ *
+ * The slot has no fixed ratio any more, so without these the page reflows when
+ * each image arrives. Read once per file per request: four events means four
+ * header reads, and a file that cannot be measured simply goes without.
+ *
+ * @return array{0: int, 1: int}|null
+ */
+function pmEventImageSize(string $rootRelative): ?array
+{
+    static $cache = [];
+
+    if (array_key_exists($rootRelative, $cache)) {
+        return $cache[$rootRelative];
+    }
+
+    $cache[$rootRelative] = null;
+    $path = __DIR__ . '/../../' . ltrim($rootRelative, '/');
+
+    if (!is_file($path)) {
+        return null;
+    }
+
+    $size = @getimagesize($path);
+
+    if (!is_array($size) || (int) ($size[0] ?? 0) <= 0 || (int) ($size[1] ?? 0) <= 0) {
+        return null;
+    }
+
+    return $cache[$rootRelative] = [(int) $size[0], (int) $size[1]];
+}
+
 function pmRenderEventBanner(array $event): void
 {
     $image = pmEventImageUrl($event);
 
     if ($image !== '') {
         $title = pmEventProse((string) ($event['title'] ?? ''));
+        $size  = pmEventImageSize((string) ($event['image_path'] ?? ''));
         ?>
           <div class="pm-banner">
             <?php // The client's own designed promotional banner. Alt names the
                   // course because that is the information the image carries. ?>
             <img src="<?php echo pmEsc($image); ?>"
                  alt="Promotional banner for <?php echo pmEsc($title); ?>"
+<?php if ($size !== null): ?>
+                 width="<?php echo $size[0]; ?>" height="<?php echo $size[1]; ?>"
+<?php endif; ?>
                  loading="lazy" decoding="async">
           </div>
 <?php
