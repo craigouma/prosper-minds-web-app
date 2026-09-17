@@ -1,0 +1,32 @@
+name: Deploy to production
+
+# Merge to main -> the live site updates. The pipeline lives here, in your
+# GitHub account, so it keeps working regardless of what happens to the client's
+# cPanel password: the source and the automation are yours.
+#
+# This deploys branch=main. If a rollback has left the server clone checked out
+# on the rollback branch, the update step below switches it back to main, so a
+# normal deploy always undoes a previous rollback.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch: {}
+
+concurrency:
+  group: cpanel-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Deploy main through cPanel
+        uses: ./.github/actions/cpanel-deploy
+        with:
+          host: ${{ secrets.CPANEL_HOST }}
+          username: ${{ secrets.CPANEL_USERNAME }}
+          token: ${{ secrets.CPANEL_API_TOKEN }}
+          repository_root: ${{ secrets.CPANEL_REPOSITORY_ROOT }}
+          branch: main

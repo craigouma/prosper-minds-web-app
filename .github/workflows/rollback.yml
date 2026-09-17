@@ -1,0 +1,59 @@
+name: Roll back to the original site
+
+# Restores the site the client had on 2026-08-19, before this engagement, by
+# deploying the `rollback` branch (which holds that original code) through the
+# same cPanel mechanism as a normal deploy.
+#
+# DELIBERATELY MANUAL. There is no schedule and no trigger other than a person
+# opening this workflow and running it. A live site that reverts itself on a
+# timer or a flag reads as sabotage of a running system, which is a criminal
+# matter in many places no matter who owes whom; a rollback that a person
+# chooses to run, after giving written notice that unpaid work is being
+# withdrawn under the contract's IP-retention clause, is the defensible version.
+# Keep it that way.
+#
+# WHAT IT DOES NOT DO. It never touches the database and never deletes uploaded
+# files: the rollback branch's .cpanel.yml snapshots the whole live site first,
+# then restores the original code while putting .env, storage, invoices and
+# uploads back in place. Delegate registrations, payments and subscribers are
+# the client's and third parties' data, not part of the code being withdrawn.
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: 'Type exactly: ROLLBACK TO ORIGINAL'
+        required: true
+        type: string
+      reason:
+        description: 'Why (recorded in the run log, e.g. "invoice #x unpaid, notice given 2026-09-17")'
+        required: true
+        type: string
+
+concurrency:
+  group: cpanel-deploy
+  cancel-in-progress: false
+
+jobs:
+  rollback:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require the confirmation phrase
+        run: |
+          if [ "${{ github.event.inputs.confirm }}" != "ROLLBACK TO ORIGINAL" ]; then
+            echo "::error::Confirmation phrase did not match. Nothing was done."
+            exit 1
+          fi
+          echo "Rollback authorised by ${{ github.actor }}."
+          echo "Reason: ${{ github.event.inputs.reason }}"
+
+      - uses: actions/checkout@v4
+
+      - name: Deploy the original site through cPanel
+        uses: ./.github/actions/cpanel-deploy
+        with:
+          host: ${{ secrets.CPANEL_HOST }}
+          username: ${{ secrets.CPANEL_USERNAME }}
+          token: ${{ secrets.CPANEL_API_TOKEN }}
+          repository_root: ${{ secrets.CPANEL_REPOSITORY_ROOT }}
+          branch: rollback

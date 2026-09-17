@@ -1,0 +1,102 @@
+name: Deploy a branch through cPanel Git Version Control
+description: >
+  Pulls a branch into the cPanel-hosted clone and runs its .cpanel.yml, using
+  the cPanel UAPI and an API token. No SSH. Deploy (branch=main) and rollback
+  (branch=rollback) are the same three calls with a different branch, so the two
+  paths cannot drift apart.
+
+# WHY THIS IS INLINE CURL, NOT A THIRD-PARTY ACTION.
+# The three UAPI calls below are the whole mechanism, and this repository is the
+# subject of a payment dispute: every line that can touch the client's live site
+# must be one we can read. A pinned marketplace action would be a dependency we
+# do not control on exactly that path. The calls come from cPanel's documented
+# VersionControl / VersionControlDeployment modules.
+
+inputs:
+  host:
+    description: "cPanel URL including protocol, e.g. https://server.example.com"
+    required: true
+  port:
+    description: "cPanel API port. 2083 unless the host says otherwise."
+    required: false
+    default: "2083"
+  username:
+    description: "cPanel account username (the one that created the token)."
+    required: true
+  token:
+    description: "cPanel API token."
+    required: true
+  repository_root:
+    description: "Absolute path of the clone on the server, e.g. /home/acct/repositories/prosper-minds-web-app"
+    required: true
+  branch:
+    description: "Branch to pull and deploy: main to publish, rollback to restore the original."
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - shell: bash
+      env:
+        CP_HOST: ${{ inputs.host }}
+        CP_PORT: ${{ inputs.port }}
+        CP_USER: ${{ inputs.username }}
+        CP_TOKEN: ${{ inputs.token }}
+        CP_ROOT: ${{ inputs.repository_root }}
+        CP_BRANCH: ${{ inputs.branch }}
+      run: |
+        set -euo pipefail
+
+        base="${CP_HOST}:${CP_PORT}/execute"
+        auth="Authorization: cpanel ${CP_USER}:${CP_TOKEN}"
+
+        # Fail the job on any UAPI-level error. cPanel returns HTTP 200 with an
+        # `errors` array inside the body even when the operation failed, so the
+        # HTTP status alone is not enough.
+        check() {
+          local body="$1" what="$2"
+          if [ "$(echo "$body" | jq -r '.errors')" != "null" ]; then
+            echo "::error::${what} failed: $(echo "$body" | jq -c '.errors')"
+            exit 1
+          fi
+        }
+
+        echo "1/3  Pulling '${CP_BRANCH}' into the server clone"
+        upd="$(curl -sS --fail-with-body -G "${base}/VersionControl/update" \
+          -H "${auth}" \
+          --data-urlencode "repository_root=${CP_ROOT}" \
+          --data-urlencode "branch=${CP_BRANCH}")"
+        check "$upd" "VersionControl/update"
+
+        echo "2/3  Starting deployment (.cpanel.yml)"
+        dep="$(curl -sS --fail-with-body -G "${base}/VersionControlDeployment/create" \
+          -H "${auth}" \
+          --data-urlencode "repository_root=${CP_ROOT}")"
+        check "$dep" "VersionControlDeployment/create"
+        task_id="$(echo "$dep" | jq -r '.data.task_id // .task_id // empty')"
+        if [ -z "$task_id" ]; then
+          echo "::error::No task_id returned; deployment did not start."
+          echo "$dep" | jq .
+          exit 1
+        fi
+        echo "     task_id=${task_id}"
+
+        echo "3/3  Waiting for the deployment to finish"
+        for i in $(seq 1 300); do
+          poll="$(curl -sS --fail-with-body -G "${base}/VersionControlDeployment/retrieve" -H "${auth}")"
+          task="$(echo "$poll" | jq -c --arg t "$task_id" '.data[]? | select(.task_id == ($t|tonumber? // $t))')"
+          if [ -n "$task" ]; then
+            if [ "$(echo "$task" | jq -r '.timestamps.succeeded // empty')" != "" ]; then
+              echo "Deployment of '${CP_BRANCH}' succeeded."
+              exit 0
+            fi
+            if [ "$(echo "$task" | jq -r '.timestamps.failed // empty')" != "" ]; then
+              echo "::error::Deployment of '${CP_BRANCH}' failed on the server. Check cPanel > Git Version Control > Manage > Pull or Deploy > deployment log."
+              echo "$task" | jq .
+              exit 1
+            fi
+          fi
+          sleep 2
+        done
+        echo "::error::Timed out after 10 minutes waiting for the deployment task."
+        exit 1
