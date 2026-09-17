@@ -1,33 +1,44 @@
 ---
-# cPanel Git Version Control deployment.
+# ROLLBACK deployment. This file exists only on the `rollback` branch.
 #
-# These tasks run when you click "Deploy HEAD Commit" in cPanel's Git™ Version
-# Control UI — no SSH/terminal needed. They run AFTER cPanel checks out the
-# branch, from inside the repository's own clone directory, as the cPanel
-# account's own user — so $HOME resolves correctly with no username to fill in.
+# It restores the original site (this branch's public_html/ and
+# cpd.prosper-minds.com/ are the 2026-08-19 production baseline) WITHOUT
+# destroying anything:
 #
-# Document roots confirmed in cPanel (Domains list, 2026-08-19):
-#   prosper-minds.com (Main Domain)  -> /public_html
-#   cpd.prosper-minds.com            -> /cpd.prosper-minds.com
+#   1. Snapshot the whole live site to $HOME/pre-rollback-<timestamp>/. This is
+#      the one-command undo; after this step nothing can be truly lost.
+#   2. Clear the live document roots (the snapshot holds every byte).
+#   3. Copy the original code in.
+#   4. Put the client's data and server config back from the snapshot: .env,
+#      storage/, assets/invoices/ and assets/uploads/. These hold delegate
+#      invoices, uploads, logs and credentials, none of which are the code being
+#      withdrawn.
 #
-# SETUP (one-time, in the cPanel UI):
-#   1. Files → Git Version Control → Create.
-#   2. Clone URL: this repository's GitHub URL.
-#   3. Repository Path: somewhere OUTSIDE any public document root, e.g.
-#      $HOME/repositories/prosper-minds-web-app
-#      Do NOT set this to public_html or the CPD document root directly — the
-#      clone includes the full git history and this file; it must never be
-#      web-served itself. The tasks below copy just the built site files out
-#      to the real document roots.
-#   4. Set the deployment branch to `main`. Never deploy `dev` directly.
+# The database is never touched. Registrations, payments and subscribers belong
+# to the client and their delegates.
 #
-# Before every deploy: the environment variables in each site's .env.example
-# must already exist on the server (real env vars or a .env file placed
-# directly in each live document root) — see README.md. Deploying before they
-# exist takes both sites down.
+# Run only through the "Roll back to the original site" GitHub workflow, which
+# deploys this branch. To undo, deploy `main` again or copy the snapshot back.
 deployment:
   tasks:
-    - export MAIN_DEPLOYPATH=$HOME/public_html/
-    - /bin/cp -R public_html/. $MAIN_DEPLOYPATH
-    - export CPD_DEPLOYPATH=$HOME/cpd.prosper-minds.com/
-    - /bin/cp -R cpd.prosper-minds.com/. $CPD_DEPLOYPATH
+    - export STAMP=$(date +%Y%m%d-%H%M%S)
+    - export ARCHIVE=$HOME/pre-rollback-$STAMP
+    - export MAIN_LIVE=$HOME/public_html
+    - export CPD_LIVE=$HOME/cpd.prosper-minds.com
+    # 1. Full snapshot of both live document roots.
+    - /bin/mkdir -p $ARCHIVE/public_html $ARCHIVE/cpd.prosper-minds.com
+    - /bin/cp -Rp $MAIN_LIVE/. $ARCHIVE/public_html/
+    - /bin/cp -Rp $CPD_LIVE/. $ARCHIVE/cpd.prosper-minds.com/
+    # 2. Clear the live document roots (everything, including dotfiles).
+    - /usr/bin/find $MAIN_LIVE -mindepth 1 -delete
+    - /usr/bin/find $CPD_LIVE -mindepth 1 -delete
+    # 3. Restore the original 2026-08-19 site.
+    - /bin/cp -Rp public_html/. $MAIN_LIVE/
+    - /bin/cp -Rp cpd.prosper-minds.com/. $CPD_LIVE/
+    # 4. Put client data and server config back from the snapshot. Each line is
+    #    guarded so a missing directory is skipped rather than failing the run.
+    - if [ -e "$ARCHIVE/public_html/.env" ]; then /bin/cp -p "$ARCHIVE/public_html/.env" "$MAIN_LIVE/.env"; fi
+    - if [ -d "$ARCHIVE/public_html/storage" ]; then /bin/cp -Rp "$ARCHIVE/public_html/storage" "$MAIN_LIVE/"; fi
+    - if [ -d "$ARCHIVE/public_html/assets/invoices" ]; then /bin/mkdir -p "$MAIN_LIVE/assets"; /bin/cp -Rp "$ARCHIVE/public_html/assets/invoices" "$MAIN_LIVE/assets/"; fi
+    - if [ -d "$ARCHIVE/public_html/assets/uploads" ]; then /bin/mkdir -p "$MAIN_LIVE/assets"; /bin/cp -Rp "$ARCHIVE/public_html/assets/uploads" "$MAIN_LIVE/assets/"; fi
+    - if [ -e "$ARCHIVE/cpd.prosper-minds.com/.env" ]; then /bin/cp -p "$ARCHIVE/cpd.prosper-minds.com/.env" "$CPD_LIVE/.env"; fi

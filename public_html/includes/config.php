@@ -1,26 +1,12 @@
 <?php
-
-// Errors are logged, never printed. A notice printed into the response would
-// corrupt the JSON that process-registration.php returns, break any header()
-// redirect issued after it, and disclose the absolute server path. Set
-// PM_DISPLAY_ERRORS=1 in a local .env to see them on screen instead.
-error_reporting(E_ALL);
-ini_set('log_errors', '1');
-ini_set('display_errors', (getenv('PM_DISPLAY_ERRORS') === '1') ? '1' : '0');
-
-// Everyone reading this runs on East Africa Time. Set here and on the database
-// connection below: if only one of them moved, a row written now would read
-// back three hours out.
-date_default_timezone_set('Africa/Nairobi');
-
 require_once __DIR__ . '/../vendor/autoload.php';
 use PHPMailer\PHPMailer\PHPMailer;
 use PHPMailer\PHPMailer\Exception;
 
 // ── Database credentials ────────────────────────────────────────────────────
-// db-credentials.php no longer holds literal credentials; it reads them from
-// the environment / a gitignored .env file. See .env.example and env.php.
-require_once __DIR__ . '/env.php';
+// Loaded from db-credentials.php, which is excluded from the local->live sync
+// (see deploy-config.json) so local dev credentials never overwrite the live
+// server's credentials, and vice versa. Each environment keeps its own copy.
 require_once __DIR__ . '/db-credentials.php';
 
 try {
@@ -30,7 +16,6 @@ try {
     );
     $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
     $pdo->setAttribute(PDO::ATTR_DEFAULT_FETCH_MODE, PDO::FETCH_ASSOC);
-    $pdo->exec("SET time_zone = '+03:00'");
 } catch (PDOException $e) {
     die("Database connection failed. Please contact the administrator.");
 }
@@ -51,26 +36,6 @@ function getSetting(string $key, string $default = ''): string {
     return $siteSettings[$key] ?? $default;
 }
 
-/**
- * Resolve a mail setting: environment variable first, then the site_settings
- * table, then the hardcoded default.
- *
- * Production behaviour is unchanged as long as none of these environment
- * variables are set — the admin UI keeps managing SMTP through site_settings
- * exactly as before. The override exists so a developer (or the invoice
- * recovery script) can force all outbound mail to a local mail-catcher without
- * editing the database, and so the SMTP password can eventually be moved out
- * of the database into the server environment.
- */
-function getMailSetting(string $envKey, string $settingKey, string $default = ''): string {
-    $fromEnv = pm_env($envKey);
-    if ($fromEnv !== null && $fromEnv !== '') {
-        return $fromEnv;
-    }
-
-    return getSetting($settingKey, $default);
-}
-
 // Convenience constants (admin templates reference these)
 if (!defined('ADMIN_EMAIL'))   define('ADMIN_EMAIL',   getSetting('admin_email',   'info@prosper-minds.com'));
 if (!defined('COMPANY_NAME'))  define('COMPANY_NAME',  getSetting('company_name',  'ProsperMinds'));
@@ -80,12 +45,12 @@ if (!defined('COMPANY_COLOR')) define('COMPANY_COLOR', getSetting('company_color
 function createConfiguredMailer(): PHPMailer {
     $mail = new PHPMailer(true);
     $mail->isSMTP();
-    $mail->Host      = getMailSetting('SMTP_HOST', 'smtp_host', 'mail.prosper-minds.com');
+    $mail->Host      = getSetting('smtp_host', 'mail.prosper-minds.com');
     $mail->SMTPAuth  = true;
-    $mail->Username  = getMailSetting('SMTP_USER', 'smtp_user', 'info@prosper-minds.com');
-    $mail->Password  = getMailSetting('SMTP_PASS', 'smtp_pass', '');
+    $mail->Username  = getSetting('smtp_user', 'info@prosper-minds.com');
+    $mail->Password  = getSetting('smtp_pass', '');
     $mail->Timeout   = 30;
-    $secure          = getMailSetting('SMTP_SECURE', 'smtp_secure', 'tls');
+    $secure          = getSetting('smtp_secure', 'tls');
     if ($secure === 'ssl') {
         $mail->SMTPSecure = PHPMailer::ENCRYPTION_SMTPS;
     } elseif ($secure === 'tls') {
@@ -94,10 +59,9 @@ function createConfiguredMailer(): PHPMailer {
         $mail->SMTPSecure = false;
         $mail->SMTPAutoTLS = false;
     }
-    $mail->Port = (int) getMailSetting('SMTP_PORT', 'smtp_port', '587');
+    $mail->Port = (int) getSetting('smtp_port', '587');
 
-    $fromEmail = getMailSetting('SMTP_FROM_EMAIL', 'smtp_from_email', '')
-        ?: getMailSetting('SMTP_USER', 'smtp_user', ADMIN_EMAIL);
+    $fromEmail = getSetting('smtp_from_email', '') ?: getSetting('smtp_user', ADMIN_EMAIL);
     if (!filter_var($fromEmail, FILTER_VALIDATE_EMAIL)) {
         $fromEmail = ADMIN_EMAIL;
     }
@@ -118,83 +82,6 @@ function createConfiguredMailer(): PHPMailer {
     // bulk/mass mail to Gmail/Outlook spam filters and hurts deliverability.
 
     return $mail;
-}
-
-/**
- * Create the failed_notifications table if it is missing.
- *
- * Follows the same "ensure schema on demand" convention already used by
- * ensureRegistrationInvoiceSchema() in includes/invoice.php, so a deploy does
- * not have to be coordinated with a manual phpMyAdmin step. The equivalent
- * up/down migration is also scripted in database/migrations/ for anyone who
- * would rather apply it explicitly.
- */
-function ensureFailedNotificationSchema(PDO $pdo): void {
-    static $schemaChecked = false;
-
-    if ($schemaChecked) {
-        return;
-    }
-
-    $schemaChecked = true;
-
-    try {
-        $pdo->exec(
-            "CREATE TABLE IF NOT EXISTS failed_notifications (
-                id INT AUTO_INCREMENT PRIMARY KEY,
-                registration_id INT DEFAULT NULL,
-                recipient VARCHAR(255) NOT NULL,
-                subject VARCHAR(255) NOT NULL,
-                error_message TEXT DEFAULT NULL,
-                resolved TINYINT(1) NOT NULL DEFAULT 0,
-                created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-                KEY idx_failed_notifications_registration (registration_id),
-                KEY idx_failed_notifications_resolved (resolved)
-            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci"
-        );
-    } catch (PDOException $e) {
-        error_log('Could not create failed_notifications table: ' . $e->getMessage());
-    }
-}
-
-/**
- * Record an email that could not be delivered, so it is visible to an admin
- * and can be retried, instead of vanishing.
- *
- * This is called from failure paths and must never throw: it writes to the
- * PHP error log unconditionally, and additionally to the failed_notifications
- * table when the database is reachable.
- */
-function recordFailedNotification(
-    ?PDO $pdo,
-    ?int $registrationId,
-    string $recipient,
-    string $subject,
-    string $error
-): void {
-    error_log(sprintf(
-        'UNSENT NOTIFICATION | registration_id=%s | to=%s | subject=%s | error=%s',
-        $registrationId !== null ? (string) $registrationId : 'n/a',
-        $recipient,
-        $subject,
-        $error
-    ));
-
-    logEmailDelivery('failed', $recipient, $subject, 'registration_id=' . ($registrationId ?? 'n/a') . ' ' . $error);
-
-    if (!$pdo instanceof PDO) {
-        return;
-    }
-
-    try {
-        ensureFailedNotificationSchema($pdo);
-        $pdo->prepare(
-            'INSERT INTO failed_notifications (registration_id, recipient, subject, error_message)
-             VALUES (?, ?, ?, ?)'
-        )->execute([$registrationId, $recipient, $subject, $error]);
-    } catch (Throwable $e) {
-        error_log('Could not record failed notification: ' . $e->getMessage());
-    }
 }
 
 function logEmailDelivery(string $status, string $to, string $subject, string $details = ''): void {
@@ -287,61 +174,4 @@ function sendEmailMessages(array $messages): array {
 
 function sanitizeInput(string $data): string {
     return htmlspecialchars(stripslashes(trim($data)));
-}
-
-/**
- * A stylesheet or script URL, stamped with the file's own modification time.
- *
- * The server sends these with "Cache-Control: public, max-age=604800". Without
- * a stamp in the URL, a deploy that changes a stylesheet reaches nobody who has
- * already visited until a week later or until they clear their cache by hand:
- * the new markup arrives, the old CSS styles it, and the page looks broken in a
- * way no amount of redeploying fixes. That is exactly what happened on
- * 6 September 2026, when the registration modal shipped and stayed invisible.
- *
- * $path is root-relative ("/assets/css/pm-admin.css"). A file that cannot be
- * read returns the path unstamped rather than failing, because a missing stamp
- * is a caching problem and a fatal here is a blank site.
- */
-function pmAssetUrl(string $path): string {
-    $file = __DIR__ . '/..' . $path;
-
-    if (!is_file($file)) {
-        return $path;
-    }
-
-    $stamp = @filemtime($file);
-
-    return $stamp === false ? $path : $path . '?v=' . $stamp;
-}
-
-// ── Funnel analytics, loaded defensively ────────────────────────────────────
-// includes/funnel.php is a secondary concern: registration funnel counters for
-// the admin panel. It is loaded here, once, so every entry point gets the same
-// helpers — but a plain require would make a missing or truncated funnel.php a
-// fatal on every page of the site. That is not hypothetical: the August 2026
-// outage was one truncated file inside vendor/, and funnel.php is the newest
-// file in this deploy, so it is the likeliest one to arrive incomplete.
-//
-// So: check it exists, load it inside try/catch (a parse error in an included
-// file raises ParseError, an Error, which catch (Exception) would miss), and if
-// anything at all goes wrong, define no-op stand-ins with the same signatures.
-// Call sites then need no guard, and a broken analytics layer costs the site
-// nothing but its analytics.
-if (is_file(__DIR__ . '/funnel.php')) {
-    try {
-        require_once __DIR__ . '/funnel.php';
-    } catch (Throwable $funnelLoadError) {
-        error_log('Funnel analytics unavailable: ' . $funnelLoadError->getMessage());
-    }
-}
-
-if (!function_exists('funnelTrackEvent')) {
-    function ensureFunnelEventsSchema(PDO $pdo): void {}
-    function funnelTrackEvent(PDO $pdo, string $eventType, array $context = []): void {}
-    function funnelSessionId(): string { return ''; }
-    function funnelSessionIdIfSet(): ?string { return null; }
-    function funnelSanitiseReferrer(?string $referrer): ?string { return null; }
-    function funnelUtmFromQuery(array $query): array { return []; }
-    function funnelStageLoggedToday(PDO $pdo, string $sessionId, string $eventType, ?int $eventId): bool { return true; }
 }

@@ -40,16 +40,8 @@ function parseEventPrice(string $priceText): array
     $currency = 'USD';
     $amount = 0.0;
 
-    // Case-SENSITIVE, and bounded by non-letters. The old pattern was
-    // /([A-Z]{3})/i, which matched the first three letters of any word — so
-    // the current price text "From USD 599 Per Delegate" yielded "FRO", and
-    // every invoice since has printed "UNIT PRICE (FRO)" and "FRO 599.00".
-    // A real currency code is written in capitals, so requiring capitals both
-    // fixes this and still finds USD, KES, ZAR, EUR, GBP, AED and the rest.
-    // The lookarounds let it also match a code written tight against the
-    // amount, e.g. "USD599".
-    if (preg_match('/(?<![A-Za-z])([A-Z]{3})(?![A-Za-z])/', $priceText, $currencyMatch)) {
-        $currency = $currencyMatch[1];
+    if (preg_match('/([A-Z]{3})/i', $priceText, $currencyMatch)) {
+        $currency = strtoupper($currencyMatch[1]);
     }
 
     if (preg_match('/(\d[\d,]*(?:\.\d{1,2})?)/', $priceText, $amountMatch)) {
@@ -320,50 +312,4 @@ function generateInvoicePdf(array $invoicePayload, string $outputPath): array
     } catch (Throwable $e) {
         return ['success' => false, 'output' => 'Invoice generation error: ' . $e->getMessage()];
     }
-}
-
-/**
- * Secret for signing invoice links. Read from the environment so it is not in
- * the repository; falls back to a value derived from the database password so
- * an install that has not set one still gets links that cannot be guessed from
- * outside, rather than links signed with a constant.
- */
-function pmInvoiceSigningKey(): string
-{
-    $key = (string) (getenv('INVOICE_LINK_SECRET') ?: '');
-
-    if ($key !== '') {
-        return $key;
-    }
-
-    return hash('sha256', 'pm-invoice-link|' . (defined('DB_PASS') ? DB_PASS : '') . '|' . (defined('DB_NAME') ? DB_NAME : ''));
-}
-
-function pmInvoiceSignature(int $registrationId, int $expires): string
-{
-    return hash_hmac('sha256', $registrationId . '|' . $expires, pmInvoiceSigningKey());
-}
-
-function pmInvoiceSignatureValid(int $registrationId, int $expires, string $signature): bool
-{
-    // hash_equals, not ===, so a wrong signature cannot be narrowed down by
-    // timing how long the comparison takes.
-    return hash_equals(pmInvoiceSignature($registrationId, $expires), $signature);
-}
-
-/** A link that works for $days and then stops. */
-function pmInvoiceLink(int $registrationId, int $days = 30, bool $absolute = true): string
-{
-    $expires = time() + $days * 86400;
-    $query   = 'r=' . $registrationId . '&e=' . $expires . '&s=' . pmInvoiceSignature($registrationId, $expires);
-    $path    = '/invoice.php?' . $query;
-
-    if (!$absolute) {
-        return $path;
-    }
-
-    $host = $_SERVER['HTTP_HOST'] ?? 'prosper-minds.com';
-    $sch  = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
-
-    return $sch . '://' . $host . $path;
 }

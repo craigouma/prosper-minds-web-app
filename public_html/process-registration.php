@@ -2,77 +2,14 @@
 session_start();
 
 require_once 'includes/config.php';
-require_once 'includes/csrf.php';
 require_once 'includes/invoice.php';
 require_once 'includes/mail-template-user.php';
 require_once 'includes/mail-template-admin.php';
-require_once 'includes/resume.php';
 
 header('Content-Type: application/json');
 
-// Not routed through registrationFailed() below: this is before the CSRF check,
-// so it must not write to the database, and a GET to this URL is not a delegate
-// failing to register anyway.
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     echo json_encode(['success' => false, 'message' => 'Invalid request method.']);
-    exit;
-}
-
-// Reject anything that did not come from a form this session rendered. Checked
-// before any input is read so a forged cross-site post cannot reach the
-// database or the mailer.
-if (!formCsrfValidate($_POST['csrf_token'] ?? null)) {
-    error_log('Registration rejected: missing or invalid CSRF token (ip=' . ($_SERVER['REMOTE_ADDR'] ?? 'unknown') . ')');
-    echo json_encode([
-        'success' => false,
-        'message' => 'Your session has expired. Please refresh this page and submit the form again.',
-    ]);
-    exit;
-}
-
-// ── Funnel analytics: bottom of the funnel ───────────────────────────────────
-// Deliberately AFTER the CSRF check and not before it. The check above exists
-// so "a forged cross-site post cannot reach the database or the mailer", and a
-// funnel row is a database write, so a rejected token produces no funnel rows
-// at all. The cost is that expired-session rejections are invisible in the
-// funnel; the alternative is letting any origin write rows, which is worse.
-$funnelSessionId = '';
-$funnelEventId   = (int) ($_POST['event_id'] ?? 0);
-
-try {
-    $funnelSessionId = funnelSessionId();
-    funnelTrackEvent($pdo, 'submit_attempt', [
-        'session_id' => $funnelSessionId,
-        'event_id'   => $funnelEventId,
-    ]);
-} catch (Throwable $funnelError) {
-    error_log('Funnel submit_attempt failed (ignored): ' . $funnelError->getMessage());
-}
-
-/**
- * Reject this submission: record submit_fail, answer the caller, stop.
- *
- * Every early exit below routes through here so the failure branch is counted
- * in one place and the JSON shape stays identical. Note what does NOT route
- * through here: the notification block in Phase 2. An email that could not be
- * sent is not a failed registration — it is a failed_notifications row — and
- * counting it as submit_fail would rebuild, inside the analytics, the exact
- * confusion that commit 2d05cc1 removed from the response.
- */
-function registrationFailed(string $message): never
-{
-    global $pdo, $funnelSessionId, $funnelEventId;
-
-    try {
-        funnelTrackEvent($pdo, 'submit_fail', [
-            'session_id' => $funnelSessionId,
-            'event_id'   => $funnelEventId,
-        ]);
-    } catch (Throwable $funnelError) {
-        error_log('Funnel submit_fail failed (ignored): ' . $funnelError->getMessage());
-    }
-
-    echo json_encode(['success' => false, 'message' => $message]);
     exit;
 }
 
@@ -107,11 +44,13 @@ foreach ($attendeeFirstNames as $idx => $rawFirstName) {
     }
 
     if ($attendeeFirstName === '' || $attendeeLastName === '') {
-        registrationFailed('Each attendee must have a first and last name.');
+        echo json_encode(['success' => false, 'message' => 'Each attendee must have a first and last name.']);
+        exit;
     }
 
     if ($attendeeEmail !== '' && !filter_var($attendeeEmail, FILTER_VALIDATE_EMAIL)) {
-        registrationFailed('One or more attendee email addresses are invalid.');
+        echo json_encode(['success' => false, 'message' => 'One or more attendee email addresses are invalid.']);
+        exit;
     }
 
     $attendees[] = [
@@ -126,19 +65,23 @@ if (
     $firstName === '' || $lastName === '' || $phone === '' || $email === '' ||
     $organization === '' || $country === '' || $address === '' || $eventName === ''
 ) {
-    registrationFailed('Please fill in all required fields.');
+    echo json_encode(['success' => false, 'message' => 'Please fill in all required fields.']);
+    exit;
 }
 
 if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
-    registrationFailed('Invalid email format.');
+    echo json_encode(['success' => false, 'message' => 'Invalid email format.']);
+    exit;
 }
 
 if (!preg_match('/^[\d\+\-\s\(\)]{8,20}$/', $phone)) {
-    registrationFailed('Invalid phone number format.');
+    echo json_encode(['success' => false, 'message' => 'Invalid phone number format.']);
+    exit;
 }
 
 if (count($attendees) === 0) {
-    registrationFailed('Please add at least one attendee.');
+    echo json_encode(['success' => false, 'message' => 'Please add at least one attendee.']);
+    exit;
 }
 
 ensureRegistrationInvoiceSchema($pdo);
@@ -150,7 +93,8 @@ $evStmt->execute([$eventId > 0 ? $eventId : $eventName]);
 $eventRecord = $evStmt->fetch();
 
 if (!$eventRecord) {
-    registrationFailed('Selected event is no longer available.');
+    echo json_encode(['success' => false, 'message' => 'Selected event is no longer available.']);
+    exit;
 }
 
 $eventName = $eventRecord['title'];
@@ -159,10 +103,6 @@ $fullEventName = $eventName . ' (' . $eventRecord['location'] . ' ' . $eventReco
 $attendeeCount = count($attendees);
 $totalAmount = $unitPriceAmount * $attendeeCount;
 
-// ── Phase 1: persist the registration ────────────────────────────────────────
-// Everything in this block must succeed for the delegate to be registered. If
-// any of it throws, nothing is saved and the delegate is correctly told the
-// registration failed.
 try {
     $pdo->beginTransaction();
 
@@ -235,64 +175,7 @@ try {
     }
 
     $pdo->commit();
-} catch (Throwable $e) {
-    if ($pdo->inTransaction()) {
-        $pdo->rollBack();
-    }
 
-    error_log("Registration error: " . $e->getMessage());
-    // After rollBack(), never before: funnelTrackEvent() refuses to run inside
-    // an open transaction, and a funnel row written inside this one would be
-    // rolled back with the registration anyway.
-    registrationFailed('We could not complete the registration right now. Please try again shortly.');
-}
-
-// ── Funnel analytics: the conversion ────────────────────────────────────────
-// This is the one funnel row that has to be trustworthy, so it uses exactly the
-// same "was it actually saved" determination the response does: reaching this
-// line means Phase 1 committed and the invoice PDF exists on disk. No separate
-// check, no client assertion — being here IS the proof, which is also why
-// submit_success cannot be written by the beacon endpoint.
-try {
-    funnelTrackEvent($pdo, 'submit_success', [
-        'session_id'      => $funnelSessionId,
-        'event_id'        => (int) $eventRecord['id'],
-        'registration_id' => $registrationId,
-    ]);
-} catch (Throwable $funnelError) {
-    error_log('Funnel submit_success failed (ignored): ' . $funnelError->getMessage());
-}
-
-// Close any unfinished attempt this person left behind, on any device, so the
-// reminder sweep cannot chase somebody who has just registered.
-try {
-    pmResumeMarkCompleted($pdo, (string) $email, (int) $eventRecord['id']);
-} catch (Throwable $resumeError) {
-    error_log('Resume completion failed (ignored): ' . $resumeError->getMessage());
-}
-
-// ── Phase 2: notify (best effort) ────────────────────────────────────────────
-// Past this line the registration is COMMITTED and the invoice PDF exists on
-// disk. The delegate is registered, full stop.
-//
-// Sending the five notification emails is a separate, best-effort concern.
-// This block deliberately cannot change the answer above:
-//
-//   * Previously the response was `$a && $b && $c && $d && $e` over five email
-//     sends, so a single transient SMTP hiccup told a delegate whose place was
-//     confirmed that their registration had failed.
-//   * Worse, this code used to sit inside the same try as the INSERT, so when
-//     the corrupted vendor/phpmailer file threw a ParseError on 14-Aug-2026 the
-//     outer catch reported failure for 36 registrations that had in fact been
-//     saved, with invoices already generated.
-//
-// So: catch Throwable (not just Exception — a broken autoloaded vendor file
-// throws ParseError, an Error, which `catch (Exception)` does NOT catch),
-// record every undelivered message in failed_notifications for an admin to
-// retry, and still return success.
-$undeliveredCount = 0;
-
-try {
     $registrationData = [
         'first_name' => $firstName,
         'last_name' => $lastName,
@@ -335,7 +218,7 @@ try {
     $invoiceAttachment = [
         ['path' => $invoiceAbsolutePath, 'name' => $invoiceFilename],
     ];
-    $notifications = [
+    $mailResults = sendEmailMessages([
         [
             'to' => $email,
             'subject' => 'Your Invitation - ' . $eventRecord['title'],
@@ -366,56 +249,39 @@ try {
             'message' => $invoiceBody,
             'attachments' => $invoiceAttachment,
         ],
-    ];
+    ]);
+    $invitationEmailSent = (bool) ($mailResults[0]['success'] ?? false);
+    $invoiceEmailSent = (bool) ($mailResults[1]['success'] ?? false);
+    $adminEmailSent = (bool) ($mailResults[2]['success'] ?? false);
+    $adminInvitationCopySent = (bool) ($mailResults[3]['success'] ?? false);
+    $adminInvoiceCopySent = (bool) ($mailResults[4]['success'] ?? false);
 
-    $mailResults = sendEmailMessages($notifications);
-
-    foreach ($notifications as $index => $notification) {
-        if (($mailResults[$index]['success'] ?? false) === true) {
-            continue;
+    if ($adminEmailSent && $invitationEmailSent && $invoiceEmailSent && $adminInvitationCopySent && $adminInvoiceCopySent) {
+        echo json_encode(['success' => true, 'message' => 'Registration successful! Your invitation and invoice have been emailed to you.']);
+    } else {
+        $mailIssue = 'Registration was saved, but one or more emails could not be sent.';
+        if (!$adminEmailSent) {
+            $mailIssue .= ' Admin notification failed.';
         }
-
-        $undeliveredCount++;
-        recordFailedNotification(
-            $pdo,
-            $registrationId,
-            (string) $notification['to'],
-            (string) $notification['subject'],
-            (string) ($mailResults[$index]['error'] ?? 'Unknown mail error')
-        );
+        if (!$invitationEmailSent) {
+            $mailIssue .= ' Invitation email failed for ' . $email . '.';
+        }
+        if (!$invoiceEmailSent) {
+            $mailIssue .= ' Invoice email failed for ' . $email . '.';
+        }
+        if (!$adminInvitationCopySent) {
+            $mailIssue .= ' Admin invitation copy failed.';
+        }
+        if (!$adminInvoiceCopySent) {
+            $mailIssue .= ' Admin invoice copy failed.';
+        }
+        echo json_encode(['success' => false, 'message' => $mailIssue]);
     }
-} catch (Throwable $mailError) {
-    // The mailer itself blew up (broken vendor file, misconfigured SMTP host,
-    // template fatal, ...) so no per-message results exist. Record one entry
-    // against the registration so the backlog is still visible to an admin.
-    $undeliveredCount = 5;
-    recordFailedNotification(
-        $pdo,
-        $registrationId,
-        $email,
-        'Registration notifications for ' . $invoiceNumber,
-        'Mail pipeline failed before sending: ' . $mailError->getMessage()
-    );
-}
+} catch (Throwable $e) {
+    if ($pdo->inTransaction()) {
+        $pdo->rollBack();
+    }
 
-// The registration is saved either way. Say so.
-if ($undeliveredCount === 0) {
-    $message = 'Registration successful! Your invitation and invoice have been emailed to you.';
-} else {
-    $message = 'Registration successful! Your place is confirmed and your invoice '
-        . $invoiceNumber . ' has been generated. We had trouble emailing it to you — '
-        . 'our team has been notified and will send it to you shortly.';
+    error_log("Registration error: " . $e->getMessage());
+    echo json_encode(['success' => false, 'message' => 'We could not complete the registration right now. Please try again shortly.']);
 }
-
-echo json_encode([
-    'success' => true,
-    'message' => $message,
-    'registration_id' => $registrationId,
-    'invoice_number' => $invoiceNumber,
-    // For the client to fire a GA4 purchase event from a genuinely confirmed
-    // save (Priority 2) -- never estimated or re-derived client-side. Real
-    // value/currency from the same row that was just committed.
-    'total_amount' => $totalAmount,
-    'currency_code' => $currencyCode,
-    'unit_price_amount' => $unitPriceAmount,
-]);
