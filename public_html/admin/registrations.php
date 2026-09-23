@@ -185,6 +185,11 @@ include 'header.php';
                         <span class="badge badge-gray" style="margin-top:4px;">
                             <?php echo (int) ($r['attendee_count'] ?? 1); ?> delegate<?php echo ((int) ($r['attendee_count'] ?? 1)) !== 1 ? 's' : ''; ?>
                         </span>
+                        <?php if (in_array($r['tier'] ?? 'regular', ['vip', 'vvip'], true)): ?>
+                        <span class="badge badge-gray" style="margin-top:4px;">
+                            <?php echo strtoupper($r['tier']); ?>
+                        </span>
+                        <?php endif; ?>
                     </td>
                     <td style="max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"
                         title="<?php echo htmlspecialchars($r['event_name']); ?>">

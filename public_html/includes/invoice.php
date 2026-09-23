@@ -23,6 +23,7 @@ function ensureRegistrationInvoiceSchema(PDO $pdo): void
         "ALTER TABLE event_registrations ADD COLUMN currency_code VARCHAR(10) DEFAULT 'USD' AFTER event_id",
         "ALTER TABLE event_registrations ADD COLUMN unit_price_amount DECIMAL(10,2) DEFAULT 0.00 AFTER currency_code",
         "ALTER TABLE event_registrations ADD COLUMN total_amount DECIMAL(10,2) DEFAULT 0.00 AFTER unit_price_amount",
+        "ALTER TABLE event_registrations ADD COLUMN tier VARCHAR(20) NOT NULL DEFAULT 'regular' AFTER total_amount",
     ];
 
     foreach ($columns as $sql) {
@@ -91,6 +92,12 @@ function buildInvoicePayload(array $registration, array $eventRecord): array
         'currency_code' => $registration['currency_code'] ?: 'USD',
         'unit_price_amount' => (float) $registration['unit_price_amount'],
         'total_amount' => (float) $registration['total_amount'],
+        // 'regular' prints as a plain "Delegate Fee" line, matching every
+        // invoice issued before tiers existed. VIP/VVIP print their own name
+        // so the tier a delegate paid for is visible on the document itself.
+        'tier_label' => in_array($registration['tier'] ?? 'regular', ['vip', 'vvip'], true)
+            ? strtoupper((string) $registration['tier'])
+            : '',
         'attendees' => $attendees,
     ];
 }
@@ -199,7 +206,10 @@ function generateInvoicePdf(array $invoicePayload, string $outputPath): array
         $pdf->Cell($tableWidth * 0.20, 8, "UNIT PRICE ($currency)", 0, 0, 'C', true);
         $pdf->Cell($tableWidth * 0.20, 8, "AMOUNT ($currency)", 0, 1, 'C', true);
 
-        $description = $invoicePayload['event']['name'] . ' - Delegate Fee ('
+        $feeLabel = ($invoicePayload['tier_label'] ?? '') !== ''
+            ? $invoicePayload['tier_label'] . ' Delegate Fee'
+            : 'Delegate Fee';
+        $description = $invoicePayload['event']['name'] . ' - ' . $feeLabel . ' ('
             . $invoicePayload['event']['date'] . ' | ' . $invoicePayload['event']['location'] . ')';
         $attendeeNames = trim(implode(', ', array_map(
             static fn ($a) => trim(($a['first_name'] ?? '') . ' ' . ($a['last_name'] ?? '')),
