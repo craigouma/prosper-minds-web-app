@@ -89,7 +89,7 @@ function getWelcomeEmailTemplate($registrationData, $eventDetails, array $availa
 
                 {$calendarHtml}
 
-                <p>Whether you join us in Cape Town, Kuala Lumpur, Bali, or Mombasa, you will be among a community of public finance leaders committed to building stronger governments and delivering greater public value.</p>
+                <p>Whether you join us in Cape Town or Mombasa, you will be among a community of public finance leaders committed to building stronger governments and delivering greater public value.</p>
 
                 <p>If you need any support, please reply to this email or contact us at <a href='mailto:info@prosper-minds.com' style='color:#007A2F;font-weight:700;'>info@prosper-minds.com</a>.</p>
 
