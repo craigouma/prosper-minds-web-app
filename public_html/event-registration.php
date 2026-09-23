@@ -8,9 +8,14 @@ require_once __DIR__ . '/includes/resume.php';
  * Renaming one empties that column on every future registration, silently, and
  * the failure looks like success:
  *
- *   csrf_token, event_id, event_name, first_name, last_name, phone, email,
- *   organization, country, address, gender, meal_preference, future_topics,
- *   consent, and attendees[first_name][] / [last_name][] / [email][] / [title][]
+ *   csrf_token, event_id, event_name, tier, first_name, last_name, phone,
+ *   email, organization, country, address, gender, meal_preference,
+ *   future_topics, consent, and attendees[first_name][] / [last_name][] /
+ *   [email][] / [title][]
+ *
+ * tier is 'regular', 'vip' or 'vvip'. The handler treats anything else, or a
+ * tier the event has no price for, as 'regular' -- it is never trusted to set
+ * the price, only to choose which of the event's own prices applies.
  *
  * The handler zips the four attendees arrays by index, so a delegate row must
  * contribute all four fields or none. A row whose four values are all empty is
@@ -96,7 +101,45 @@ $pmTitle    = pmEventProse((string) ($pmEvent['title'] ?? ''));
 $pmLocation = pmEventProse((string) ($pmEvent['location'] ?? ''));
 $pmDates    = pmEventDatesLong($pmEvent);
 
-[$pmCurrency, $pmUnitAmount] = pmRegisterUnitPrice((string) ($pmEvent['price'] ?? ''));
+// Every tier the event actually prices. An event with no vip_price/vvip_price
+// set (every school created before tiers existed) offers only Regular, same
+// as today. The handler applies this exact rule independently, so a tampered
+// tier can only ever fall back to Regular, never invent a price of its own.
+$pmTierOptions = [];
+foreach ([
+    ['key' => 'regular', 'name' => 'Regular', 'price_text' => (string) ($pmEvent['price'] ?? '')],
+    ['key' => 'vip',     'name' => 'VIP',     'price_text' => (string) ($pmEvent['vip_price'] ?? '')],
+    ['key' => 'vvip',    'name' => 'VVIP',    'price_text' => (string) ($pmEvent['vvip_price'] ?? '')],
+] as $pmTierSpec) {
+    if (trim($pmTierSpec['price_text']) === '') {
+        continue;
+    }
+    [$pmTierCurrency, $pmTierAmount] = pmRegisterUnitPrice($pmTierSpec['price_text']);
+    $pmTierOptions[] = $pmTierSpec + [
+        'currency' => $pmTierCurrency,
+        'amount'   => $pmTierAmount,
+        'label'    => pmRegisterMoney($pmTierCurrency, $pmTierAmount),
+    ];
+}
+
+// A "Select VIP and register" link from the event page pre-selects that tier;
+// anything else, including a request for a tier this event does not offer,
+// lands on Regular.
+$pmRequestedTier = trim((string) ($_GET['tier'] ?? ''));
+$pmSelectedTier  = in_array($pmRequestedTier, array_column($pmTierOptions, 'key'), true)
+    ? $pmRequestedTier
+    : 'regular';
+
+$pmSelectedTierData = null;
+foreach ($pmTierOptions as $pmTierOption) {
+    if ($pmTierOption['key'] === $pmSelectedTier) {
+        $pmSelectedTierData = $pmTierOption;
+        break;
+    }
+}
+
+$pmCurrency   = $pmSelectedTierData['currency'] ?? 'USD';
+$pmUnitAmount = $pmSelectedTierData['amount'] ?? 0.0;
 $pmUnitLabel  = pmRegisterMoney($pmCurrency, $pmUnitAmount);
 $pmTotalLabel = pmRegisterMoney($pmCurrency, $pmUnitAmount);
 
@@ -242,7 +285,7 @@ pmPageBegin([
               <?php echo pmEsc($pmLocation); ?><br>
               <?php echo pmEsc($pmDates); ?>
             </p>
-            <p class="pm-body"><?php echo pmEsc($pmUnitLabel); ?> <?php
+            <p class="pm-body"><span data-pm-unit-label><?php echo pmEsc($pmUnitLabel); ?></span> <?php
               echo pmContentSafe($pdo, 'register', 'per_delegate', 'per delegate'); ?></p>
             <p>
               <a class="pm-btn--link" href="/events.php"><?php echo pmContentSafe($pdo, 'register', 'change_school',
@@ -250,12 +293,26 @@ pmPageBegin([
             </p>
           </div>
 
-          <?php // No tier selector, unlike the prototype. The handler charges one
-                // flat unit price and pricing is deferred to Phase 5, so a
-                // selector that changed the displayed price would not change the
-                // invoice. ?>
-          <p class="pm-caption pm-mt-md"><?php echo pmContentSafe($pdo, 'register', 'tier_note',
-            'Every place is invoiced at the standard delegate rate shown above. For VIP or VVIP arrangements, contact info@prosper-minds.com before registering.'); ?></p>
+          <?php if (count($pmTierOptions) > 1): ?>
+          <p class="pm-label pm-mt-md" id="pm-reg-tier-label"><?php echo pmContentSafe($pdo, 'register', 'tier_label',
+            'Delegate tier'); ?></p>
+          <div class="pm-reg__tiers" data-pm-tiers role="radiogroup" aria-labelledby="pm-reg-tier-label">
+<?php foreach ($pmTierOptions as $pmTierOption): ?>
+            <label class="pm-reg__tier">
+              <input type="radio" name="tier" value="<?php echo pmEsc($pmTierOption['key']); ?>"
+                     data-pm-tier-radio data-pm-tier-amount="<?php echo pmEsc((string) $pmTierOption['amount']); ?>"
+                     data-pm-tier-label="<?php echo pmEsc(pmRegisterMoney($pmTierOption['currency'], $pmTierOption['amount'])); ?>"
+                     <?php echo $pmTierOption['key'] === $pmSelectedTier ? 'checked' : ''; ?>>
+              <span class="pm-reg__tier-name"><?php echo pmEsc($pmTierOption['name']); ?></span>
+              <span class="pm-reg__tier-price"><?php echo pmEsc($pmTierOption['label']); ?></span>
+            </label>
+<?php endforeach; ?>
+          </div>
+          <p class="pm-caption pm-mt-sm"><?php echo pmContentSafe($pdo, 'register', 'tier_note',
+            'Every attendee added below joins at the tier selected here. VIP and VVIP perks are listed on the event page.'); ?></p>
+          <?php else: ?>
+          <input type="hidden" name="tier" value="regular">
+          <?php endif; ?>
 
           <p class="pm-label pm-mt-lg" id="pm-reg-count-label"><?php
             echo pmContentSafe($pdo, 'register', 'count_label', 'Number of delegates'); ?></p>
@@ -534,7 +591,7 @@ pmPageBegin([
           <div class="pm-reg__line">
             <span class="pm-reg__line-label"><?php echo pmContentSafe($pdo, 'register', 'summary_unit',
               'Unit price, per delegate'); ?></span>
-            <span class="pm-reg__line-value"><?php echo pmEsc($pmUnitLabel); ?></span>
+            <span class="pm-reg__line-value" data-pm-unit-label><?php echo pmEsc($pmUnitLabel); ?></span>
           </div>
 
           <div class="pm-reg__total">

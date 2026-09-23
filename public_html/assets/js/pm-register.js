@@ -41,6 +41,8 @@
     var reviewCount = form.querySelector('[data-pm-review-count]');
     var reviewTotal = form.querySelector('[data-pm-review-total]');
     var done = document.querySelector('[data-pm-done]');
+    var tierRadios = form.querySelectorAll('[data-pm-tier-radio]');
+    var unitLabels = document.querySelectorAll('[data-pm-unit-label]');
 
     if (!panels.length || !nav || !nextBtn || !delegateHolder) {
       return;
@@ -71,9 +73,10 @@
       return row.querySelectorAll('input, select, textarea');
     }
 
-    // MUST equal what the handler charges: unit x count, no discount, no tier
-    // multiplier. delegateCount is the number of enabled rows, which is exactly
-    // what the POST carries.
+    // MUST equal what the handler charges: unit x count, no discount. unitAmount
+    // already reflects the selected tier (set on load from the checked radio,
+    // updated live if the visitor changes it) and delegateCount is the number
+    // of enabled rows, which is exactly what the POST carries.
     function renderTotal() {
       var total = unitAmount * delegateCount;
       var formatted = money(total);
@@ -314,6 +317,26 @@
     if (downBtn) {
       downBtn.addEventListener('click', function () {
         setDelegateCount(delegateCount - 1);
+      });
+    }
+
+    // The radio's own data carries the amount and its formatted label, both
+    // rendered server-side from the event's real price columns -- nothing here
+    // computes or guesses a price, it only reflects the one already chosen.
+    // Changing tier never touches delegateCount, so renderTotal() alone is
+    // enough to bring every total in step.
+    for (var t = 0; t < tierRadios.length; t++) {
+      tierRadios[t].addEventListener('change', function (event) {
+        var picked = event.target;
+        var amount = parseFloat(picked.getAttribute('data-pm-tier-amount'));
+        if (!isFinite(amount)) { return; }
+
+        unitAmount = amount;
+        var label = picked.getAttribute('data-pm-tier-label') || '';
+        for (var u = 0; u < unitLabels.length; u++) {
+          unitLabels[u].textContent = label;
+        }
+        renderTotal();
       });
     }
 

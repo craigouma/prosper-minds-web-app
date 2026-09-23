@@ -341,13 +341,11 @@ try {
 <?php endif; ?>
 <?php if (!$pmIsPast): ?>
         <div class="pm-card__foot">
-          <?php // Every tier links to the same registration entry point,
-                // because that is the only parameter event-registration.php
-                // reads. It takes an id and nothing else, so a &tier= appended
-                // here would look like it carried the choice and would in fact
-                // be discarded on arrival. The tier is chosen inside the flow.
-                // Phase 4 rebuilds that flow and can carry it properly. ?>
-          <a class="pm-btn pm-btn--secondary pm-btn--block pm-btn--sm" href="<?php echo pmEsc($pmRegisterUrl); ?>">
+          <?php // Carries the tier onto the registration form, which pre-selects
+                // it (falling back to Regular if the event does not actually
+                // price this tier, or the form is reached any other way). ?>
+          <a class="pm-btn pm-btn--secondary pm-btn--block pm-btn--sm"
+             href="<?php echo pmEsc($pmRegisterUrl . (str_contains($pmRegisterUrl, '?') ? '&' : '?') . 'tier=' . $pmTier['key']); ?>">
             <?php echo pmContentSafe($pdo, 'event', 'tier_cta', 'Select'); ?>
             <span class="pm-sr-only"> the <?php echo pmEsc($pmTier['name']); ?> tier and register</span>
           </a>

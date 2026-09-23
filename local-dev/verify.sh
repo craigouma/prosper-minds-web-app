@@ -1505,8 +1505,43 @@ check "response total matches the stored total" \
 check "no discount line in the summary panel" "0" \
   "$(printf '%s' "$R_BODY" | awk '/pm-reg__summary/,/<\/aside>/' \
      | grep -ciE 'early bird|discount|deduct|per cent off')"
-check "no tier selector that could change the price" "0" \
-  "$(printf '%s' "$R_BODY" | grep -c -E 'name="tier"|name="delegate_tier"|data-pm-tier')"
+# Was "no tier selector that could change the price" -- true until Lydia asked
+# for exactly that (VIP/VVIP registering at their own price, not the standard
+# rate). The selector now exists; what still must hold is that a client cannot
+# set the price itself, only choose which of the event's own tiers applies.
+check "a tier selector is present" "yes" "$(has_text "$R_BODY" 'data-pm-tier-radio')"
+check "the flow script sets amount from the picked radio, not from input" "1" \
+  "$(grep -c "getAttribute('data-pm-tier-amount')" "$REG_JS")"
+# CRITICAL: the server, not the form, decides what a tier is worth. A tampered
+# or nonsense tier value must fail closed to the regular rate, never to a
+# client-invented price and never to zero.
+#
+# Watermarked and cleaned up after: section 12i counts funnel rows for
+# $R_EVENT exactly, and this submission is real and against that same event,
+# so it must leave no trace once its own assertions are done.
+TAMPER_REG_WATERMARK="$(fq "SELECT IFNULL(MAX(id),0) FROM event_registrations")"
+TAMPER_FUNNEL_WATERMARK="$(fq "SELECT IFNULL(MAX(id),0) FROM funnel_events")"
+TAMPER_JAR="$(mktemp)"
+TAMPER_PAGE="$(curl -s -c "$TAMPER_JAR" -b "$TAMPER_JAR" "$R_URL")"
+TAMPER_TOKEN="$(printf '%s' "$TAMPER_PAGE" | grep -o 'name="csrf_token" value="[^"]*"' | head -1 | sed -E 's/.*value="([^"]*)".*/\1/')"
+TAMPER_RESP="$(curl -s -c "$TAMPER_JAR" -b "$TAMPER_JAR" "$MAIN/process-registration.php" \
+  --data-urlencode "csrf_token=$TAMPER_TOKEN" \
+  --data-urlencode "event_id=$R_EVENT" --data-urlencode "event_name=$R_TITLE" \
+  --data-urlencode "tier=free_upgrade_hack" \
+  --data-urlencode "first_name=Tamper" --data-urlencode "last_name=Test" \
+  --data-urlencode "phone=+254700000199" --data-urlencode "email=tier-tamper@example.test" \
+  --data-urlencode "organization=Verify" --data-urlencode "country=Kenya" --data-urlencode "address=N/A" \
+  --data-urlencode "gender=Male" --data-urlencode "meal_preference=None" --data-urlencode "consent=yes" \
+  --data-urlencode "attendees[first_name][]=Tamper" --data-urlencode "attendees[last_name][]=Test" \
+  --data-urlencode "attendees[email][]=tier-tamper@example.test" --data-urlencode "attendees[title][]=Officer")"
+rm -f "$TAMPER_JAR"
+check "a tampered tier still charges the real regular price" \
+  "$(reg_col tier-tamper@example.test unit_price_amount)" \
+  "$(printf '%s' "$TAMPER_RESP" | php -r '$d=json_decode(stream_get_contents(STDIN),true); printf("%.2f", (float) ($d["unit_price_amount"] ?? -1));')"
+check "and it is recorded as regular, not the submitted tier" "regular" \
+  "$(reg_col tier-tamper@example.test tier)"
+fq "DELETE FROM event_registrations WHERE id > $TAMPER_REG_WATERMARK" >/dev/null
+fq "DELETE FROM funnel_events WHERE id > $TAMPER_FUNNEL_WATERMARK" >/dev/null
 check "the flow script multiplies unit by count and nothing else" "1" \
   "$(grep -c 'unitAmount \* delegateCount' "$REG_JS")"
 check "the flow script does no discount arithmetic" "0" \

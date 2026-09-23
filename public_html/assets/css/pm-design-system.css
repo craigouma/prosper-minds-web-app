@@ -2309,6 +2309,56 @@ body.pm {
   color: var(--pm-black);
 }
 
+/* -- Tier picker: Regular / VIP / VVIP, when the event prices more than one - */
+.pm-reg__tiers {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 8px;
+}
+
+.pm-reg__tier {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 12px 14px;
+  border: 1px solid var(--pm-border);
+  border-radius: var(--pm-radius);
+  cursor: pointer;
+  transition: border-color var(--pm-transition), background var(--pm-transition);
+}
+
+.pm-reg__tier:has(input:checked) {
+  border-color: var(--pm-black);
+  background: var(--pm-surface);
+}
+
+.pm-reg__tier:has(input:focus-visible) {
+  outline: 2px solid var(--pm-green);
+  outline-offset: 1px;
+}
+
+/* The native radio still exists for keyboard/AT and for a no-JS submit; the
+   card border above is the visible state, so the input itself is not shown
+   twice over. */
+.pm-reg__tier input {
+  position: absolute;
+  opacity: 0;
+  width: 1px;
+  height: 1px;
+}
+
+.pm-reg__tier-name {
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--pm-black);
+}
+
+.pm-reg__tier-price {
+  font-size: 15px;
+  color: var(--pm-black);
+}
+
 /* -- One delegate ---------------------------------------------------------- */
 .pm-reg__delegate-head {
   display: flex;

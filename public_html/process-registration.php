@@ -89,6 +89,7 @@ $futureTopics   = trim($_POST['future_topics'] ?? '');
 $consent        = isset($_POST['consent']) ? 1 : 0;
 $eventId        = (int) ($_POST['event_id'] ?? 0);
 $eventName      = trim($_POST['event_name'] ?? '');
+$tier           = trim($_POST['tier'] ?? '');
 
 $attendeeFirstNames = $_POST['attendees']['first_name'] ?? [];
 $attendeeLastNames  = $_POST['attendees']['last_name'] ?? [];
@@ -155,7 +156,23 @@ if (!$eventRecord) {
 
 $eventName = $eventRecord['title'];
 $fullEventName = $eventName . ' (' . $eventRecord['location'] . ' ' . $eventRecord['date_display'] . ')';
-[$currencyCode, $unitPriceAmount] = parseEventPrice($eventRecord['price'] ?? '');
+
+// The tier decides the price, and the price is read from the event's own row,
+// never from anything the browser sent. A submitted tier the event does not
+// actually have a price for (tampered, stale, or an event with no VIP/VVIP
+// pricing set) fails closed to 'regular' rather than failing the
+// registration: the worst a forged value can do is undercharge to the
+// standard rate, never charge nothing and never block a delegate.
+$tierPriceText = [
+    'vip'  => (string) ($eventRecord['vip_price'] ?? ''),
+    'vvip' => (string) ($eventRecord['vvip_price'] ?? ''),
+];
+if (!isset($tierPriceText[$tier]) || trim($tierPriceText[$tier]) === '') {
+    $tier = 'regular';
+}
+$priceText = $tier === 'regular' ? ($eventRecord['price'] ?? '') : $tierPriceText[$tier];
+
+[$currencyCode, $unitPriceAmount] = parseEventPrice((string) $priceText);
 $attendeeCount = count($attendees);
 $totalAmount = $unitPriceAmount * $attendeeCount;
 
@@ -169,8 +186,8 @@ try {
     $pdo->prepare(
         "INSERT INTO event_registrations
          (first_name, last_name, phone, email, organization, country, address, attendee_count, attendee_details,
-          gender, meal_preference, future_topics, consent, event_name, event_id, currency_code, unit_price_amount, total_amount)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+          gender, meal_preference, future_topics, consent, event_name, event_id, currency_code, unit_price_amount, total_amount, tier)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
     )->execute([
         $firstName,
         $lastName,
@@ -190,6 +207,7 @@ try {
         $currencyCode,
         $unitPriceAmount,
         $totalAmount,
+        $tier,
     ]);
 
     $registrationId = (int) $pdo->lastInsertId();
@@ -223,6 +241,7 @@ try {
         'currency_code' => $currencyCode,
         'unit_price_amount' => $unitPriceAmount,
         'total_amount' => $totalAmount,
+        'tier' => $tier,
     ];
 
     $invoiceResult = generateInvoicePdf(
@@ -311,6 +330,7 @@ try {
         'currency_code' => $currencyCode,
         'unit_price_amount' => $unitPriceAmount,
         'total_amount' => $totalAmount,
+        'tier' => $tier,
     ];
 
     $availableEventsStmt = $pdo->query(
@@ -418,4 +438,5 @@ echo json_encode([
     'total_amount' => $totalAmount,
     'currency_code' => $currencyCode,
     'unit_price_amount' => $unitPriceAmount,
+    'tier' => $tier,
 ]);

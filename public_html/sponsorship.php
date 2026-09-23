@@ -34,7 +34,7 @@ $pmTiers = pmContentJson($pdo, 'sponsorship', 'tiers', [
         'Social media spotlight',
         'Exhibition space',
     ]],
-    ['key' => 'bronze', 'name' => 'Bronze', 'price' => '$2,000', 'slots' => '10 slots remaining', 'benefits' => [
+    ['key' => 'bronze', 'name' => 'Supporting Sponsor', 'price' => '$2,000', 'slots' => '10 slots remaining', 'benefits' => [
         'Speaker or moderator role',
         'Three delegate passes',
         'Logo in the programme',
