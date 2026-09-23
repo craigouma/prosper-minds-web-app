@@ -1097,6 +1097,48 @@ body.pma {
 .pma-banner-frame img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .pma-banner-body { padding: 14px 16px; }
 
+.pma-media-picker {
+  width: min(680px, 92vw);
+  max-height: 80vh;
+  padding: 18px 20px;
+  border: 1px solid var(--pma-border);
+  border-radius: 2px;
+  background: var(--pma-white);
+}
+
+.pma-media-picker::backdrop { background: rgba(0, 0, 0, 0.45); }
+
+.pma-media-picker-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.pma-media-picker-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(96px, 1fr));
+  gap: 8px;
+  max-height: calc(80vh - 70px);
+  overflow-y: auto;
+}
+
+.pma-media-picker-item {
+  aspect-ratio: 1 / 1;
+  padding: 0;
+  border: 1px solid var(--pma-border);
+  border-radius: 2px;
+  background: var(--pma-surface);
+  overflow: hidden;
+  cursor: pointer;
+}
+
+.pma-media-picker-item:hover,
+.pma-media-picker-item:focus-visible { border-color: var(--pma-black); }
+
+.pma-media-picker-item img { width: 100%; height: 100%; object-fit: cover; display: block; }
+
 .pma-serp {
   display: flex;
   flex-direction: column;
