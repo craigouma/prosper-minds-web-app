@@ -29,6 +29,7 @@ pmPageBegin([
     'title'       => pmContent($pdo, 'about', 'meta_title', 'About Prosperminds'),
     'description' => pmContent($pdo, 'about', 'meta_description', 'A training institution for the public sector, working with ministries of finance, audit offices, revenue authorities and state corporations across Africa.'),
     'canonical'   => '/about.php',
+    'font_trial'  => ['name' => 'Manrope', 'family' => "'Manrope', Georgia, serif"],
 ]);
 ?>
 

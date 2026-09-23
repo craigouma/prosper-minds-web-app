@@ -124,6 +124,11 @@ pmPageBegin([
     'title'       => pmContent($pdo, 'sponsorship', 'meta_title', 'Sponsorship | Prosperminds'),
     'description' => pmContent($pdo, 'sponsorship', 'meta_description', 'A business-to-government partnership placing sponsors in the room with accountants general, auditors general, treasury leaders and budget controllers.'),
     'canonical'   => '/sponsorship.php',
+    // Calibri itself cannot be self-hosted (Microsoft's font); Carlito is the
+    // open, metrically identical stand-in, so this reads as Calibri for every
+    // visitor, not only one with Windows and Office installed. See the
+    // @font-face comment in pm-design-system.css.
+    'font_trial'  => ['name' => 'Calibri', 'family' => "'Carlito', Georgia, serif"],
     'scripts'     => ['/assets/js/pm-sponsorship-form.js'],
 ]);
 ?>
