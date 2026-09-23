@@ -64,12 +64,18 @@ if ($soonest !== null) {
     $ctaHref = pmRegisterHref();
 }
 
+// The nearest upcoming school's own designed banner, shared when a link to the
+// homepage is posted. A generic logo told a reader nothing about what they
+// were being invited to; the actual poster does.
+$pmHomeShareImage = $events !== [] ? pmEventImageUrl($events[0]) : '';
+
 pmPageBegin([
     'slug'        => 'home',
     'nav'         => 'home',
     'title'       => pmContent($pdo, 'home', 'meta_title', 'Prosperminds | Public Finance, IPSAS, AI and Sustainability Training'),
     'description' => pmContent($pdo, 'home', 'meta_description', 'Prosperminds trains senior government finance officials across Africa in public finance management, IPSAS and IFRS reporting, data analytics, AI automation and sustainability disclosure.'),
     'canonical'   => '/index.php',
+    'og_image'    => $pmHomeShareImage !== '' ? $pmHomeShareImage : PM_SOCIAL_IMAGE,
 ]);
 ?>
 
@@ -104,7 +110,7 @@ pmPageBegin([
 <?php foreach (pmContentJson($pdo, 'home', 'hero_facts', [
         ['value' => '25',  'label' => 'Years collective experience'],
         ['value' => '875', 'label' => 'Leaders trained'],
-        ['value' => '4',   'label' => 'Schools in 2026'],
+        ['value' => '2',   'label' => 'Schools in 2026'],
         ['value' => '5',   'label' => 'Day residential format'],
       ]) as $fact): ?>
       <div class="pm-cell">
