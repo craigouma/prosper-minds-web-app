@@ -89,6 +89,58 @@
   font-display: swap;
 }
 
+/* Calibri is Microsoft's font and cannot be embedded or served from here, so a
+   font-family: Calibri rule would only render correctly for a visitor who
+   already has it installed, which is not true of most Mac, Linux or mobile
+   visitors. Carlito is the open, SIL-licensed, metrically identical stand-in
+   Google and LibreOffice both ship for exactly this reason: self-hosting it
+   means the Calibri font trial page actually looks like Calibri for everyone
+   comparing it, not only for whoever happens to be on Windows with Office. */
+@font-face {
+  font-family: 'Carlito';
+  src: url('../fonts/Carlito-Regular.ttf') format('truetype');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Carlito';
+  src: url('../fonts/Carlito-Bold.ttf') format('truetype');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* Inter, Roboto and Manrope are self-hosted for the same reason Maharlika is:
+   no third-party request, no dependency on Google's fonts CDN staying up or
+   reachable. Each file is Google's own variable font, one file covering every
+   weight the site uses via the font-weight range below, so this is not three
+   times the requests a static-weight setup would be. */
+@font-face {
+  font-family: 'Inter';
+  src: url('../fonts/Inter-Variable.ttf') format('truetype-variations');
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Roboto';
+  src: url('../fonts/Roboto-Variable.ttf') format('truetype-variations');
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Manrope';
+  src: url('../fonts/Manrope-Variable.ttf') format('truetype-variations');
+  font-weight: 200 800;
+  font-style: normal;
+  font-display: swap;
+}
+
 
 /* ---------------------------------------------------------------------------
    2. DESIGN TOKENS

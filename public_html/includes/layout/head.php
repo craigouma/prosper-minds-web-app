@@ -65,6 +65,24 @@ $pmBodyClass = trim('pm ' . (string) ($pmPage['body_class'] ?? ''));
       foreach ((array) ($pmPage['styles'] ?? []) as $pmStyle): ?>
     <link rel="stylesheet" href="<?php echo pmEsc(pmAssetUrl((string) $pmStyle)); ?>">
 <?php endforeach; ?>
+<?php // A client-requested font trial, one typeface per page, so the same four
+      // pages can be reopened later with a different font and compared side by
+      // side. Overrides --pm-font after the design system loads, so nothing
+      // else about the page changes. Removed entirely once a font is chosen.
+      // Self-hosted, same as every other typeface on the site: no third-party
+      // font request, no dependency on an external CDN staying reachable.
+      $pmFontTrial = (array) ($pmPage['font_trial'] ?? []);
+      if (!empty($pmFontTrial['family'])):
+        // Not pmEsc(): this is CSS text, not an HTML attribute, and a
+        // font-family value needs its literal single quotes to survive.
+        // pmEsc() HTML-entity-encodes them into &#039;, which a <style>
+        // element's raw text does not decode, silently breaking the whole
+        // declaration. The value is always a hardcoded array literal from a
+        // page's own pmPageBegin() call, never user or database content;
+        // stripping ; { } < > is defense in depth, not a response to any
+        // untrusted input this ever actually carries. ?>
+    <style>:root { --pm-font: <?php echo preg_replace('/[;{}<>]/', '', (string) $pmFontTrial['family']); ?>; }</style>
+<?php endif; ?>
 
     <!-- Marks the document as script-capable before first paint, so the mobile
          menu's collapsed state is never applied to a browser that could not
@@ -77,3 +95,8 @@ $pmBodyClass = trim('pm ' . (string) ($pmPage['body_class'] ?? ''));
 <body class="<?php echo pmEsc($pmBodyClass); ?>">
 <?php pmGtmBody(); ?>
 <a class="pm-skip-link" href="#pm-main">Skip to content</a>
+<?php if (!empty($pmFontTrial['name'])): ?>
+<div style="background:#111;color:#fff;text-align:center;font:600 12px/2.4 sans-serif;letter-spacing:.03em;">
+  Font trial: this page is set in <?php echo pmEsc((string) $pmFontTrial['name']); ?>. Compare with the other three trial pages.
+</div>
+<?php endif; ?>

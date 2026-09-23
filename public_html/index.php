@@ -76,6 +76,7 @@ pmPageBegin([
     'description' => pmContent($pdo, 'home', 'meta_description', 'Prosperminds trains senior government finance officials across Africa in public finance management, IPSAS and IFRS reporting, data analytics, AI automation and sustainability disclosure.'),
     'canonical'   => '/index.php',
     'og_image'    => $pmHomeShareImage !== '' ? $pmHomeShareImage : PM_SOCIAL_IMAGE,
+    'font_trial'  => ['name' => 'Inter', 'family' => "'Inter', Georgia, serif"],
 ]);
 ?>
 

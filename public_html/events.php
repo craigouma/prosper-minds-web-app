@@ -30,6 +30,7 @@ pmPageBegin([
     'description' => pmContent($pdo, 'events', 'meta_description', 'Every Prosperminds residential school, with dates, locations and early-bird deadlines confirmed twelve months ahead.'),
     'canonical'   => '/events.php',
     'og_image'    => $pmEventsShareImage !== '' ? $pmEventsShareImage : PM_SOCIAL_IMAGE,
+    'font_trial'  => ['name' => 'Roboto', 'family' => "'Roboto', Georgia, serif"],
     'scripts'     => ['/assets/js/pm-copy-link.js'],
 ]);
 ?>
