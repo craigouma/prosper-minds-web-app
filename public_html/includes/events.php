@@ -14,7 +14,7 @@
  *  the full list can never drift into selecting different shapes. */
 const PM_EVENT_LIST_COLUMNS =
     'id, title, tagline, focus_tags, date_display, event_start_date,
-     location, price, image_path, agenda, is_active,
+     location, slug, price, image_path, agenda, is_active,
      early_bird_1_pct, early_bird_1_date,
      early_bird_2_pct, early_bird_2_date,
      early_bird_3_pct, early_bird_3_date';
