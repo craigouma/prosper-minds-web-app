@@ -28,6 +28,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         if ($title === '') {
             $error = 'That event no longer exists.';
+        } elseif (isset($_POST['media_id'])) {
+            // Assign a file already in the library, so a banner that has been
+            // uploaded once can be reused or moved to a different event
+            // without re-uploading the same bytes.
+            $mediaId = (int) $_POST['media_id'];
+            $file    = pmMediaFind($pdo, $mediaId);
+
+            if ($file === null || strpos((string) $file['mime'], 'image/') !== 0) {
+                $error = 'That file is no longer in the library.';
+            } else {
+                $pdo->prepare('UPDATE events SET image_path = ? WHERE id = ?')
+                    ->execute([ltrim(pmMediaUrl($file['filename']), '/'), $eventId]);
+                pmMediaRecordUsage($pdo, $mediaId, 'event', (string) $eventId, 'Banner for ' . $title);
+                pmAudit($pdo, 'banner_replace', 'Set the banner for "' . $title . '" from the media library', 'events', $eventId);
+                $notice = 'Banner set from the media library. It is live on the site now.';
+            }
         } else {
             $up = pmMediaStore($pdo, $_FILES['banner'] ?? [], (string) ($_SESSION['admin_username'] ?? 'unknown'),
                                'Promotional banner for ' . $title);
@@ -52,6 +68,18 @@ try {
                              FROM events ORDER BY is_active DESC, sort_order, id')->fetchAll();
 } catch (Throwable $e) {
     $error = 'The events could not be read.';
+}
+
+// For the "choose from library" picker: every image already uploaded, newest
+// first. One shared list for all events rather than fetching per row, which
+// would be the same 300-row query repeated once per event on the page.
+$libraryImages = [];
+try {
+    $libraryImages = $pdo->query("SELECT id, filename, alt_text FROM cms_media
+                                    WHERE mime LIKE 'image/%' ORDER BY id DESC LIMIT 200")->fetchAll();
+} catch (Throwable $e) {
+    // The upload form still works without this; picking from the library just
+    // will not have anything to show.
 }
 
 $csrfToken = generateCsrfToken();
@@ -123,6 +151,10 @@ require_once 'header.php';
           </div>
           <button type="submit" class="btn btn-outline btn-sm"><?php
             echo $url !== '' ? 'Replace banner' : 'Add a banner'; ?></button>
+<?php if ($libraryImages): ?>
+          <button type="button" class="btn btn-outline btn-sm"
+                  onclick="pmOpenMediaPicker(<?php echo (int) $ev['id']; ?>)">Choose from library</button>
+<?php endif; ?>
         </form>
 <?php endif; ?>
       </div>
@@ -131,5 +163,34 @@ require_once 'header.php';
   </div>
 <?php endif; ?>
 </div>
+
+<?php if ($libraryImages): ?>
+<dialog id="pm-media-picker" class="pma-media-picker">
+  <form method="POST" action="banners.php">
+    <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrfToken); ?>">
+    <input type="hidden" name="event_id" id="pm-picker-event-id" value="">
+    <div class="pma-media-picker-head">
+      <h3 class="card-title" style="font-size:14px">Choose a banner from the library</h3>
+      <button type="button" class="btn btn-outline btn-sm" onclick="document.getElementById('pm-media-picker').close()">Cancel</button>
+    </div>
+    <div class="pma-media-picker-grid">
+<?php foreach ($libraryImages as $img): ?>
+      <button type="submit" name="media_id" value="<?php echo (int) $img['id']; ?>"
+              class="pma-media-picker-item"
+              title="<?php echo htmlspecialchars((string) ($img['alt_text'] ?: $img['filename'])); ?>">
+        <img src="<?php echo htmlspecialchars(pmMediaUrl($img['filename'], 'thumb')); ?>" alt="" loading="lazy">
+      </button>
+<?php endforeach; ?>
+    </div>
+  </form>
+</dialog>
+
+<script>
+function pmOpenMediaPicker(eventId) {
+  document.getElementById('pm-picker-event-id').value = eventId;
+  document.getElementById('pm-media-picker').showModal();
+}
+</script>
+<?php endif; ?>
 
 <?php require_once 'footer.php'; ?>
