@@ -19,12 +19,17 @@ $pmCountLabel = static function (int $n, string $one, string $many): string {
     return str_replace('{n}', (string) $n, $n === 1 ? $one : $many);
 };
 
+// The nearest upcoming school's own designed banner, so a shared link to the
+// calendar shows a real poster rather than the site logo.
+$pmEventsShareImage = $pmUpcoming !== [] ? pmEventImageUrl($pmUpcoming[0]) : '';
+
 pmPageBegin([
     'slug'        => 'events',
     'nav'         => 'events',
     'title'       => pmContent($pdo, 'events', 'meta_title', 'CPD calendar | Prosperminds'),
     'description' => pmContent($pdo, 'events', 'meta_description', 'Every Prosperminds residential school, with dates, locations and early-bird deadlines confirmed twelve months ahead.'),
     'canonical'   => '/events.php',
+    'og_image'    => $pmEventsShareImage !== '' ? $pmEventsShareImage : PM_SOCIAL_IMAGE,
     'scripts'     => ['/assets/js/pm-copy-link.js'],
 ]);
 ?>

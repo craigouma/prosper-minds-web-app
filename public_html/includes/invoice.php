@@ -145,7 +145,7 @@ function generateInvoicePdf(array $invoicePayload, string $outputPath): array
             'P.O. Box',
             'Nairobi, Kenya',
             'info@prosper-minds.com',
-            '+254 740 582302 / +254 741 174909',
+            '+254 740 582302 / +254 722 998105',
             'KRA PIN: P052360042N',
         ];
         $pdf->SetX(15);
@@ -299,7 +299,7 @@ function generateInvoicePdf(array $invoicePayload, string $outputPath): array
         $pdf->Cell(
             0,
             5,
-            'Prosperminds | info@prosper-minds.com | +254 740 582302 / +254 741 174909 | www.prosper-minds.com',
+            'Prosperminds | info@prosper-minds.com | +254 740 582302 / +254 722 998105 | www.prosper-minds.com',
             0,
             0,
             'C'

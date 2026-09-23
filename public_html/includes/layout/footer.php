@@ -114,7 +114,7 @@ $pmNewsletterFailed = $pmNewsletterStatus !== '' && $pmNewsletterStatus !== 'ok'
         <p class="pm-footer__detail">
           <a href="mailto:info@prosper-minds.com">info@prosper-minds.com</a><br>
           <a href="tel:+254740582302">+254 740 582302</a><br>
-          <a href="tel:+254741174909">+254 741 174909</a>
+          <a href="tel:+254722998105">+254 722 998105</a>
         </p>
 
 <?php

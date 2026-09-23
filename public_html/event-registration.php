@@ -52,8 +52,15 @@ function pmRegisterMoney(string $currency, float $amount): string
 const PM_REG_ROWS = 5;
 const PM_REG_MAX = 20;
 
-$pmEventId = isset($_GET['id']) ? (int) $_GET['id'] : 0;
-$pmEvent   = pmEventById($pdo, $pmEventId);
+// Both addresses render the same form; the old ?id= link is not deprecated,
+// only joined by a nicer one. See event.php for why this is not a redirect.
+$pmSlugParam = trim((string) ($_GET['slug'] ?? ''));
+$pmEventId   = isset($_GET['id']) ? (int) $_GET['id'] : 0;
+$pmEvent     = $pmSlugParam !== '' ? pmEventBySlug($pdo, $pmSlugParam) : pmEventById($pdo, $pmEventId);
+
+if ($pmEvent !== null) {
+    $pmEventId = (int) $pmEvent['id'];
+}
 
 // is_active mirrors the handler's own WHERE clause. A form the handler will
 // refuse is a form that fails after everything has been typed in.
@@ -107,7 +114,7 @@ pmPageBegin([
     'title'       => 'Register a delegate: ' . $pmTitle,
     'description' => 'Register delegates for ' . $pmTitle . ', ' . $pmDates . ', ' . $pmLocation
                      . '. Invoiced to your institution, payable by bank transfer or purchase order.',
-    'canonical'   => '/event-registration.php?id=' . (int) $pmEvent['id'],
+    'canonical'   => pmEventRegisterUrl($pmEvent),
     'scripts'     => ['/assets/js/pm-register.js'],
 ]);
 ?>
@@ -188,7 +195,7 @@ pmPageBegin([
               // guessable, so a link here would advertise a path to every other
               // delegate's invoice. The PDF is emailed instead. ?>
         <p class="pm-caption"><?php echo pmContentSafe($pdo, 'register', 'done_help',
-          'Need help right away? Call +254 740 582302 or +254 741 174909, or email info@prosper-minds.com.'); ?></p>
+          'Need help right away? Call +254 740 582302 or +254 722 998105, or email info@prosper-minds.com.'); ?></p>
 
         <div class="pm-btn-row">
           <a class="pm-btn" href="/events.php"><?php echo pmContentSafe($pdo, 'register', 'done_cta',

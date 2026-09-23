@@ -65,7 +65,7 @@ pmPageBegin([
         <span class="pm-label"><?php echo pmContentSafe($pdo, 'contact', 'phone_title', 'Telephone'); ?></span>
         <p class="pm-body">
           <a href="tel:+254740582302"><?php echo pmContentSafe($pdo, 'global', 'phone_primary', '+254 740 582302'); ?></a><br>
-          <a href="tel:+254741174909"><?php echo pmContentSafe($pdo, 'global', 'phone_secondary', '+254 741 174909'); ?></a>
+          <a href="tel:+254722998105"><?php echo pmContentSafe($pdo, 'global', 'phone_secondary', '+254 722 998105'); ?></a>
         </p>
       </div>
 

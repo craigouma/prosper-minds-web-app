@@ -14,6 +14,24 @@ ErrorDocument 404 /404.php
 RewriteEngine On
 RewriteRule ^sitemap\.xml$ sitemap.php [L]
 
+# Marketing vanity URLs printed on physical posters and their QR codes. Point
+# straight at the event's own slug (not ?id=) so the address bar keeps showing
+# the short, memorable URL instead of bouncing to the canonical /school/... one.
+# Kept exact and ahead of the generic CMS-slug rule below, so already-printed
+# material never breaks: prosper-minds.com/mombasa2026 is the "Register now"
+# QR code on the Christmas PFM School banner. If an event's slug ever changes,
+# update the slug named here to match.
+RewriteRule ^mombasa2026/?$ event-registration.php?slug=christmas-pfm-mastery-school-mombasa-2026 [L,QSA]
+RewriteRule ^capetown2026/?$ event-registration.php?slug=future-ready-pfm-leaders-cape-town-2026 [L,QSA]
+
+# Clean event URLs: /school/{slug} is the course page and /school/{slug}/register
+# is the registration form. Kept above the CMS-slug rule so a "school" segment
+# never falls into it. event.php and event-registration.php redirect the old
+# ?id= link to the slug one whenever the event has a slug, so old links, and
+# QR codes, keep working.
+RewriteRule ^school/([a-z0-9-]+)/register/?$ event-registration.php?slug=$1 [L,QSA]
+RewriteRule ^school/([a-z0-9-]+)/?$ event.php?slug=$1 [L,QSA]
+
 # CMS pages are served by slug, but only as a last resort: a request that
 # matches a real file or directory is left alone, so nothing here can shadow an
 # existing page, an asset or the admin panel.

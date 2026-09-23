@@ -149,6 +149,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_event'])) {
                     ]);
                     header('Location: events.php?msg=updated');
                 } else {
+                    // Set once, at creation, and never touched by an edit: a slug that
+                    // moved every time someone corrected a typo in the title would break
+                    // whatever was already sharing or indexing the old address.
+                    $slug = pmUniqueEventSlug($pdo, $title);
+
                     $pdo->prepare(
                         "INSERT INTO events
                          (title, tagline, date_display, event_start_date, location, price,
@@ -156,15 +161,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_event'])) {
                           early_bird_3_pct, early_bird_3_date, image_path, pdf_file, is_active, sort_order,
                           focus_tags, why_intro, master_points, agenda, audience,
                           vvip_price, vvip_seats_note, vvip_perks, vip_price, vip_perks,
-                          regular_price, regular_perks)
-                         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)"
+                          regular_price, regular_perks, slug)
+                         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)"
                     )->execute([
                         $title, $tagline, $dateDisp, $startDate, $location,
                         $price, $eb1pct, $eb1date, $eb2pct, $eb2date,
                         $eb3pct, $eb3date, $imagePath, $pdfPath, $isActive, $sortOrder,
                         $focusTags, $whyIntro, $masterPoints, $agendaJson, $audience,
                         $vvipPrice, $vvipSeats, $vvipPerks, $vipPrice, $vipPerks,
-                        $regularPrice, $regularPerks,
+                        $regularPrice, $regularPerks, $slug !== '' ? $slug : null,
                     ]);
                     header('Location: events.php?msg=added');
                 }

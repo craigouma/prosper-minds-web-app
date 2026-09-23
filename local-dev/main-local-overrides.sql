@@ -62,3 +62,35 @@ INSERT INTO `site_settings` (`setting_key`, `setting_value`) VALUES
   ('social_linkedin', 'https://www.linkedin.com/company/prosper-minds-technologies/'),
   ('social_facebook', 'https://www.facebook.com/share/1EvKA1GF5w/?mibextid=wwXIfr')
 ON DUPLICATE KEY UPDATE `setting_value` = VALUES(`setting_value`);
+
+-- Mirrors deploy/2026-09-23-mombasa-update-and-slugs.sql, so the local
+-- acceptance suite and a manual click-through exercise the same schema and
+-- content change that is about to go to production, not just the routing
+-- code that reads it.
+ALTER TABLE `events`
+  ADD COLUMN IF NOT EXISTS `slug` VARCHAR(160) NULL UNIQUE AFTER `location`;
+
+-- NOTE: production took Kuala Lumpur and Bali off the active calendar
+-- (deploy/2026-09-06-go-live.sql, is_active = 0 for events 2 and 3), and that
+-- was verified directly against the live site rather than here: verify.sh's
+-- own fixtures register against event 3, so flipping it inactive locally
+-- breaks the suite's assumptions rather than the site.
+
+UPDATE `events` SET `slug` = 'future-ready-pfm-leaders-cape-town-2026' WHERE `id` = 1;
+UPDATE `events`
+   SET `slug`       = 'christmas-pfm-mastery-school-mombasa-2026',
+       `location`   = 'Sarova Whitesands Beach Resort & Spa, Mombasa, Kenya',
+       `image_path` = 'assets/images/Christmas PFM Mastery School banner.jpg'
+ WHERE `id` = 5;
+
+UPDATE `page_content`
+   SET `content_value` = '[{"value":"25","label":"Years collective experience"},{"value":"875","label":"Leaders trained"},{"value":"2","label":"Schools in 2026"},{"value":"5","label":"Day residential format"}]'
+ WHERE `page_slug` = 'home' AND `section_key` = 'hero_facts';
+
+INSERT INTO `page_content` (`page_slug`, `section_key`, `content_type`, `content_value`, `sort_order`) VALUES
+  ('global', 'phone_secondary', 'text', '+254 722 998105', 60)
+ON DUPLICATE KEY UPDATE `content_value` = VALUES(`content_value`);
+
+INSERT INTO `page_content` (`page_slug`, `section_key`, `content_type`, `content_value`, `sort_order`) VALUES
+  ('register', 'done_help', 'text', 'Need help right away? Call +254 740 582302 or +254 722 998105, or email info@prosper-minds.com.', 170)
+ON DUPLICATE KEY UPDATE `content_value` = VALUES(`content_value`);

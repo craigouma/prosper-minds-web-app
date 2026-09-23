@@ -69,6 +69,7 @@ CREATE TABLE IF NOT EXISTS events (
     date_display VARCHAR(100) NOT NULL,
     event_start_date DATE,
     location VARCHAR(200) NOT NULL,
+    slug VARCHAR(160) NULL UNIQUE,
     price VARCHAR(100) DEFAULT 'USD 599 Per Delegate',
     early_bird_1_pct INT DEFAULT 20,
     early_bird_1_date DATE,
@@ -84,11 +85,12 @@ CREATE TABLE IF NOT EXISTS events (
 );
 
 -- Seed the three existing events
-INSERT INTO events (title, tagline, date_display, event_start_date, location, price, early_bird_1_pct, early_bird_1_date, early_bird_2_pct, early_bird_2_date, early_bird_3_pct, early_bird_3_date, image_path, sort_order) VALUES
+INSERT INTO events (title, tagline, date_display, event_start_date, location, slug, price, early_bird_1_pct, early_bird_1_date, early_bird_2_pct, early_bird_2_date, early_bird_3_pct, early_bird_3_date, image_path, sort_order) VALUES
 (
     'Smart PFM & IPSAS Future Ready Finance Leaders Course',
     'PFM, Data Analytics & Government Automation for Leaders Who Must Deliver',
     '19-23 October 2026', '2026-10-19', 'Cape Town, South Africa',
+    'future-ready-pfm-leaders-cape-town-2026',
     'USD 599 Per Delegate',
     20, '2026-07-19', 15, '2026-08-19', 10, '2026-09-19',
     'assets/images/smart PFM and IPSAS Future Ready Finance Leaders Course.jpg', 1
@@ -97,6 +99,7 @@ INSERT INTO events (title, tagline, date_display, event_start_date, location, pr
     'IPSAS Success & Clean Audit Compliance Training',
     'IPSAS Compliance & Zero-Failure Reporting for Government Officers',
     '16-20 November 2026', '2026-11-16', 'Kuala Lumpur, Malaysia',
+    'ipsas-success-clean-audit-kuala-lumpur-2026',
     'USD 599 Per Delegate',
     20, '2026-08-16', 15, '2026-09-16', 10, '2026-10-16',
     'assets/images/IPSAS Success and Clean Audit compliance.jpg', 2
@@ -105,6 +108,7 @@ INSERT INTO events (title, tagline, date_display, event_start_date, location, pr
     'Budget Control, Revenue Growth & PFM Funding Breakthrough Conference',
     'Cash Control, IPSAS Reporting & Funding Strategies in Tough Times',
     '7-11 December 2026', '2026-12-07', 'Bali, Indonesia',
+    'budget-control-revenue-growth-bali-2026',
     'USD 599 Per Delegate',
     20, '2026-09-07', 15, '2026-10-07', 10, '2026-11-07',
     'assets/images/Budget Control and Revenue growth.jpg', 3
