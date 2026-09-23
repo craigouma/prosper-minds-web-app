@@ -1,7 +1,16 @@
 <?php
 require_once __DIR__ . '/includes/layout/page.php';
 
-$pmEvent = pmEventById($pdo, (int) ($_GET['id'] ?? 0));
+// Both addresses render the same page. Deliberately not a 301 from ?id= to the
+// slug: the old link is not being deprecated, only a nicer one is being added
+// alongside it, so anything still holding an ?id= link (an old email, a
+// bookmark, the admin's own audit log) keeps working exactly as it does today.
+// The slug is still the one search engines are told to prefer -- see
+// 'canonical' below.
+$pmSlugParam = trim((string) ($_GET['slug'] ?? ''));
+$pmEvent     = $pmSlugParam !== ''
+    ? pmEventBySlug($pdo, $pmSlugParam)
+    : pmEventById($pdo, (int) ($_GET['id'] ?? 0));
 
 if ($pmEvent === null || !pmEventIsListable($pmEvent)) {
     http_response_code(404);
@@ -81,7 +90,7 @@ pmPageBegin([
     // what a delegate pasted a link to expects to see in their tab.
     'title'       => $pmTitle,
     'description' => $pmTagline !== '' ? $pmTagline : $pmTitle . '. ' . $pmDates . ', ' . $pmLocation . '.',
-    'canonical'   => '/event.php?id=' . (int) $pmEvent['id'],
+    'canonical'   => pmEventDetailUrl($pmEvent),
     // The school's own designed banner is the right social card for it. Falls
     // back to the brand mark through pmPageConfig() when the row has no image.
     'og_image'    => $pmImage !== '' ? $pmImage : PM_SOCIAL_IMAGE,

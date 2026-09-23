@@ -46,16 +46,30 @@
  * builds an event detail page around it.
  */
 
-/** The public detail page for one event. Phase 3 redesigns it; the URL holds. */
+/**
+ * The public detail page for one event.
+ *
+ * An event with a slug gets the clean /school/{slug} address; one without
+ * (an older row from before the slug column existed) keeps working on
+ * /event.php?id=N. Both are handled by event.php, which redirects the id
+ * link to the slug one when a slug exists, so nothing already shared or
+ * indexed breaks.
+ */
 function pmEventDetailUrl(array $event): string
 {
-    return '/event.php?id=' . (int) ($event['id'] ?? 0);
+    $slug = trim((string) ($event['slug'] ?? ''));
+
+    return $slug !== '' ? '/school/' . rawurlencode($slug) : '/event.php?id=' . (int) ($event['id'] ?? 0);
 }
 
-/** The registration entry point for one event. Phase 4 redesigns the flow. */
+/** The registration entry point for one event. Same slug-or-id rule as above. */
 function pmEventRegisterUrl(array $event): string
 {
-    return '/event-registration.php?id=' . (int) ($event['id'] ?? 0);
+    $slug = trim((string) ($event['slug'] ?? ''));
+
+    return $slug !== ''
+        ? '/school/' . rawurlencode($slug) . '/register'
+        : '/event-registration.php?id=' . (int) ($event['id'] ?? 0);
 }
 
 /**

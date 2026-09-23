@@ -131,6 +131,87 @@ function pmEventById(?PDO $pdo, int $id): ?array
 }
 
 /**
+ * One event by slug, mirroring pmEventById() exactly. Returns null for an
+ * unknown or empty slug and for any failure, so the caller answers 404 rather
+ * than a fatal.
+ *
+ * @return array<string, mixed>|null
+ */
+function pmEventBySlug(?PDO $pdo, string $slug): ?array
+{
+    $slug = trim($slug);
+
+    if (!$pdo instanceof PDO || $slug === '') {
+        return null;
+    }
+
+    try {
+        $stmt = $pdo->prepare('SELECT * FROM events WHERE slug = ? LIMIT 1');
+        $stmt->execute([$slug]);
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        return is_array($row) ? $row : null;
+    } catch (Throwable $e) {
+        error_log('events: could not load event by slug "' . $slug . '": ' . $e->getMessage());
+
+        return null;
+    }
+}
+
+/**
+ * A URL-safe slug from arbitrary text: lowercase letters, digits and single
+ * hyphens only. '&' becomes 'and' rather than vanishing, so "AI & Automation"
+ * reads as "ai-and-automation", not the misleading "ai-automation".
+ */
+function pmSlugify(string $text): string
+{
+    $text = str_replace('&', ' and ', $text);
+    $text = mb_strtolower($text, 'UTF-8');
+    $text = (string) preg_replace('/[^a-z0-9]+/u', '-', $text);
+
+    return trim($text, '-');
+}
+
+/**
+ * A slug guaranteed unique among events, for use when creating one.
+ *
+ * Appends -2, -3, ... on collision rather than failing the save; a slug is a
+ * nice-to-have address for a page, not something worth blocking event
+ * creation over. On any database error this returns '', and the caller falls
+ * back to the ?id= link it always had, per pmEventDetailUrl().
+ */
+function pmUniqueEventSlug(PDO $pdo, string $title): string
+{
+    $base = pmSlugify($title);
+
+    if ($base === '') {
+        $base = 'school';
+    }
+
+    try {
+        $slug  = $base;
+        $stmt  = $pdo->prepare('SELECT COUNT(*) FROM events WHERE slug = ?');
+        $tries = 0;
+
+        while (true) {
+            $stmt->execute([$slug]);
+            if ((int) $stmt->fetchColumn() === 0) {
+                return $slug;
+            }
+            $tries++;
+            $slug = $base . '-' . ($tries + 1);
+            if ($tries > 50) { // Not a realistic count; a circuit breaker, not a limit.
+                return '';
+            }
+        }
+    } catch (Throwable $e) {
+        error_log('events: could not generate a unique slug for "' . $title . '": ' . $e->getMessage());
+
+        return '';
+    }
+}
+
+/**
  * Has this school already started?
  *
  * The comparison is against the START date, not the end date, because

@@ -8,6 +8,7 @@
 // for pages worth ranking in search (content), not transactional or private
 // ones.
 require_once __DIR__ . '/includes/config.php';
+require_once __DIR__ . '/includes/layout/event-card.php'; // For pmEventDetailUrl(), pure function, safe standalone.
 
 header('Content-Type: application/xml; charset=utf-8');
 
@@ -62,7 +63,7 @@ echo '<?xml version="1.0" encoding="UTF-8"?>' . "\n";
 <?php endforeach; ?>
 <?php foreach ($events as $ev): ?>
     <url>
-        <loc><?php echo htmlspecialchars($baseUrl . '/event.php?id=' . (int) $ev['id']); ?></loc>
+        <loc><?php echo htmlspecialchars($baseUrl . pmEventDetailUrl($ev)); ?></loc>
         <lastmod><?php echo date('Y-m-d', strtotime($ev['created_at'] ?? 'now')); ?></lastmod>
         <changefreq>weekly</changefreq>
         <priority>0.9</priority>
