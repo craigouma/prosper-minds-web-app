@@ -33,7 +33,7 @@ pmPageBegin([
     <p>
       Our office is at Twiga Towers, Moi Avenue, Nairobi, Kenya. You can reach us
       at <a href="mailto:info@prosper-minds.com">info@prosper-minds.com</a>,
-      or on +254 740 582302 or +254 741 174909, Monday to Friday, 8am to 5pm
+      or on +254 740 582302 or +254 722 998105, Monday to Friday, 8am to 5pm
       East Africa Time.
     </p>
 

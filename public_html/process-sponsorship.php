@@ -160,7 +160,7 @@ $confirmBody = "
         <div style='background:#111;border-radius:8px;padding:20px 24px;margin-top:24px;'>
             <p style='color:#aaa;font-size:.85rem;margin:0 0 8px;'>Need to reach us directly?</p>
             <p style='color:#00B140;font-size:.9rem;margin:0;'>
-                info@prosper-minds.com &nbsp;|&nbsp; +254 740 582302 &nbsp;|&nbsp; +254 741 174909
+                info@prosper-minds.com &nbsp;|&nbsp; +254 740 582302 &nbsp;|&nbsp; +254 722 998105
             </p>
         </div>
         <p style='margin-top:28px;color:#555;font-size:.88rem;'>
