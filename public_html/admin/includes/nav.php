@@ -9,6 +9,7 @@ function pmAdminIcons(): array {
         'eventeditor'   => 'M3 3h10v3H3zM3 8h10v2H3zM3 11.5h6v2H3z',
         'earlybird'     => 'M8 3a5 5 0 110 10A5 5 0 018 3zM8 5.5V8l2 1.5',
         'banners'       => 'M3 4h10v8l-5-3-5 3z',
+        'webinars'      => 'M8 2.5a5.5 5.5 0 110 11 5.5 5.5 0 010-11zM6.5 5.5l4 2.5-4 2.5z',
         'pages'         => 'M4 2h5l3 3v9H4zM9 2v3h3M6 8h4M6 11h3',
         'media'         => 'M2.5 3.5h11v9h-11zM2.5 10l3-3 2.5 2.5 2-2 3.5 3.5',
         'menus'         => 'M3 4h10M3 8h7M6 12h7',
@@ -38,6 +39,7 @@ function pmAdminNav(): array {
             ['key' => 'events',    'label' => 'Events',             'href' => 'events.php',    'module' => 'events',    'crumb' => 'Programme', 'built' => true],
             ['key' => 'earlybird', 'label' => 'Early bird control', 'href' => 'earlybird.php', 'module' => 'events',    'crumb' => 'Programme', 'built' => true],
             ['key' => 'banners',   'label' => 'Banner library',     'href' => 'banners.php',   'module' => 'media',     'crumb' => 'Programme', 'built' => true],
+            ['key' => 'webinars',  'label' => 'Webinars',           'href' => 'webinars.php',  'module' => 'events',    'crumb' => 'Programme', 'built' => true],
         ]],
         ['label' => 'Content', 'items' => [
             ['key' => 'pages',       'label' => 'Pages',           'href' => 'pages.php',       'module' => 'content',     'crumb' => 'Content', 'built' => true, 'phone' => true],

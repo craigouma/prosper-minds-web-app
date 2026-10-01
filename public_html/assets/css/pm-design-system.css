@@ -1320,6 +1320,15 @@ body.pm {
   border-bottom: var(--pm-rule-light);
 }
 
+/* A listing row with no banner column (PFM Insight Live has no per-session
+   image): date | title and meta | action, the same row otherwise. Grid
+   children fill columns in DOM order, so simply omitting the banner div from
+   the markup would shift every other column one slot left; this is the
+   three-column template that layout actually needs. */
+.pm-listing__row--no-banner {
+  grid-template-columns: minmax(110px, 150px) minmax(0, 1fr) auto;
+}
+
 .pm-listing__date {
   display: flex;
   flex-direction: column;
