@@ -31,6 +31,27 @@ one setting filled in, and those are listed against the change that introduced t
 
 Newest first. Anything marked **outstanding** still needs doing.
 
+### 1 October 2026, PFM Insight Live (the free monthly webinar series)
+
+- **Outstanding: deploy.** Merge and deploy as above.
+- **Outstanding: SQL.** Paste `deploy/2026-10-01-pfm-insight-live.sql` into phpMyAdmin. Must run after the
+  deploy, not before: it writes into `webinar_sessions`, which the code creates the first time anyone visits
+  `/webinars.php` or the admin screen. Expect **13** sessions. Seeds all 13 dates, titles and the shared Zoom
+  link, and adds a "Webinars" item to the header navigation if the menu is managed in the CMS (if it is not,
+  the code's own default list already includes it, so there is nothing more to do there).
+- **Outstanding: a new cron job.** Same schedule as the registration reminder one:
+  `/usr/local/bin/php /home2/kidsmone/public_html/tools/send-webinar-reminders.php --send --quiet`
+  Sends the reminder the series promises before every session, to everyone registered for that one session
+  and everyone registered for the whole series. Without it, people still receive their confirmation email the
+  moment they register; only the reminder depends on this.
+- A registration here is free and asks for name and email only: no invoice, no price tiers. It is a
+  deliberately separate system from the paid-school registration and invoice path, so a change to one cannot
+  touch the other.
+- Each of the 13 sessions points at the same Zoom link today (the one in the organiser's own email), stored
+  once per session rather than shared from one place, so changing a later session's link never touches the
+  others. Edit it on **Webinars** in the admin panel.
+- The calendar PDF is on the page as a direct download: `assets/pdfs/pfm-insight-live-2026-2027.pdf`.
+
 ### 15 September 2026, newsletter branding, PDF attachments, vision and mission, heading wording
 
 - **Outstanding: deploy.** Merge and deploy as above.
