@@ -178,6 +178,7 @@ function pmNavItems(): array
     $default = [
         'home'        => ['label' => 'Home',        'href' => '/index.php'],
         'events'      => ['label' => 'Events',      'href' => '/events.php'],
+        'webinars'    => ['label' => 'Webinars',    'href' => '/webinars.php'],
         'services'    => ['label' => 'Services',    'href' => '/services.php'],
         'about'       => ['label' => 'About',       'href' => '/about.php'],
         'sponsorship' => ['label' => 'Sponsorship', 'href' => '/sponsorship.php'],

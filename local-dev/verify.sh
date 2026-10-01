@@ -1772,10 +1772,10 @@ check "the shell is marked noindex"          "1"   "$(grep -c 'noindex' $HDR)"
 
 check "nav registry lists four groups"       "4"   "$(php -r "
   require 'public_html/admin/includes/nav.php'; echo count(pmAdminNav());")"
-check "nav registry covers 21 screens"       "21"  "$(php -r "
+check "nav registry covers 22 screens"       "22"  "$(php -r "
   require 'public_html/admin/includes/nav.php';
   \$n=0; foreach (pmAdminNav() as \$g) { \$n += count(\$g['items']); } echo \$n;")"
-check "twenty screens are built so far"      "20"   "$(php -r "
+check "twenty-one screens are built so far"  "21"   "$(php -r "
   require 'public_html/admin/includes/nav.php';
   \$n=0; foreach (pmAdminNav() as \$g) foreach (\$g['items'] as \$i) if (!empty(\$i['built'])) \$n++; echo \$n;")"
 check "the CMS permission modules exist"     "8"   "$(php -r "
@@ -2084,11 +2084,11 @@ nav_labels() { curl -s "$MAIN/index.php" | grep -c 'class="pm-nav__link"'; }
 menu_login
 check "menus.php returns 200" "200" "$(curl -s -b "$NJAR" -o /dev/null -w '%{http_code}' "$MAIN/admin/menus.php")"
 check "cms_menu_items was created on demand" "1" "$(table_exists cms_menu_items)"
-check "the header menu was seeded from the built-in list" "6" \
+check "the header menu was seeded from the built-in list" "7" \
   "$("${DB_MAIN[@]}" "SELECT COUNT(*) FROM cms_menu_items WHERE location='header'")"
 check "the menu migration has both halves" "2" \
   "$(ls public_html/database/migrations/2026-09-03-05-create-cms-menu-items.*.sql 2>/dev/null | wc -l | tr -d ' ')"
-check "the public nav renders six links" "6" "$(nav_labels)"
+check "the public nav renders seven links" "7" "$(nav_labels)"
 check "the current page is still marked" "2" "$(curl -s "$MAIN/events.php" | grep -c 'aria-current="page"')"
 
 MID="$("${DB_MAIN[@]}" "SELECT id FROM cms_menu_items WHERE label='Services' LIMIT 1")"
@@ -2102,7 +2102,7 @@ check "renaming a menu item is audited"        "1" \
 curl -s -b "$NJAR" -o /dev/null -X POST "$MAIN/admin/menus.php" \
   --data-urlencode "csrf_token=$(menu_token)" -d "action=update" -d "location=header" \
   -d "id=$MID" -d "label=Programmes" -d "link_type=page" -d "target=services.php"
-check "an item can be hidden from the site" "5" "$(nav_labels)"
+check "an item can be hidden from the site" "6" "$(nav_labels)"
 
 OUT="$(curl -s -b "$NJAR" -X POST "$MAIN/admin/menus.php" \
   --data-urlencode "csrf_token=$(menu_token)" -d "action=add" -d "location=header" \
@@ -2113,9 +2113,9 @@ check "and nothing was stored for it"        "0" \
 
 echo "  ---- CRITICAL: an empty or missing menu table must not empty the navigation ----"
 "${DB_MAIN[@]}" "DELETE FROM cms_menu_items" >/dev/null 2>&1
-check "an empty menu falls back to the built-in nav" "6" "$(nav_labels)"
+check "an empty menu falls back to the built-in nav" "7" "$(nav_labels)"
 "${DB_MAIN[@]}" "RENAME TABLE cms_menu_items TO cms_menu_items_parked" >/dev/null 2>&1
-check "a missing menu table falls back too"          "6" "$(nav_labels)"
+check "a missing menu table falls back too"          "7" "$(nav_labels)"
 check "the homepage still returns 200"             "200" "$(curl -s -o /dev/null -w '%{http_code}' "$MAIN/index.php")"
 "${DB_MAIN[@]}" "RENAME TABLE cms_menu_items_parked TO cms_menu_items" >/dev/null 2>&1
 
@@ -2280,14 +2280,14 @@ check "the trash records who did it" "Craig" \
   "$("${DB_MAIN[@]}" "SELECT deleted_by FROM cms_trash ORDER BY id DESC LIMIT 1")"
 check "and where it came from" "Header menu" \
   "$("${DB_MAIN[@]}" "SELECT context FROM cms_trash ORDER BY id DESC LIMIT 1")"
-check "the live menu is one shorter" "5" \
+check "the live menu is one shorter" "6" \
   "$("${DB_MAIN[@]}" "SELECT COUNT(*) FROM cms_menu_items WHERE location='header'")"
 
 TU="$MAIN/admin/trash.php"
 TID="$("${DB_MAIN[@]}" "SELECT id FROM cms_trash ORDER BY id DESC LIMIT 1")"
 curl -s -b "$TJAR" -o /dev/null -X POST "$TU" --data-urlencode "csrf_token=$(tr_token "$TU")" \
   -d "action=restore" -d "id=$TID"
-check "restoring puts the menu item back" "6" \
+check "restoring puts the menu item back" "7" \
   "$("${DB_MAIN[@]}" "SELECT COUNT(*) FROM cms_menu_items WHERE location='header'")"
 check "and the trash row is marked restored" "1" \
   "$("${DB_MAIN[@]}" "SELECT COUNT(*) FROM cms_trash WHERE id=$TID AND restored_at IS NOT NULL")"
@@ -2350,7 +2350,7 @@ g_login
 for s in earlybird banners health audit redirects seo; do
   check "$s.php returns 200" "200" "$(curl -s -b "$GJAR" -o /dev/null -w '%{http_code}' "$MAIN/admin/$s.php")"
 done
-check "twenty screens are built" "20" "$(php -r "
+check "twenty-one screens are built" "21" "$(php -r "
   require 'public_html/admin/includes/nav.php';
   \$n=0; foreach (pmAdminNav() as \$g) foreach (\$g['items'] as \$i) if (!empty(\$i['built'])) \$n++; echo \$n;")"
 

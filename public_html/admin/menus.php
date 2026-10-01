@@ -16,6 +16,7 @@ ensureMenuSchema($pdo);
 pmMenuSeedFromDefaults($pdo, 'header', [
     ['label' => 'Home',        'href' => '/index.php'],
     ['label' => 'Events',      'href' => '/events.php'],
+    ['label' => 'Webinars',    'href' => '/webinars.php'],
     ['label' => 'Services',    'href' => '/services.php'],
     ['label' => 'About',       'href' => '/about.php'],
     ['label' => 'Sponsorship', 'href' => '/sponsorship.php'],
