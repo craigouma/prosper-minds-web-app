@@ -31,6 +31,19 @@ one setting filled in, and those are listed against the change that introduced t
 
 Newest first. Anything marked **outstanding** still needs doing.
 
+### 8 October 2026, webinar posters
+
+- **Outstanding: deploy.** Merge and deploy as above. This is what puts the poster image on the server.
+- **Outstanding: SQL.** Paste `deploy/2026-10-08-webinar-poster.sql` into phpMyAdmin. Expect session 1 to show
+  `assets/images/pfm-insight-live-session-01.jpg` and the other twelve to show `NULL`. It adds the new
+  `image_path` column itself if the table does not have it yet, so it does not matter whether anyone has
+  visited the webinars page first.
+- The October poster now sits at the top of the webinars page as the next session, shown whole, and is the
+  image that appears when the page is shared on LinkedIn. A session without a poster simply shows no poster
+  block.
+- Each later session's poster is added on **Webinars** in the admin panel (Edit, then the Poster field).
+  Nothing needs a developer.
+
 ### 8 October 2026, a Zoom meeting per webinar session
 
 - **Outstanding: SQL.** Paste `deploy/2026-10-08-zoom-links.sql` into phpMyAdmin. Expect 13 rows, each with a

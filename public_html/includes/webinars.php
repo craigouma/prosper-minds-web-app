@@ -48,11 +48,33 @@ function ensureWebinarSchema(PDO $pdo): void
                 session_date   DATE         NOT NULL,
                 time_label     VARCHAR(100) NOT NULL DEFAULT "12:00 EAT",
                 zoom_link      VARCHAR(500) NOT NULL DEFAULT "",
+                image_path     VARCHAR(300) NULL,
                 is_active      TINYINT(1)   NOT NULL DEFAULT 1,
                 sort_order     INT          NOT NULL DEFAULT 0,
                 created_at     TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci'
         );
+
+        // Added after the table first shipped, so a database that already has
+        // webinar_sessions needs the column too. Checked against
+        // information_schema rather than by running the ALTER and swallowing
+        // the duplicate-column error on every request.
+        try {
+            $hasPoster = (int) $pdo->query(
+                "SELECT COUNT(*) FROM information_schema.columns
+                  WHERE table_schema = DATABASE()
+                    AND table_name   = 'webinar_sessions'
+                    AND column_name  = 'image_path'"
+            )->fetchColumn();
+
+            if ($hasPoster === 0) {
+                $pdo->exec('ALTER TABLE webinar_sessions ADD COLUMN image_path VARCHAR(300) NULL AFTER zoom_link');
+            }
+        } catch (Throwable $e) {
+            // A poster is decoration; a failure here must not stop the
+            // registration tables below being created.
+            error_log('webinars: poster column check failed: ' . $e->getMessage());
+        }
 
         $pdo->exec(
             'CREATE TABLE IF NOT EXISTS webinar_registrations (
@@ -171,6 +193,24 @@ function pmWebinarDateLong(array $session): string
     $ts = strtotime((string) ($session['session_date'] ?? ''));
 
     return $ts === false ? '' : date('j F Y', $ts);
+}
+
+/**
+ * Root-relative URL of a session's poster, or '' when it has none.
+ *
+ * Same rule as pmEventImageUrl(): stored without a leading slash, each path
+ * segment encoded. Repeated here rather than called, because the handler and
+ * the cron load this file without the page layer that defines that one.
+ */
+function pmWebinarPosterUrl(array $session): string
+{
+    $path = trim((string) ($session['image_path'] ?? ''));
+
+    if ($path === '') {
+        return '';
+    }
+
+    return '/' . implode('/', array_map('rawurlencode', explode('/', ltrim($path, '/'))));
 }
 
 /**

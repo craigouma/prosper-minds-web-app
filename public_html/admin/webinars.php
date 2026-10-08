@@ -4,6 +4,7 @@ startAdminSession();
 require_once '../includes/config.php';
 require_once '../includes/audit.php';
 require_once '../includes/events.php'; // For pmSlugify().
+require_once '../includes/media.php';
 require_once '../includes/webinars.php';
 requireAdminAuth();
 requirePermission('events', 'view');
@@ -35,21 +36,49 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_session'])) {
         $isActive       = isset($_POST['is_active']) ? 1 : 0;
         $sortOrder      = $sessionNumber;
 
+        $imagePath     = trim($_POST['existing_image'] ?? '');
+        $posterMediaId = 0;
+
         if (!$title || !$sessionDate) {
             $error = 'Title and session date are required.';
-        } else {
+        } elseif (($_FILES['poster']['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_NO_FILE) {
+            // A poster is an image. pmMediaStore() also accepts PDFs, which
+            // belong on the media screen, not on a session.
+            $posterErr = (int) $_FILES['poster']['error'];
+            $posterMime = $posterErr === UPLOAD_ERR_OK
+                ? (string) (new finfo(FILEINFO_MIME_TYPE))->file($_FILES['poster']['tmp_name'])
+                : '';
+
+            if ($posterErr === UPLOAD_ERR_OK && !pmMediaIsImage($posterMime)) {
+                $error = 'The poster must be an image (JPG, PNG or WEBP).';
+            } else {
+                $up = pmMediaStore($pdo, $_FILES['poster'], (string) ($_SESSION['admin_username'] ?? 'unknown'),
+                                   'Poster for ' . $title);
+                if ($up['ok']) {
+                    $imagePath     = ltrim(pmMediaUrl($up['filename']), '/');
+                    $posterMediaId = (int) $up['id'];
+                } else {
+                    $error = $up['error'];
+                }
+            }
+        }
+
+        if ($error === '' && $title && $sessionDate) {
             $slug = pmSlugify($title !== '' ? 'pfm-insight-live-session-' . $sessionNumber . '-' . $title : $title);
 
             if ($editId > 0) {
                 $pdo->prepare(
                     'UPDATE webinar_sessions SET session_number=?, title=?, topic=?, description=?, best_for=?,
-                       session_date=?, time_label=?, zoom_link=?, is_active=?, sort_order=?
+                       session_date=?, time_label=?, zoom_link=?, image_path=?, is_active=?, sort_order=?
                      WHERE id=?'
                 )->execute([
                     $sessionNumber, $title, $topic, $description, $bestFor,
-                    $sessionDate, $timeLabel, $zoomLink, $isActive, $sortOrder,
+                    $sessionDate, $timeLabel, $zoomLink, $imagePath !== '' ? $imagePath : null, $isActive, $sortOrder,
                     $editId,
                 ]);
+                if ($posterMediaId > 0) {
+                    pmMediaRecordUsage($pdo, $posterMediaId, 'webinar', (string) $editId, 'Poster for ' . $title);
+                }
                 pmAudit($pdo, 'webinar_session_update', 'Updated webinar session "' . $title . '"', 'webinar_sessions', $editId);
                 header('Location: webinars.php?msg=updated');
             } else {
@@ -58,14 +87,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_session'])) {
                 $stmt = $pdo->prepare(
                     'INSERT INTO webinar_sessions
                        (session_number, title, topic, description, best_for, slug,
-                        session_date, time_label, zoom_link, is_active, sort_order)
-                     VALUES (?,?,?,?,?,?,?,?,?,?,?)'
+                        session_date, time_label, zoom_link, image_path, is_active, sort_order)
+                     VALUES (?,?,?,?,?,?,?,?,?,?,?,?)'
                 );
                 $stmt->execute([
                     $sessionNumber, $title, $topic, $description, $bestFor, $slug,
-                    $sessionDate, $timeLabel, $zoomLink, $isActive, $sortOrder,
+                    $sessionDate, $timeLabel, $zoomLink, $imagePath !== '' ? $imagePath : null, $isActive, $sortOrder,
                 ]);
-                pmAudit($pdo, 'webinar_session_create', 'Added webinar session "' . $title . '"', 'webinar_sessions', (int) $pdo->lastInsertId());
+                $newId = (int) $pdo->lastInsertId();
+                if ($posterMediaId > 0) {
+                    pmMediaRecordUsage($pdo, $posterMediaId, 'webinar', (string) $newId, 'Poster for ' . $title);
+                }
+                pmAudit($pdo, 'webinar_session_create', 'Added webinar session "' . $title . '"', 'webinar_sessions', $newId);
                 header('Location: webinars.php?msg=added');
             }
             exit;
@@ -91,6 +124,25 @@ if (isset($_GET['edit'])) {
     $stmt->execute([(int) $_GET['edit']]);
     $editSession = $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
 }
+
+// A save that was refused (a missing title, a poster that is not an image)
+// puts back what was typed instead of an empty form.
+if ($error !== '' && isset($_POST['save_session'])) {
+    $editSession = [
+        'id'             => (int) ($_POST['edit_id'] ?? 0),
+        'session_number' => (int) ($_POST['session_number'] ?? 0),
+        'session_date'   => (string) ($_POST['session_date'] ?? ''),
+        'title'          => (string) ($_POST['title'] ?? ''),
+        'topic'          => (string) ($_POST['topic'] ?? ''),
+        'description'    => (string) ($_POST['description'] ?? ''),
+        'best_for'       => (string) ($_POST['best_for'] ?? ''),
+        'time_label'     => (string) ($_POST['time_label'] ?? ''),
+        'zoom_link'      => (string) ($_POST['zoom_link'] ?? ''),
+        'image_path'     => (string) ($_POST['existing_image'] ?? ''),
+        'is_active'      => isset($_POST['is_active']) ? 1 : 0,
+    ];
+}
+$isEditing = (int) ($editSession['id'] ?? 0) > 0;
 
 if (isset($_GET['msg'])) {
     $msg = ['added' => 'Session added.', 'updated' => 'Session updated.'][$_GET['msg']] ?? '';
@@ -168,13 +220,14 @@ include 'header.php';
     </div>
 
     <div class="card">
-        <div class="card-title" style="margin-bottom:4px;"><?php echo $editSession ? 'Edit session' : 'New session'; ?></div>
+        <div class="card-title" style="margin-bottom:4px;"><?php echo $isEditing ? 'Edit session' : 'New session'; ?></div>
         <div class="card-subtitle" style="margin-bottom:20px;">Zoom link can be the same one every session uses, or its own.</div>
 
-        <form method="POST" action="webinars.php">
+        <form method="POST" action="webinars.php" enctype="multipart/form-data">
             <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrfToken); ?>">
             <input type="hidden" name="save_session" value="1">
-            <input type="hidden" name="edit_id" value="<?php echo $editSession['id'] ?? 0; ?>">
+            <input type="hidden" name="edit_id" value="<?php echo (int) ($editSession['id'] ?? 0); ?>">
+            <input type="hidden" name="existing_image" value="<?php echo htmlspecialchars((string) ($editSession['image_path'] ?? '')); ?>">
 
             <div class="form-grid">
                 <div class="form-group">
@@ -225,14 +278,23 @@ include 'header.php';
             </div>
 
             <div class="form-group">
+                <label>Poster <span class="text-muted">(shown whole on the webinars page, and used when the page is shared)</span></label>
+                <?php if (!empty($editSession['image_path'])): ?>
+                    <img src="../<?php echo htmlspecialchars($editSession['image_path']); ?>" alt=""
+                         style="display:block;max-width:100%;height:auto;margin-bottom:8px;border:1px solid #e5e5e5;">
+                <?php endif; ?>
+                <input type="file" name="poster" class="form-control" accept="image/jpeg,image/png,image/webp">
+            </div>
+
+            <div class="form-group">
                 <label class="checkbox-label">
                     <input type="checkbox" name="is_active" value="1" <?php echo ($editSession['is_active'] ?? 1) ? 'checked' : ''; ?>>
                     Live on the public page
                 </label>
             </div>
 
-            <button type="submit" class="btn btn-primary"><?php echo $editSession ? 'Save changes' : 'Add session'; ?></button>
-            <?php if ($editSession): ?><a href="webinars.php" class="btn btn-outline">Cancel</a><?php endif; ?>
+            <button type="submit" class="btn btn-primary"><?php echo $isEditing ? 'Save changes' : 'Add session'; ?></button>
+            <?php if ($isEditing): ?><a href="webinars.php" class="btn btn-outline">Cancel</a><?php endif; ?>
         </form>
     </div>
 
