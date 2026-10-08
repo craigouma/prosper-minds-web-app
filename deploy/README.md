@@ -31,6 +31,18 @@ one setting filled in, and those are listed against the change that introduced t
 
 Newest first. Anything marked **outstanding** still needs doing.
 
+### 8 October 2026, a Zoom meeting per webinar session
+
+- **Outstanding: SQL.** Paste `deploy/2026-10-08-zoom-links.sql` into phpMyAdmin. Expect 13 rows, each with a
+  different link. No code deploy is needed, because the emails read `zoom_link` from the database when they
+  send. Do it before the first reminder goes out (the cron sends it the day before session 1).
+- The 13 meetings were created on the Prosperminds Zoom account (host: the account owner) through the Zoom API,
+  one per session, 60 minutes at 12:00 Nairobi time, cloud recording on, no Zoom registration. They replace
+  the single shared link from the old account. Nobody had registered when this was done, so no email already
+  sent carries the old link.
+- The script and the API credentials live in the git-ignored `ops/` folder on Craig's machine, not in the
+  repository. Changing a single session's link later is done on **Webinars** in the admin panel.
+
 ### 1 October 2026, PFM Insight Live (the free monthly webinar series)
 
 - **Outstanding: deploy.** Merge and deploy as above.
