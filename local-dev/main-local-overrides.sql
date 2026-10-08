@@ -141,6 +141,7 @@ CREATE TABLE IF NOT EXISTS webinar_sessions (
     session_date   DATE         NOT NULL,
     time_label     VARCHAR(100) NOT NULL DEFAULT "12:00 EAT",
     zoom_link      VARCHAR(500) NOT NULL DEFAULT "",
+    image_path     VARCHAR(300) NULL,
     is_active      TINYINT(1)   NOT NULL DEFAULT 1,
     sort_order     INT          NOT NULL DEFAULT 0,
     created_at     TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP
@@ -226,6 +227,10 @@ VALUES
        'pfm-insight-live-session-13-show-results-citizens-can-trust',
        '2027-11-25', '12:00 EAT', 'https://us02web.zoom.us/j/84468006463?pwd=LaMYkz9HLRVYz8iOBHuQaC4iuvKQ6Y.1', 1, 13)
 ON DUPLICATE KEY UPDATE `session_number` = VALUES(`session_number`);
+
+UPDATE `webinar_sessions`
+   SET `image_path` = 'assets/images/pfm-insight-live-session-01.jpg'
+ WHERE `slug` = 'pfm-insight-live-session-01-start-here-data-for-public-money';
 
 INSERT INTO `cms_menu_items` (`location`, `label`, `link_type`, `target`, `sort_order`, `is_active`)
 SELECT 'header', 'Webinars', 'page', 'webinars.php', IFNULL(MAX(`sort_order`), 0) + 1, 1

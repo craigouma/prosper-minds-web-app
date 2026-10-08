@@ -49,12 +49,24 @@ $pmNotice = match ($pmStatus) {
 };
 $pmNoticeFailed = $pmStatus !== '' && $pmStatus !== 'ok';
 
+// The next session's own designed poster, if it has one. Only the very next
+// session counts: showing a later session's poster as "next" because the
+// nearer one has none would be wrong, not just incomplete. The poster is also
+// the share image, so a link to this page posted on LinkedIn shows what the
+// session actually is, instead of the logo.
+$pmNext      = $pmSessions[0] ?? null;
+$pmPosterUrl = $pmNext !== null ? pmWebinarPosterUrl($pmNext) : '';
+$pmPosterSize = $pmPosterUrl !== '' && function_exists('pmEventImageSize')
+    ? pmEventImageSize((string) $pmNext['image_path'])
+    : null;
+
 pmPageBegin([
     'slug'        => 'webinars',
     'nav'         => 'webinars',
     'title'       => 'PFM Insight Live | Free monthly webinars | Prosperminds',
     'description' => 'PFM Insight Live: 13 free, live, one-hour sessions on public finance analytics and AI for Africa\'s public sector. Last Thursday of every month.',
     'canonical'   => '/webinars.php',
+    'og_image'    => $pmPosterUrl !== '' ? $pmPosterUrl : PM_SOCIAL_IMAGE,
 ]);
 ?>
 
@@ -80,6 +92,31 @@ pmPageBegin([
 
   </div>
 </section>
+
+<?php // ── Next session's poster ─────────────────────────────────────────── ?>
+<?php if ($pmPosterUrl !== ''): ?>
+<section class="pm-section pm-section--tight" id="next-session">
+  <div class="pm-container">
+
+    <span class="pm-eyebrow">Next session</span>
+
+    <?php // Shown whole, never cropped: it carries its own title, date and time.
+          // Real dimensions when they can be read, so the page does not jump. ?>
+    <img class="pm-mt-md" src="<?php echo pmEsc($pmPosterUrl); ?>"
+         alt="Poster: PFM Insight Live, Session <?php echo pmEsc(str_pad((string) $pmNext['session_number'], 2, '0', STR_PAD_LEFT)); ?>, <?php echo pmEsc((string) $pmNext['title']); ?>. <?php echo pmEsc(pmWebinarDateLong($pmNext)); ?>, <?php echo pmEsc((string) $pmNext['time_label']); ?>. Free and online."
+<?php if ($pmPosterSize !== null): ?>
+         width="<?php echo $pmPosterSize[0]; ?>" height="<?php echo $pmPosterSize[1]; ?>"
+<?php endif; ?>
+         decoding="async">
+
+    <div class="pm-btn-row pm-mt-md">
+      <a class="pm-btn" href="/webinars.php?session=<?php echo (int) $pmNext['id']; ?>#register-one">Register free</a>
+      <a class="pm-btn pm-btn--secondary" href="#join">Join the whole series</a>
+    </div>
+
+  </div>
+</section>
+<?php endif; ?>
 
 <?php // ── What you take home ───────────────────────────────────────────── ?>
 <section class="pm-section pm-section--ruled">
