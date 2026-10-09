@@ -258,7 +258,7 @@ function pmRenderBlock(array $block, ?PDO $pdo = null): string
     <h2 class="pm-h2"><?php echo pmEsc(pmBlockField($data, 'heading')); ?></h2>
 <?php endif; ?>
     <p class="pm-lede pm-mt-md"><?php echo pmEsc(pmBlockField($data, 'body')); ?></p>
-    <p class="pm-mt-lg"><a class="pm-btn" href="/contact.php">Contact the programme office</a></p>
+    <p class="pm-mt-lg"><a class="pm-btn" href="/about.php#contact">Contact the programme office</a></p>
   </div>
 </section>
             <?php
