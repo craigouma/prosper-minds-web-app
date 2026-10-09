@@ -31,6 +31,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_settings'])) {
         );
 
         foreach ($keys as $key) {
+            // Two forms on this page post as save_settings and each carries only
+            // its own fields. A key the form did not send is left alone, not
+            // blanked, or saving one form would wipe the other's values.
+            if (!array_key_exists($key, $_POST)) {
+                continue;
+            }
+
             $val = trim($_POST[$key] ?? '');
             // Same rule as the SMTP password: a blank box means "leave it alone",
             // so the key is never wiped by somebody saving an unrelated field.
