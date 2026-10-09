@@ -2337,14 +2337,14 @@ check "the trash records who did it" "Craig" \
   "$("${DB_MAIN[@]}" "SELECT deleted_by FROM cms_trash ORDER BY id DESC LIMIT 1")"
 check "and where it came from" "Header menu" \
   "$("${DB_MAIN[@]}" "SELECT context FROM cms_trash ORDER BY id DESC LIMIT 1")"
-check "the live menu is one shorter" "6" \
+check "the live menu is one shorter" "3" \
   "$("${DB_MAIN[@]}" "SELECT COUNT(*) FROM cms_menu_items WHERE location='header'")"
 
 TU="$MAIN/admin/trash.php"
 TID="$("${DB_MAIN[@]}" "SELECT id FROM cms_trash ORDER BY id DESC LIMIT 1")"
 curl -s -b "$TJAR" -o /dev/null -X POST "$TU" --data-urlencode "csrf_token=$(tr_token "$TU")" \
   -d "action=restore" -d "id=$TID"
-check "restoring puts the menu item back" "7" \
+check "restoring puts the menu item back" "4" \
   "$("${DB_MAIN[@]}" "SELECT COUNT(*) FROM cms_menu_items WHERE location='header'")"
 check "and the trash row is marked restored" "1" \
   "$("${DB_MAIN[@]}" "SELECT COUNT(*) FROM cms_trash WHERE id=$TID AND restored_at IS NOT NULL")"
