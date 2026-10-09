@@ -186,41 +186,6 @@ pmPageBegin([
 
   <div class="pm-reg__main">
 
-    <?php // Hidden by attribute, not by class, so it stays hidden with the
-          // stylesheet absent. pm-register.js reveals it only from the branch
-          // where the server answered success:true. ?>
-    <div class="pm-done" id="pm-reg-done" data-pm-done hidden>
-      <div class="pm-done__mark" aria-hidden="true">
-        <svg width="26" height="20" viewBox="0 0 26 20"><path d="M2 10.5 9 17.5 24 2.5" fill="none" stroke="#000" stroke-width="3"></path></svg>
-      </div>
-      <h1 class="pm-h1 pm-h1--step pm-mt-md" tabindex="-1">Registration received</h1>
-
-      <div class="pm-done__invoice">
-        <div class="pm-caption">Invoice number</div>
-        <div class="pm-done__number" data-pm-done-invoice></div>
-        <p class="pm-body pm-mt-sm" data-pm-done-message>Your invoice has been emailed to the billing contact.</p>
-      </div>
-
-      <h2>What happens next</h2>
-      <ol>
-        <li><strong>1</strong><span>Pay by bank transfer or purchase order. The payment details are on the invoice.</span></li>
-        <li><strong>2</strong><span>Joining instructions follow by email before the school.</span></li>
-      </ol>
-
-      <p class="pm-strong pm-mt-lg">Questions about this registration?</p>
-      <div class="pm-btn-row">
-<?php if ($pmWhatsApp !== ''): ?>
-        <a class="pm-btn" href="<?php echo pmEsc($pmWhatsApp); ?>" rel="noopener">WhatsApp us</a>
-<?php endif; ?>
-<?php if ($pmContact['phones'] !== []): ?>
-        <a class="pm-btn <?php echo $pmWhatsApp !== '' ? 'pm-btn--secondary' : ''; ?>"
-           href="tel:<?php echo pmEsc($pmContact['phones'][0]['tel']); ?>">Call <?php
-          echo pmEsc($pmContact['phones'][0]['label']); ?></a>
-<?php endif; ?>
-      </div>
-      <p class="pm-mt-md"><a class="pm-link" href="/#schools">Back to the schools</a></p>
-    </div>
-
     <?php // One form, one POST. action and method are real so the browser can
           // post it with no script at all. ?>
     <form id="standaloneRegForm"
@@ -441,6 +406,41 @@ pmPageBegin([
       </section>
 
     </form>
+
+    <?php // Hidden by attribute, not by class, so it stays hidden with the
+          // stylesheet absent. pm-register.js reveals it only from the branch
+          // where the server answered success:true. ?>
+    <div class="pm-done" id="pm-reg-done" data-pm-done hidden>
+      <div class="pm-done__mark" aria-hidden="true">
+        <svg width="26" height="20" viewBox="0 0 26 20"><path d="M2 10.5 9 17.5 24 2.5" fill="none" stroke="#000" stroke-width="3"></path></svg>
+      </div>
+      <h1 class="pm-h1 pm-h1--step pm-mt-md" tabindex="-1">Registration received</h1>
+
+      <div class="pm-done__invoice">
+        <div class="pm-caption">Invoice number</div>
+        <div class="pm-done__number" data-pm-done-invoice></div>
+        <p class="pm-body pm-mt-sm" data-pm-done-message>Your invoice has been emailed to the billing contact.</p>
+      </div>
+
+      <h2>What happens next</h2>
+      <ol>
+        <li><strong>1</strong><span>Pay by bank transfer or purchase order. The payment details are on the invoice.</span></li>
+        <li><strong>2</strong><span>Joining instructions follow by email before the school.</span></li>
+      </ol>
+
+      <p class="pm-strong pm-mt-lg">Questions about this registration?</p>
+      <div class="pm-btn-row">
+<?php if ($pmWhatsApp !== ''): ?>
+        <a class="pm-btn" href="<?php echo pmEsc($pmWhatsApp); ?>" rel="noopener">WhatsApp us</a>
+<?php endif; ?>
+<?php if ($pmContact['phones'] !== []): ?>
+        <a class="pm-btn <?php echo $pmWhatsApp !== '' ? 'pm-btn--secondary' : ''; ?>"
+           href="tel:<?php echo pmEsc($pmContact['phones'][0]['tel']); ?>">Call <?php
+          echo pmEsc($pmContact['phones'][0]['label']); ?></a>
+<?php endif; ?>
+      </div>
+      <p class="pm-mt-md"><a class="pm-link" href="/#schools">Back to the schools</a></p>
+    </div>
   </div>
 
   <aside class="pm-reg__aside" aria-labelledby="pm-reg-summary-head">
