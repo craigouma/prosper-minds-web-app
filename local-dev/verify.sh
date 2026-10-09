@@ -784,13 +784,32 @@ rm -f /tmp/verify-content.bak /tmp/verify-content-page.html "$NJAR" "$NBODY"
 # that the Phase 1 content-layer safety contract still holds for real pages and
 # not just the preview page.
 
-echo ""; echo "=== 10a. Every Phase 2 page answers with its own h1 ==="
+echo ""; echo "=== 10a. Every page answers with its own h1, and retired pages redirect ==="
+
+# A literal substring test, done in the shell rather than with grep.
+#
+# TWO REASONS, both of which cost a real false negative while this section was
+# being written.
+#
+#   1. `grep -qF` stops reading at the first match. On macOS the pipe buffer is
+#      16 KB, so for a page larger than that a match near the TOP leaves printf
+#      still writing into a closed pipe; it takes SIGPIPE, and `set -o pipefail`
+#      turns the whole pipeline non-zero. The assertion then reports "no" for a
+#      string that is plainly on the page, and only for the pages long enough to
+#      exhibit it. Anything that reads its input to the end (grep -c, grep -o)
+#      is safe; grep -q is not.
+#   2. The needles here are literal markup, and several contain brackets
+#      (name="events[]") that a basic regex reads as an unterminated character
+#      class.
+#
+# A case glob has neither problem and needs no subprocess.
+has_text() { case "$1" in *"$2"*) echo yes ;; *) echo no ;; esac; }
 
 page_h1() { curl -s "$MAIN/$1" | grep -o '<h1[^>]*>[^<]*' | head -1 | sed 's/<[^>]*>//' | sed 's/^ *//;s/ *$//'; }
 page_code() { curl -s -o /dev/null -w '%{http_code}' "$MAIN/$1"; }
+redirect_to() { curl -s -o /dev/null -w '%{redirect_url}' "$MAIN/$1" | sed "s|^$MAIN||"; }
 
-for pg in index.php about.php services.php service-pfm.php service-data.php \
-          service-sustainability.php contact.php privacy-policy.php; do
+for pg in index.php about.php webinars.php sponsorship.php privacy-policy.php; do
   check "$pg answers 200" "200" "$(page_code "$pg")"
 done
 
@@ -798,8 +817,7 @@ done
 # page accidentally rendering the homepage template.
 HOME_H1="$(page_h1 index.php)"
 check "index.php has an h1" "yes" "$([ -n "$HOME_H1" ] && echo yes || echo no)"
-for pg in about.php services.php service-pfm.php service-data.php \
-          service-sustainability.php contact.php privacy-policy.php; do
+for pg in about.php webinars.php sponsorship.php privacy-policy.php; do
   H="$(page_h1 "$pg")"
   check "$pg has its own h1" "yes" \
     "$([ -n "$H" ] && [ "$H" != "$HOME_H1" ] && echo yes || echo no)"
@@ -807,23 +825,34 @@ done
 
 check "404.php really returns 404" "404" "$(page_code 404.php)"
 
+# Events, Services and Contact are gone as pages. A permanent redirect keeps
+# links in old emails, posters and search results working.
+for pg in events.php services.php service-pfm.php service-data.php \
+          service-sustainability.php contact.php; do
+  check "$pg is a permanent redirect" "301" "$(page_code "$pg")"
+done
+check "events.php goes to the schools section"      "/#schools"            "$(redirect_to events.php)"
+check "the past cohorts view goes to About"         "/about.php#past-cohorts" "$(redirect_to 'events.php?show=past')"
+check "services.php goes to About"                  "/about.php"           "$(redirect_to services.php)"
+check "service-pfm.php goes to About"               "/about.php"           "$(redirect_to service-pfm.php)"
+check "contact.php goes to the contact section"     "/about.php#contact"   "$(redirect_to contact.php)"
+
 echo ""; echo "=== 10b. No em dashes in rendered output (client house style) ==="
 # Checked on the rendered HTML, not the source: source may legitimately contain
 # em dashes inside PHP comments, which are never shipped.
-for pg in index.php about.php services.php service-pfm.php service-data.php \
-          service-sustainability.php contact.php privacy-policy.php 404.php; do
-  check "$pg renders no em dash" "0" "$(curl -s "$MAIN/$pg" | grep -c '\xe2\x80\x94')"
+for pg in index.php about.php webinars.php sponsorship.php privacy-policy.php 404.php; do
+  check "$pg renders no em dash" "0" "$(curl -s "$MAIN/$pg" | grep -c $'\xe2\x80\x94')"
 done
 
 echo ""; echo "=== 10c. Contact enquiry endpoint ==="
+# The Contact page is gone but its endpoint is still live, so it is still held
+# to its contract. Any page carries the session's CSRF token in its footer form.
 CJAR=$(mktemp); CBODY=$(mktemp)
 contact_rows() { fq "SELECT COUNT(*) FROM contact_messages WHERE email='$1'"; }
 
-# A valid submission needs the session's own CSRF token, exactly as a browser
-# would carry it.
-CPAGE="$(curl -s -c "$CJAR" -b "$CJAR" "$MAIN/contact.php")"
+CPAGE="$(curl -s -c "$CJAR" -b "$CJAR" "$MAIN/index.php")"
 CTOK="$(printf '%s' "$CPAGE" | sed -n 's/.*name="csrf_token" value="\([a-f0-9]*\)".*/\1/p' | head -1)"
-check "contact form exposes a CSRF token" "yes" "$([ -n "$CTOK" ] && echo yes || echo no)"
+check "the footer form exposes a CSRF token" "yes" "$([ -n "$CTOK" ] && echo yes || echo no)"
 
 curl -s -o "$CBODY" -b "$CJAR" -c "$CJAR" -X POST "$MAIN/contact-submit.php" \
   -d "csrf_token=$CTOK" -d "name=Verify Tester" -d "email=contact-ok@example.test" \
@@ -837,7 +866,7 @@ curl -s -o /dev/null -b "$CJAR" -X POST "$MAIN/contact-submit.php" \
 check "forged CSRF stores nothing" "0" "$(contact_rows contact-forged@example.test)"
 
 # Invalid address must be rejected.
-CPAGE2="$(curl -s -c "$CJAR" -b "$CJAR" "$MAIN/contact.php")"
+CPAGE2="$(curl -s -c "$CJAR" -b "$CJAR" "$MAIN/index.php")"
 CTOK2="$(printf '%s' "$CPAGE2" | sed -n 's/.*name="csrf_token" value="\([a-f0-9]*\)".*/\1/p' | head -1)"
 curl -s -o /dev/null -b "$CJAR" -X POST "$MAIN/contact-submit.php" \
   -d "csrf_token=$CTOK2" -d "name=Bad Address" -d "email=not-an-email" \
@@ -845,25 +874,33 @@ curl -s -o /dev/null -b "$CJAR" -X POST "$MAIN/contact-submit.php" \
 check "invalid email stores nothing" "0" "$(contact_rows not-an-email)"
 rm -f "$CJAR" "$CBODY"
 
-echo ""; echo "=== 10d. Office map is self-hosted and wired ==="
-check "maplibre js served"  "200" "$(curl -s -o /dev/null -w '%{http_code}' "$MAIN/assets/js/maplibre-gl.js")"
-check "maplibre css served" "200" "$(curl -s -o /dev/null -w '%{http_code}' "$MAIN/assets/css/maplibre-gl.css")"
-check "pm-map.js served"    "200" "$(curl -s -o /dev/null -w '%{http_code}' "$MAIN/assets/js/pm-map.js")"
-# No CDN: a third-party script host is exactly what self-hosting avoided.
-check "no CDN script host on contact.php" "0" \
-  "$(curl -s "$MAIN/contact.php" | grep -c 'unpkg\|jsdelivr\|cdnjs')"
-check "map uses the positron style" "1" \
-  "$(curl -s "$MAIN/contact.php" | grep -c 'tiles.openfreemap.org/styles/positron')"
-# The address must be real text on the page, never only inside the map.
-check "address is real text, not only in the map" "yes" \
-  "$(curl -s "$MAIN/contact.php" | grep -q 'Twiga Towers' && echo yes || echo no)"
+echo ""; echo "=== 10d. Contact lives on About, and WhatsApp appears only once a number is set ==="
+ABOUT_BODY="$(curl -s "$MAIN/about.php")"
+check "the address is real text"            "yes" "$(has_text "$ABOUT_BODY" 'Twiga Towers')"
+check "directions are a plain link"         "yes" "$(has_text "$ABOUT_BODY" 'Get directions')"
+check "both phone numbers are tap to call"  "yes" \
+  "$([ "$(printf '%s' "$ABOUT_BODY" | grep -c 'href="tel:')" -ge 2 ] && echo yes || echo no)"
+check "the email is tap to send"            "yes" "$(has_text "$ABOUT_BODY" 'href="mailto:')"
+check "no map script or CDN host on About"  "0" \
+  "$(printf '%s' "$ABOUT_BODY" | grep -c 'unpkg\|jsdelivr\|cdnjs\|maplibre\|openfreemap')"
+check "no WhatsApp link while no number is set" "0" \
+  "$(for p in index.php about.php; do curl -s "$MAIN/$p"; done | grep -c 'wa\.me')"
+fq "INSERT INTO site_settings (setting_key, setting_value) VALUES ('whatsapp_number', '254700000001') ON DUPLICATE KEY UPDATE setting_value=VALUES(setting_value)" >/dev/null
+check "a saved number draws the WhatsApp button on About" "yes" \
+  "$(has_text "$(curl -s "$MAIN/about.php")" 'https://wa.me/254700000001')"
+check "and in the footer of every page" "yes" \
+  "$(has_text "$(curl -s "$MAIN/index.php")" 'https://wa.me/254700000001')"
+fq "UPDATE site_settings SET setting_value='not a number' WHERE setting_key='whatsapp_number'" >/dev/null
+check "a value that is not a number draws nothing" "0" \
+  "$(curl -s "$MAIN/about.php" | grep -c 'wa\.me')"
+fq "DELETE FROM site_settings WHERE setting_key='whatsapp_number'" >/dev/null
 
-echo ""; echo "=== 10e. CRITICAL: Phase 2 pages survive a broken content table ==="
+echo ""; echo "=== 10e. CRITICAL: pages survive a broken content table ==="
 # Phase 1 proved this for the preview page. It has to hold for the real pages
 # too, or the safety contract is decorative.
 "${DB_MAIN[@]}" "RENAME TABLE page_content TO page_content_p2bak" >/dev/null 2>&1
 "${DB_MAIN[@]}" "CREATE TABLE page_content (id INT PRIMARY KEY)" >/dev/null 2>&1
-for pg in index.php about.php services.php contact.php; do
+for pg in index.php about.php webinars.php sponsorship.php; do
   check "broken page_content: $pg still 200" "200" "$(page_code "$pg")"
   check "broken page_content: $pg still has an h1" "yes" \
     "$([ -n "$(page_h1 "$pg")" ] && echo yes || echo no)"
@@ -901,24 +938,6 @@ SP_DOWN=public_html/database/migrations/2026-08-29-02-seed-page-content-sponsors
 # stays a sed one-liner rather than an HTML parser. Same approach as
 # funnel_shown() in section 8e.
 listing_count() { curl -s "$MAIN/$1" | sed -n 's/.*pm-listing__count">\([^<]*\)<.*/\1/p' | head -1; }
-# A literal substring test, done in the shell rather than with grep.
-#
-# TWO REASONS, both of which cost a real false negative while this section was
-# being written.
-#
-#   1. `grep -qF` stops reading at the first match. On macOS the pipe buffer is
-#      16 KB, so for a page larger than that a match near the TOP leaves printf
-#      still writing into a closed pipe; it takes SIGPIPE, and `set -o pipefail`
-#      turns the whole pipeline non-zero. The assertion then reports "no" for a
-#      string that is plainly on the page, and only for the pages long enough to
-#      exhibit it. Anything that reads its input to the end (grep -c, grep -o)
-#      is safe; grep -q is not.
-#   2. The needles here are literal markup, and several contain brackets
-#      (name="events[]") that a basic regex reads as an unterminated character
-#      class.
-#
-# A case glob has neither problem and needs no subprocess.
-has_text() { case "$1" in *"$2"*) echo yes ;; *) echo no ;; esac; }
 
 # The switch renders its href and its aria-current on separate lines, so the
 # newlines are flattened before matching. Scoped to .pm-switch__link so it
