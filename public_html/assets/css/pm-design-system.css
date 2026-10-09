@@ -626,8 +626,7 @@ html[data-pm-nav-open="true"] body { overflow: hidden; }
 .pm-nav__panel-contact a { min-height: 32px; color: #000; }
 
 @media (min-width: 901px) {
-  .pm-nav-toggle,
-  html[data-pm-js="on"] .pm-nav-toggle { display: none; }
+  .pm-nav-toggle { display: none; }
 
   .pm-header__bar { gap: 36px; }
 
