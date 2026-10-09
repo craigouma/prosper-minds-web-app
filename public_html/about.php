@@ -1,27 +1,25 @@
 <?php
 /**
- * About page.
+ * About, with Contact and the past cohorts on the same page.
  *
- * New. Until now "About" was an anchor down the homepage, which Section 4.1 of
- * the design brief names as the core problem with the live site: nav links that
- * pretend to be pages. This is a real URL with its own title, description and
- * canonical, and pmNavItems() already points at it.
- *
- * Every visible string comes from page_content slug 'about', except the three
- * pillars, which come from slug 'services'. There is one definition of what the
- * three pillars are and three pages render it (here, the homepage, and the
- * services overview), so an editor renaming a pillar renames it everywhere
- * rather than in one place out of three.
- *
- * No closing accent band on this page, deliberately. The approved prototype's
- * About screen ends on the pillars and hands over to the footer, and the design
- * system allows at most one green band per page rather than requiring one. The
- * next step from here is a service page, which the pillar links already are.
+ * Vision and mission are the client's own stored wording (page_content
+ * 'about'), the three pillars come from slug 'services' so one definition
+ * serves every page that shows them, and the contact details come from
+ * pmContact(). Past cohorts are read from the events archive.
  *
  * House style: no em dashes in any user-visible copy. Client instruction.
  */
 
 require_once __DIR__ . '/includes/layout/page.php';
+
+$pmStats = array_slice(pmContentJson($pdo, 'about', 'stats', [
+    ['value' => '25',  'label' => 'Years collective experience'],
+    ['value' => '875', 'label' => 'Leaders trained'],
+]), 0, 2);
+
+$pmPast = pmPartitionEventsByDate(pmAllEvents($pdo))['past'];
+$pmContact = pmContact($pdo);
+$pmWhatsApp = pmWhatsAppUrl();
 
 pmPageBegin([
     'slug'        => 'about',
@@ -29,153 +27,104 @@ pmPageBegin([
     'title'       => pmContent($pdo, 'about', 'meta_title', 'About Prosperminds'),
     'description' => pmContent($pdo, 'about', 'meta_description', 'A training institution for the public sector, working with ministries of finance, audit offices, revenue authorities and state corporations across Africa.'),
     'canonical'   => '/about.php',
-    'font_trial'  => ['name' => 'Manrope', 'family' => "'Manrope', Georgia, serif"],
 ]);
 ?>
 
-<?php // ── Hero ──────────────────────────────────────────────────────────── ?>
-<section class="pm-section">
-  <div class="pm-container">
+<div class="pm-container pm-page-head pm-section--tight">
+  <h1 class="pm-h1"><?php echo pmContentSafe($pdo, 'about', 'v2_hero_title', 'About Prosperminds'); ?></h1>
+  <p class="pm-lede pm-mt-md"><?php echo pmContentSafe($pdo, 'about', 'v2_hero_body',
+    'Prosperminds trains senior public finance officials across Africa, practitioner to practitioner, through five-day residential schools and a free monthly webinar series. We are based in Nairobi and work in partnership with CapaBuil Ltd.'); ?></p>
+</div>
 
-    <span class="pm-eyebrow"><?php echo pmContentSafe($pdo, 'about', 'hero_eyebrow',
-      'About Prosperminds'); ?></span>
 
-    <h1 class="pm-h1"><?php echo pmContentSafe($pdo, 'about', 'hero_title',
-      'Protecting and growing the mind to achieve prosperity'); ?></h1>
-
-    <p class="pm-lede pm-mt-lg"><?php echo pmContentSafe($pdo, 'about', 'hero_body',
-      'Prosperminds is a training institution for the public sector. We work with ministries of finance, audit offices, revenue authorities and state corporations across Africa, and increasingly with international delegations attending our residential schools.'); ?></p>
-
+<section class="pm-band pm-mt-lg">
+  <div class="pm-container pm-vm">
+    <div>
+      <span class="pm-label"><?php echo pmContentSafe($pdo, 'about', 'vision_eyebrow', 'Vision'); ?></span>
+      <p class="pm-vm__vision"><?php echo pmContentSafe($pdo, 'about', 'vision_body',
+        'An Africa where every public institution is trusted with its money, led by world-class finance minds.'); ?></p>
+    </div>
+    <div>
+      <span class="pm-label"><?php echo pmContentSafe($pdo, 'about', 'mission_eyebrow', 'Mission'); ?></span>
+      <p class="pm-vm__mission"><?php echo pmContentSafe($pdo, 'about', 'mission_body',
+        'We prepare Africa\'s senior finance leaders, practitioner to practitioner, to master the standards, put AI to work, and disclose with integrity, so their institutions earn trust at home and respect worldwide.'); ?></p>
+    </div>
   </div>
 </section>
 
 
-<?php // ── Vision and mission ────────────────────────────────────────────── ?>
-<?php // The client's own wording, with the em dashes replaced by commas. Their
-      // standing instruction is that no user-visible copy carries one. ?>
-<section class="pm-section pm-section--tight">
-  <div class="pm-container">
-    <div class="pm-grid pm-grid--2">
+<div class="pm-container pm-section">
 
+  <section>
+    <div class="pm-rule-head pm-rule-head--thin">
+      <h2 class="pm-h2 pm-h2--md"><?php echo pmContentSafe($pdo, 'about', 'v2_teach_title', 'What we teach'); ?></h2>
+    </div>
+    <dl class="pm-rows">
+<?php foreach (pmContentJson($pdo, 'services', 'pillars', pmPillarsDefault()) as $pmPillar): ?>
       <div>
-        <span class="pm-eyebrow"><?php echo pmContentSafe($pdo, 'about', 'vision_eyebrow',
-          'Vision'); ?></span>
-        <p class="pm-lede pm-mt-md pm-measure"><?php echo pmContentSafe($pdo, 'about', 'vision_body',
-          'An Africa where every public institution is trusted with its money, led by world-class finance minds.'); ?></p>
-      </div>
-
-      <div>
-        <span class="pm-eyebrow"><?php echo pmContentSafe($pdo, 'about', 'mission_eyebrow',
-          'Mission'); ?></span>
-        <p class="pm-lede pm-mt-md pm-measure"><?php echo pmContentSafe($pdo, 'about', 'mission_body',
-          'We prepare Africa\'s senior finance leaders, practitioner to practitioner, to master the standards, put AI to work, and disclose with integrity, so their institutions earn trust at home and respect worldwide.'); ?></p>
-      </div>
-
-    </div>
-  </div>
-</section>
-
-
-<?php // ── How we work, and what a delegate leaves with ──────────────────── ?>
-<section class="pm-section pm-section--surface">
-  <div class="pm-container pm-row">
-
-    <div class="pm-row__main">
-      <h2 class="pm-h2"><?php echo pmContentSafe($pdo, 'about', 'work_title',
-        'How we work'); ?></h2>
-
-      <p class="pm-body pm-mt-lg"><?php echo pmContentSafe($pdo, 'about', 'work_body_1',
-        'Our faculty is drawn from practice. Between them they carry twenty-five years of collective experience inside treasuries, accountant-general departments and supreme audit institutions. Courses are written from that work rather than from a syllabus, then revised each year against the standards delegates are actually held to.'); ?></p>
-
-      <p class="pm-body pm-mt-md"><?php echo pmContentSafe($pdo, 'about', 'work_body_2',
-        'Every school runs for five days in a residential format. Day one establishes leadership context, days two to four go deep on technical material, and day five is spent building the action plan each delegate takes back to their department. Cohorts are capped so that faculty remain reachable throughout.'); ?></p>
-
-      <p class="pm-body pm-mt-md"><?php echo pmContentSafe($pdo, 'about', 'work_body_3',
-        'Eight hundred and seventy-five leaders have completed a Prosperminds school. Many return with colleagues, and a growing number return as contributors.'); ?></p>
-    </div>
-
-    <div class="pm-row__side">
-      <span class="pm-label"><?php echo pmContentSafe($pdo, 'about', 'outcomes_title',
-        'What delegates leave with'); ?></span>
-      <ul class="pm-list">
-<?php foreach (pmContentJson($pdo, 'about', 'outcomes', [
-        'A departmental action plan reviewed by faculty',
-        'CPD certification recognised by professional bodies',
-        'Working templates, not slide decks',
-        'A peer network across finance functions in the region',
-      ]) as $outcome): ?>
-        <li><?php echo pmEsc((string) $outcome); ?></li>
-<?php endforeach; ?>
-      </ul>
-    </div>
-
-  </div>
-</section>
-
-
-<?php // ── The numbers ───────────────────────────────────────────────────── ?>
-<?php // Section 5 of the brief rules out invented social proof. These are the
-      // client's own figures, carried over from the live site unchanged. ?>
-<section class="pm-section pm-section--tight">
-  <div class="pm-container">
-    <h2 class="pm-sr-only">Prosperminds in numbers</h2>
-    <div class="pm-grid pm-grid--ruled pm-grid--4">
-<?php foreach (pmContentJson($pdo, 'about', 'stats', [
-        ['value' => '25',  'label' => 'Years collective experience'],
-        ['value' => '875', 'label' => 'Leaders trained'],
-        ['value' => '14',  'label' => 'Countries represented'],
-        ['value' => '5',   'label' => 'Days per school'],
-      ]) as $stat): ?>
-      <div class="pm-cell">
-        <?php // data-pm-count animates the figure up from zero. The real number
-              // is the text content and must stay there. ?>
-        <span class="pm-stat__value" data-pm-count><?php echo pmEsc((string) ($stat['value'] ?? '')); ?></span>
-        <span class="pm-stat__label"><?php echo pmEsc((string) ($stat['label'] ?? '')); ?></span>
+        <dt><?php echo pmEsc((string) ($pmPillar['name'] ?? '')); ?></dt>
+        <dd><?php echo pmEsc((string) ($pmPillar['promise'] ?? '')); ?></dd>
       </div>
 <?php endforeach; ?>
-    </div>
-  </div>
-</section>
+    </dl>
+  </section>
 
-
-<?php // ── The three pillars in depth ────────────────────────────────────── ?>
-<section class="pm-section">
-  <div class="pm-container">
-
-    <div class="pm-section-head">
+<?php if ($pmStats !== [] || $pmPast !== []): ?>
+  <section class="pm-mt-xl">
+<?php   if ($pmStats !== []): ?>
+    <div class="pm-bigstats pm-bigstats--sm">
+<?php     foreach ($pmStats as $pmStat): ?>
       <div>
-        <span class="pm-eyebrow"><?php echo pmContentSafe($pdo, 'about', 'pillars_eyebrow',
-          'Practice areas'); ?></span>
-        <h2 class="pm-h2"><?php echo pmContentSafe($pdo, 'about', 'pillars_title',
-          'The three pillars in depth'); ?></h2>
+        <div class="pm-bigstat__value" data-pm-count><?php echo pmEsc((string) ($pmStat['value'] ?? '')); ?></div>
+        <div class="pm-bigstat__label"><?php echo pmEsc((string) ($pmStat['label'] ?? '')); ?></div>
       </div>
+<?php     endforeach; ?>
+    </div>
+<?php   endif; ?>
+<?php   if ($pmPast !== []): ?>
+    <a class="pm-link pm-mt-md" href="#past-cohorts">See past cohorts</a>
+<?php   endif; ?>
+  </section>
+<?php endif; ?>
+
+  <section class="pm-split pm-mt-xl pm-contact" id="contact">
+    <div>
+      <h2 class="pm-h2 pm-h2--md"><?php echo pmContentSafe($pdo, 'about', 'v2_contact_title', 'Contact'); ?></h2>
+      <p class="pm-body pm-mt-md"><?php echo $pmContact['address_html']; ?></p>
+      <p><a class="pm-link" href="https://maps.google.com/?q=Twiga+Towers+Moi+Avenue+Nairobi">Get directions</a></p>
+      <p class="pm-caption"><?php echo pmEsc($pmContact['hours']); ?></p>
     </div>
 
-    <?php $pillarCta = pmContent($pdo, 'about', 'pillars_cta_label', 'Open service page'); ?>
-    <?php // A single-column ruled grid: .pm-grid--ruled with no column modifier
-          // is one column whose 1px gap is the hairline between rows, which is
-          // the printed table-of-contents treatment the prototype uses here. ?>
-    <ul class="pm-grid pm-grid--ruled pm-mt-lg">
-<?php foreach (pmContentJson($pdo, 'services', 'pillars', pmPillarsDefault()) as $pillar): ?>
-      <li class="pm-cell">
-        <div class="pm-row">
-          <span class="pm-ordinal"><?php echo pmEsc((string) ($pillar['num'] ?? '')); ?></span>
-          <div class="pm-row__main">
-            <h3 class="pm-h3 pm-h3--caps"><?php echo pmEsc((string) ($pillar['name'] ?? '')); ?></h3>
-            <p class="pm-body pm-mt-sm"><?php echo pmEsc((string) ($pillar['intro'] ?? '')); ?></p>
-            <p class="pm-mt-md">
-              <a class="pm-btn--link" href="<?php echo pmEsc(pmServiceHref((string) ($pillar['key'] ?? ''))); ?>">
-                <?php echo pmEsc($pillarCta); ?>
-                <span class="pm-sr-only"> for <?php echo pmEsc((string) ($pillar['name'] ?? '')); ?></span>
-              </a>
-            </p>
-          </div>
-        </div>
+    <div class="pm-contact-actions">
+<?php if ($pmWhatsApp !== ''): ?>
+      <a class="pm-btn" href="<?php echo pmEsc($pmWhatsApp); ?>" rel="noopener">WhatsApp</a>
+<?php endif; ?>
+<?php foreach ($pmContact['phones'] as $pmIndex => $pmPhone): ?>
+      <a class="pm-btn<?php echo ($pmWhatsApp !== '' || $pmIndex > 0) ? ' pm-btn--secondary' : ''; ?>"
+         href="tel:<?php echo pmEsc($pmPhone['tel']); ?>">Call <?php echo pmEsc($pmPhone['label']); ?></a>
+<?php endforeach; ?>
+      <a class="pm-btn pm-btn--secondary" href="mailto:<?php echo pmEsc($pmContact['email']); ?>"><?php
+        echo pmEsc($pmContact['email']); ?></a>
+    </div>
+  </section>
+
+<?php if ($pmPast !== []): ?>
+  <section class="pm-mt-xl" id="past-cohorts">
+    <div class="pm-rule-head pm-rule-head--thin">
+      <h2 class="pm-h2 pm-h2--md"><?php echo pmContentSafe($pdo, 'about', 'v2_past_title', 'Past cohorts'); ?></h2>
+    </div>
+    <ol class="pm-sessions pm-sessions--plain">
+<?php   foreach ($pmPast as $pmCohort): ?>
+      <li>
+        <span class="pm-sessions__date"><?php echo pmEsc(pmEventDatesLong($pmCohort)); ?></span>
+        <span class="pm-sessions__title"><?php echo pmEsc(pmEventProse((string) ($pmCohort['title'] ?? ''))); ?></span>
+        <span class="pm-caption"><?php echo pmEsc(pmEventPlace($pmCohort)); ?></span>
       </li>
-<?php endforeach; ?>
-    </ul>
+<?php   endforeach; ?>
+    </ol>
+  </section>
+<?php endif; ?>
 
-  </div>
-</section>
+</div>
 
 <?php pmPageEnd(); ?>
