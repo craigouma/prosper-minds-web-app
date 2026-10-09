@@ -3444,5 +3444,103 @@ check "an unmeasurable file just goes without" "1" \
   "$(grep -c 'if (\$size !== null)' public_html/includes/layout/event-card.php)"
 
 echo
+echo "=== 36. Site v2: typeface, home treatment, Appearance settings, the school chooser ==="
+
+echo "  ---- the typeface is one setting, from a fixed list ----"
+font_override() { curl -s "$MAIN/$1" | grep -c -- '--pm-font:'; }
+check "the default typeface sets no override"       "0" "$(font_override about.php)"
+check "Manrope is the preloaded file"               "yes" \
+  "$(has_text "$(curl -s "$MAIN/about.php")" 'Manrope-Variable.ttf" as="font"')"
+fq "INSERT INTO site_settings (setting_key, setting_value) VALUES ('site_typeface', 'Inter') ON DUPLICATE KEY UPDATE setting_value=VALUES(setting_value)" >/dev/null
+check "Inter sets the stack on every page"          "1" \
+  "$(curl -s "$MAIN/about.php" | grep -c -- "--pm-font: 'Inter'")"
+check "and preloads the Inter file"                 "yes" \
+  "$(has_text "$(curl -s "$MAIN/index.php")" 'Inter-Variable.ttf" as="font"')"
+fq "UPDATE site_settings SET setting_value='Comic Sans; } body { display:none } /*' WHERE setting_key='site_typeface'" >/dev/null
+check "a value outside the list falls back to Manrope" "0" "$(font_override about.php)"
+check "and injects nothing into the page"           "0" \
+  "$(curl -s "$MAIN/about.php" | grep -c 'display:none } /\*')"
+fq "DELETE FROM site_settings WHERE setting_key='site_typeface'" >/dev/null
+
+echo "  ---- only the home page can go dark ----"
+check "white is the default"                        "0" "$(curl -s "$MAIN/index.php" | grep -c 'data-pm-treatment')"
+fq "INSERT INTO site_settings (setting_key, setting_value) VALUES ('home_treatment', 'dark') ON DUPLICATE KEY UPDATE setting_value=VALUES(setting_value)" >/dev/null
+check "the home page takes the dark treatment"      "1" "$(curl -s "$MAIN/index.php" | grep -c 'data-pm-treatment="dark"')"
+check "every other page stays white"                "0" \
+  "$(for p in about.php webinars.php sponsorship.php 'event.php?id=1'; do curl -s "$MAIN/$p"; done | grep -c 'data-pm-treatment')"
+check "the dark tokens are defined"                 "1" \
+  "$(grep -c '^body\[data-pm-treatment="dark"\] {' public_html/assets/css/pm-design-system.css)"
+fq "DELETE FROM site_settings WHERE setting_key='home_treatment'" >/dev/null
+
+echo "  ---- Settings: Appearance and chat ----"
+SJ=/tmp/verify-v2-settings.txt
+rm -f "$SJ"
+STOK="$(curl -s -c "$SJ" "$MAIN/admin/login.php" | sed -n 's/.*name="csrf_token" value="\([^"]*\)".*/\1/p' | head -1)"
+curl -s -b "$SJ" -c "$SJ" -o /dev/null --data-urlencode "csrf_token=$STOK" \
+  --data-urlencode "username=Craig" --data-urlencode "password=localtest-analytics-pw" "$MAIN/admin/login.php"
+s_tok() { curl -s -b "$SJ" "$MAIN/admin/settings.php" | sed -n 's/.*name="csrf_token" value="\([^"]*\)".*/\1/p' | head -1; }
+setting() { fq "SELECT IFNULL((SELECT setting_value FROM site_settings WHERE setting_key='$1'), 'UNSET')"; }
+
+check "the Appearance card is on the Settings screen" "yes" \
+  "$(has_text "$(curl -s -b "$SJ" "$MAIN/admin/settings.php")" 'Appearance and chat')"
+curl -s -b "$SJ" -o /dev/null -X POST "$MAIN/admin/settings.php" \
+  --data-urlencode "csrf_token=$(s_tok)" -d "save_appearance=1" -d "site_typeface=Roboto" \
+  -d "home_treatment=dark" --data-urlencode "whatsapp_number=+254 712 345 678"
+check "the typeface is stored"             "Roboto"       "$(setting site_typeface)"
+check "the home treatment is stored"       "dark"         "$(setting home_treatment)"
+check "the WhatsApp number is stored as digits only" "254712345678" "$(setting whatsapp_number)"
+check "and the site uses it at once"       "yes" \
+  "$(has_text "$(curl -s "$MAIN/about.php")" 'https://wa.me/254712345678')"
+check "the save is audited"                "1" \
+  "$(fq "SELECT COUNT(*) FROM cms_audit_log WHERE action='settings_appearance'")"
+
+curl -s -b "$SJ" -o /dev/null -X POST "$MAIN/admin/settings.php" \
+  --data-urlencode "csrf_token=$(s_tok)" -d "save_appearance=1" -d "site_typeface=Papyrus" \
+  -d "home_treatment=purple" --data-urlencode "whatsapp_number=254712345678"
+check "a typeface outside the list is stored as Manrope" "Manrope" "$(setting site_typeface)"
+check "a treatment outside the list is stored as white"  "white"   "$(setting home_treatment)"
+
+OUT="$(curl -s -b "$SJ" -X POST "$MAIN/admin/settings.php" \
+  --data-urlencode "csrf_token=$(s_tok)" -d "save_appearance=1" -d "site_typeface=Inter" \
+  -d "home_treatment=dark" -d "whatsapp_number=123")"
+check "a number too short to dial is refused"            "yes" "$(has_text "$OUT" 'country code')"
+check "and nothing from that save was kept"              "Manrope" "$(setting site_typeface)"
+check "a forged token saves nothing"                     "Manrope" \
+  "$(curl -s -b "$SJ" -o /dev/null -X POST "$MAIN/admin/settings.php" -d "csrf_token=forged" \
+       -d "save_appearance=1" -d "site_typeface=Inter" >/dev/null; setting site_typeface)"
+
+echo "  ---- one Settings form no longer blanks the other's values ----"
+fq "INSERT INTO site_settings (setting_key, setting_value) VALUES ('company_name', 'Probe Co') ON DUPLICATE KEY UPDATE setting_value=VALUES(setting_value)" >/dev/null
+curl -s -b "$SJ" -o /dev/null -X POST "$MAIN/admin/settings.php" \
+  --data-urlencode "csrf_token=$(s_tok)" -d "save_settings=1" -d "site_title=Probe Title"
+check "the form's own field is saved"              "Probe Title" "$(setting site_title)"
+check "a field the form did not send is left alone" "Probe Co"   "$(setting company_name)"
+curl -s -b "$SJ" -o /dev/null -X POST "$MAIN/admin/settings.php" \
+  --data-urlencode "csrf_token=$(s_tok)" -d "save_settings=1" -d "site_title="
+check "a field sent empty is still cleared"        "" "$(setting site_title)"
+fq "DELETE FROM site_settings WHERE setting_key IN ('site_typeface','home_treatment','whatsapp_number','site_title','company_name')" >/dev/null
+rm -f "$SJ"
+
+echo "  ---- the school chooser ----"
+check "/register with several open schools asks which" "200" "$(page_code event-registration.php)"
+check "and lists each open school"                  "4" \
+  "$(curl -s "$MAIN/event-registration.php" | grep -c 'class="pm-pick"')"
+fq "UPDATE events SET is_active=0 WHERE id IN (2,3,5)" >/dev/null
+check "with one school open it goes straight to it" "302" "$(page_code event-registration.php)"
+check "and the destination is that school's form"   "yes" \
+  "$(has_text "$(redirect_to event-registration.php)" 'register')"
+fq "UPDATE events SET is_active=0 WHERE id=1" >/dev/null
+check "with none open it goes to the schools section" "/#schools" "$(redirect_to event-registration.php)"
+fq "UPDATE events SET is_active=1 WHERE id IN (1,2,3,5)" >/dev/null
+fq "UPDATE events SET is_active=0 WHERE id=5" >/dev/null
+check "a link to a closed school goes to the schools section" "/#schools" \
+  "$(redirect_to 'event-registration.php?id=5')"
+fq "UPDATE events SET is_active=1 WHERE id=5" >/dev/null
+check "the header Register button points at the chooser" "yes" \
+  "$(has_text "$(curl -s "$MAIN/index.php")" 'href="/register"')"
+check "and is left out of the registration page itself" "0" \
+  "$(curl -s "$MAIN/event-registration.php?id=5" | grep -c 'pm-header__cta')"
+
+echo
 printf '\n%s\npassed=%d failed=%d\n%s\n' "$(printf '=%.0s' {1..78})" "$pass" "$fail" "$(printf '=%.0s' {1..78})"
 exit $((fail > 0 ? 1 : 0))
