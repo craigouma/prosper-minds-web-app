@@ -155,34 +155,21 @@ function pmEsc(?string $value): string
 }
 
 /**
- * The site navigation, in order, shared by the header and the footer's Site
- * column so the two can never drift apart.
+ * The header navigation, shared by the header and the mobile panel.
  *
- * Every item is now a real page. Phase 2 landed about.php, services.php and
- * contact.php; Phase 3 landed events.php, and 'events' stopped being the
- * homepage anchor it had been since launch. Nothing in this navigation points
- * at a fragment any more, which was the whole point of the exercise: Section
- * 4.1 of the design brief names nav links that pretend to be pages as the core
- * problem with the live site.
- *
- * Changing one 'href' here updates both the header and the footer's Site
- * column. sitemap.php lists the same URLs and has to be kept in step by hand.
- *
- * The "Admin" link is deliberately absent. It was removed from the public
- * navbar in commit 66bc766 and must not be reintroduced.
+ * A stored header menu (cms_menu_items) replaces this list outright, so the
+ * keys are re-derived from each href: pages mark their own tab through
+ * pmPageBegin's 'nav' option and a row id would never match it.
  *
  * @return array<string, array{label: string, href: string}>
  */
 function pmNavItems(): array
 {
     $default = [
-        'home'        => ['label' => 'Home',        'href' => '/index.php'],
-        'events'      => ['label' => 'Events',      'href' => '/events.php'],
-        'webinars'    => ['label' => 'Webinars',    'href' => '/webinars.php'],
-        'services'    => ['label' => 'Services',    'href' => '/services.php'],
-        'about'       => ['label' => 'About',       'href' => '/about.php'],
-        'sponsorship' => ['label' => 'Sponsorship', 'href' => '/sponsorship.php'],
-        'contact'     => ['label' => 'Contact',     'href' => '/contact.php'],
+        'schools'     => ['label' => 'Schools',         'href' => '/#schools'],
+        'webinars'    => ['label' => 'Webinars',        'href' => '/webinars.php'],
+        'sponsorship' => ['label' => 'Partner with us', 'href' => '/sponsorship.php'],
+        'about'       => ['label' => 'About',           'href' => '/about.php'],
     ];
 
     if (!function_exists('pmMenu')) {
@@ -192,10 +179,6 @@ function pmNavItems(): array
     global $pdo;
     $items = pmMenu($pdo ?? null, 'header', $default);
 
-    // Keys are re-derived from the href rather than kept as row ids, because
-    // every page marks its own tab with pmPageBegin's 'nav' option and those
-    // values are slugs like 'events'. A row id here would silently stop the
-    // current page being highlighted.
     $keyed = [];
     foreach ($items as $key => $item) {
         $keyed[pmNavKeyFor($key, $item['href'])] = $item;
@@ -206,6 +189,10 @@ function pmNavItems(): array
 
 function pmNavKeyFor(string $fallback, string $href): string
 {
+    if (parse_url($href, PHP_URL_FRAGMENT) === 'schools') {
+        return 'schools';
+    }
+
     $path = parse_url($href, PHP_URL_PATH) ?? '';
     $base = strtolower(pathinfo($path, PATHINFO_FILENAME));
 
@@ -287,17 +274,85 @@ function pmServiceHref(string $key): string
 }
 
 /**
- * Where the header's primary green button goes.
- *
- * PHASE 4 NOTE: the redesigned multi-step registration flow is the last phase
- * of the rebuild, and there is no generic "register" URL today — the live
- * event-registration.php needs an event id. Until that flow exists, the honest
- * destination is the calendar, where a delegate picks a school first. Phase 3
- * made that a real page, so this no longer has to send them to a fragment.
+ * Where a "Register" button with no school behind it goes. The page itself
+ * offers the choice of school, or skips it when only one is open.
  */
 function pmRegisterHref(): string
 {
-    return '/events.php';
+    return '/register';
+}
+
+/** The typefaces the site can be set in, each with the stack it resolves to. */
+const PM_TYPEFACES = [
+    'Manrope' => "'Manrope', system-ui, -apple-system, 'Segoe UI', sans-serif",
+    'Inter'   => "'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif",
+    'Roboto'  => "'Roboto', system-ui, -apple-system, 'Segoe UI', sans-serif",
+    'Calibri' => "Calibri, 'Carlito', 'Segoe UI', system-ui, sans-serif",
+];
+
+/** The font file worth preloading for each typeface. Calibri has none to preload. */
+const PM_TYPEFACE_FILES = [
+    'Manrope' => '/assets/fonts/Manrope-Variable.ttf',
+    'Inter'   => '/assets/fonts/Inter-Variable.ttf',
+    'Roboto'  => '/assets/fonts/Roboto-Variable.ttf',
+    'Calibri' => '/assets/fonts/Carlito-Regular.ttf',
+];
+
+function pmTypeface(): string
+{
+    $name = trim(getSetting('site_typeface', 'Manrope'));
+
+    return isset(PM_TYPEFACES[$name]) ? $name : 'Manrope';
+}
+
+/** 'white' or 'dark'. Only the home page reads it. */
+function pmHomeTreatment(): string
+{
+    return strtolower(trim(getSetting('home_treatment', 'white'))) === 'dark' ? 'dark' : 'white';
+}
+
+/**
+ * The WhatsApp chat link, or '' while no number is set. Every WhatsApp button
+ * is drawn only when this is non-empty, so none can point at nothing.
+ */
+function pmWhatsAppUrl(string $prefill = ''): string
+{
+    $digits = preg_replace('/\D+/', '', getSetting('whatsapp_number', '')) ?? '';
+
+    if (strlen($digits) < 8) {
+        return '';
+    }
+
+    return 'https://wa.me/' . $digits . ($prefill !== '' ? '?text=' . rawurlencode($prefill) : '');
+}
+
+/**
+ * Phones, email, hours and address as one structure, so the header panel, the
+ * footer, the About page and the confirmation page never disagree.
+ *
+ * @return array{email: string, phones: array<int, array{label: string, tel: string}>, hours: string, address_html: string}
+ */
+function pmContact(?PDO $pdo): array
+{
+    $phones = [];
+    foreach ([
+        pmContent($pdo, 'global', 'phone_primary', '+254 740 582302'),
+        pmContent($pdo, 'global', 'phone_secondary', '+254 722 998105'),
+    ] as $label) {
+        $label = trim($label);
+        $digits = preg_replace('/\D+/', '', $label) ?? '';
+
+        if ($digits !== '') {
+            $phones[] = ['label' => $label, 'tel' => '+' . $digits];
+        }
+    }
+
+    return [
+        'email'        => trim(pmContent($pdo, 'global', 'email', 'info@prosper-minds.com')),
+        'phones'       => $phones,
+        'hours'        => trim(pmContent($pdo, 'global', 'office_hours', 'Monday to Friday, 8am to 5pm EAT')),
+        'address_html' => pmContent($pdo, 'global', 'v2_address_html', 'Twiga Towers, Moi Avenue<br>Nairobi, Kenya'),
+    ];
 }
 
 /**
@@ -313,6 +368,9 @@ function pmRegisterHref(): string
  *   body_class  string  Extra classes appended to the required 'pm' class.
  *   og_image    string  Root-relative path to the social image.
  *   noindex     bool    Emit robots noindex. Used by the temporary preview page.
+ *   hide_cta    bool    Leave the header's Register button out, on pages where
+ *                       the whole page is already a registration.
+ *   treatment   string  'dark' sets the dark colour tokens on <body>.
  *   styles      array   Extra root-relative stylesheet paths, rendered in <head>
  *                       after the design system.
  *   scripts     array   Extra root-relative script paths, rendered before
@@ -347,6 +405,8 @@ function pmPageConfig(array $page = []): array
         'body_class'  => '',
         'og_image'    => PM_SOCIAL_IMAGE,
         'noindex'     => false,
+        'hide_cta'    => false,
+        'treatment'   => '',
         'styles'      => [],
         'scripts'     => [],
     ], $page);
