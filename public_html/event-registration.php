@@ -48,9 +48,16 @@ $pmEventId   = isset($_GET['id']) ? (int) $_GET['id'] : 0;
 $pmWantsOne  = $pmSlugParam !== '' || $pmEventId > 0;
 $pmEvent     = $pmSlugParam !== '' ? pmEventBySlug($pdo, $pmSlugParam) : ($pmEventId > 0 ? pmEventById($pdo, $pmEventId) : null);
 
+// A link to a school that is gone or closed goes to the schools, rather than
+// showing a form the handler would refuse after everything has been typed in.
+if ($pmWantsOne && ($pmEvent === null || (int) ($pmEvent['is_active'] ?? 0) !== 1)) {
+    header('Location: /#schools');
+    exit;
+}
+
 // /register on its own: choose a school, or skip the choice when only one is
-// open. A link to a school that no longer exists lands here too.
-if ($pmEvent === null || (int) ($pmEvent['is_active'] ?? 0) !== 1) {
+// open.
+if ($pmEvent === null) {
     $pmOpen = array_values(array_filter(pmActiveEvents($pdo), static function (array $event): bool {
         return !pmEventIsPast($event);
     }));
