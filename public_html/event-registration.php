@@ -84,7 +84,7 @@ if ($pmEvent === null) {
 <div class="pm-container pm-container--narrow pm-reg pm-reg--single">
   <div class="pm-reg__main">
     <h1 class="pm-h1 pm-h1--step">Choose a school</h1>
-    <div class="pm-choices pm-choices--stack">
+    <div class="pm-choices">
 <?php foreach ($pmOpen as $pmOption): ?>
       <a class="pm-pick" href="<?php echo pmEsc(pmEventRegisterUrl($pmOption)); ?>">
         <span class="pm-pick__title"><?php echo pmEsc(pmEventProse((string) $pmOption['title'])); ?></span>

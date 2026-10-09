@@ -87,7 +87,7 @@ pmPageBegin([
   </section>
 <?php endif; ?>
 
-  <section class="pm-split pm-mt-xl pm-contact" id="contact">
+  <section class="pm-split pm-mt-xl" id="contact">
     <div>
       <h2 class="pm-h2 pm-h2--md"><?php echo pmContentSafe($pdo, 'about', 'v2_contact_title', 'Contact'); ?></h2>
       <p class="pm-body pm-mt-md"><?php echo $pmContact['address_html']; ?></p>
