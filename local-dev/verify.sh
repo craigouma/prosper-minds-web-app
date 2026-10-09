@@ -1392,7 +1392,8 @@ check "register seed restored" "56" "$(reg_rows)"
 echo ""; echo "=== 12b. The page renders on the design system ==="
 R_BODY="$(curl -s "$R_URL")"
 check "register page answers 200" "200" "$(page_code "event-registration.php?id=$R_EVENT")"
-check "h1 is the school itself" "$R_TITLE" "$(page_h1 "event-registration.php?id=$R_EVENT")"
+check "h1 is the first step" "The school and you" "$(page_h1 "event-registration.php?id=$R_EVENT")"
+check "the school is named on the page" "yes" "$(has_text "$R_BODY" "$R_TITLE")"
 check "no PHP error in the page" "0" \
   "$(printf '%s' "$R_BODY" | grep -ciE 'fatal error|parse error|warning:|uncaught|sqlstate')"
 check "no em dash in the rendered page" "0" "$(printf '%s' "$R_BODY" | grep -c $'\xe2\x80\x94')"
@@ -1402,18 +1403,15 @@ check "no longer loads a font or icon CDN" "0" \
   "$(printf '%s' "$R_BODY" | grep -ciE 'fonts\.googleapis|cdnjs\.cloudflare')"
 check "loads the flow script" "yes" "$(has_text "$R_BODY" '/assets/js/pm-register.js')"
 check "flow script is served" "200" "$(curl -s -o /dev/null -w '%{http_code}' "$MAIN/assets/js/pm-register.js")"
-# The prototype's five segments, by their own labels.
-check "five progress segments" "5" "$(printf '%s' "$R_BODY" | grep -c 'data-pm-progress=')"
-for lbl in 'Event and tickets' 'Contact and billing' 'Delegates' 'Review and consent' 'Confirmation'; do
-  check "progress names: $lbl" "yes" "$(has_text "$R_BODY" "$lbl")"
-done
-check "step counter present" "yes" "$(has_text "$R_BODY" 'Step 1 of 5')"
-check "selected school card names the location" "yes" "$(has_text "$R_BODY" "$R_LOC")"
-check "change school links to the calendar" "yes" \
-  "$(has_text "$R_BODY" 'pm-btn--link" href="/events.php"')"
+# Two steps and a confirmation, not the old five segments.
+check "no progress segments any more" "0" "$(printf '%s' "$R_BODY" | grep -c 'data-pm-progress=')"
+check "step counter present" "yes" "$(has_text "$R_BODY" 'Step 1 of 2')"
+check "selected school card names the city and country" "yes" "$(has_text "$R_BODY" 'Mombasa, Kenya')"
+check "change school links to the school chooser" "yes" \
+  "$(has_text "$R_BODY" 'pm-link" href="/register">Change')"
 check "invoice summary panel present" "yes" "$(has_text "$R_BODY" 'Invoice summary')"
 check "bank transfer note present" "yes" \
-  "$(has_text "$R_BODY" 'No card details are collected on this site')"
+  "$(has_text "$R_BODY" 'Pay by bank transfer or purchase order')"
 check "no undefined pm- class on the register page" "0" \
   "$(printf '%s' "$R_BODY" | php -r '
 $html = stream_get_contents(STDIN);
@@ -1446,23 +1444,38 @@ $page    = (string) file_get_contents("/tmp/verify-reg-page.html");
 preg_match_all("/\\\$_POST\\[.attendees.\\]\\[.(\\w+).\\]/", $handler, $nested);
 preg_match_all("/\\\$_POST\\[.(\\w+).\\]/", $handler, $scalar);
 $missing = 0;
+// Asked for no more: the handler still stores these as empty strings.
+$retired = ["gender", "meal_preference", "future_topics", "title"];
 foreach (array_unique($scalar[1]) as $name) {
-    if ($name === "attendees") { continue; }
+    if ($name === "attendees" || in_array($name, $retired, true)) { continue; }
     if (strpos($page, "name=\"" . $name . "\"") === false) { $missing++; }
 }
 foreach (array_unique($nested[1]) as $name) {
+    if (in_array($name, $retired, true)) { continue; }
     if (strpos($page, "name=\"attendees[" . $name . "][]\"") === false) { $missing++; }
 }
 echo $missing;')"
 # Named individually as well, so a failure above says which one.
 for n in csrf_token event_id event_name first_name last_name phone email \
-         organization country address gender meal_preference future_topics consent; do
+         organization country address consent; do
   check "form sends name=\"$n\"" "yes" "$(has_text "$R_BODY" "name=\"$n\"")"
 done
-for n in first_name last_name email title; do
+for n in first_name last_name email; do
   check "form sends attendees[$n][], five rows" "5" \
     "$(printf '%s' "$R_BODY" | grep -c -F "name=\"attendees[$n][]\"")"
 done
+# What the form no longer asks for must not be sent by it either.
+for n in gender meal_preference future_topics; do
+  check "form no longer sends name=\"$n\"" "no" "$(has_text "$R_BODY" "name=\"$n\"")"
+done
+check "form no longer sends the delegate job title" "0" \
+  "$(printf '%s' "$R_BODY" | grep -c -F 'name="attendees[title][]"')"
+check "the address is optional, the rest are required" "yes" \
+  "$(printf '%s' "$R_BODY" | php -r '
+$html = stream_get_contents(STDIN);
+preg_match("/<input[^>]*name=\"address\"[^>]*>/", $html, $a);
+preg_match("/<input[^>]*name=\"organization\"[^>]*>/", $html, $o);
+echo (!str_contains($a[0] ?? "", "required") && str_contains($o[0] ?? "", "required")) ? "yes" : "no";')"
 check "delegate rows are real markup, not a template" "0" \
   "$(printf '%s' "$R_BODY" | grep -ci '<template')"
 
@@ -1517,8 +1530,8 @@ check "response total matches the stored total" \
 # The prototype shows an early bird deduction. The handler applies none, so the
 # panel must not promise one.
 check "no discount line in the summary panel" "0" \
-  "$(printf '%s' "$R_BODY" | awk '/pm-reg__summary/,/<\/aside>/' \
-     | grep -ciE 'early bird|discount|deduct|per cent off')"
+  "$(printf '%s' "$R_BODY" | awk '/class="pm-summary"/,/<\/dl>/; /class="pm-reg__aside"/,/<\/aside>/' \
+     | grep -ciE 'early bird|early-bird|discount|deduct|per cent off')"
 # Was "no tier selector that could change the price" -- true until Lydia asked
 # for exactly that (VIP/VVIP registering at their own price, not the standard
 # rate). The selector now exists; what still must hold is that a client cannot
@@ -1548,7 +1561,24 @@ TAMPER_RESP="$(curl -s -c "$TAMPER_JAR" -b "$TAMPER_JAR" "$MAIN/process-registra
   --data-urlencode "gender=Male" --data-urlencode "meal_preference=None" --data-urlencode "consent=yes" \
   --data-urlencode "attendees[first_name][]=Tamper" --data-urlencode "attendees[last_name][]=Test" \
   --data-urlencode "attendees[email][]=tier-tamper@example.test" --data-urlencode "attendees[title][]=Officer")"
+# The same session, the minimal field set the new form sends: no address, no
+# gender, no meal preference, no topics and no job titles.
+MIN_TOKEN="$(curl -s -c "$TAMPER_JAR" -b "$TAMPER_JAR" "$R_URL" | grep -o 'name="csrf_token" value="[^"]*"' | head -1 | sed -E 's/.*value="([^"]*)".*/\1/')"
+MIN_RESP="$(curl -s -c "$TAMPER_JAR" -b "$TAMPER_JAR" "$MAIN/process-registration.php" \
+  --data-urlencode "csrf_token=$MIN_TOKEN" \
+  --data-urlencode "event_id=$R_EVENT" --data-urlencode "event_name=$R_TITLE" \
+  --data-urlencode "tier=vip" \
+  --data-urlencode "first_name=Minimal" --data-urlencode "last_name=Form" \
+  --data-urlencode "phone=+254700000198" --data-urlencode "email=minimal-form@example.test" \
+  --data-urlencode "organization=Verify" --data-urlencode "country=Kenya" --data-urlencode "consent=yes" \
+  --data-urlencode "attendees[first_name][]=Minimal" --data-urlencode "attendees[last_name][]=Form" \
+  --data-urlencode "attendees[email][]=minimal-form@example.test")"
 rm -f "$TAMPER_JAR"
+check "the minimal form is accepted without an address" "true" "$(json_success "$MIN_RESP")"
+check "it stores a blank address, not a failure" "" "$(reg_col minimal-form@example.test address)"
+check "and still invoices at the chosen tier's real price" "1999.00" "$(reg_col minimal-form@example.test unit_price_amount)"
+check "and its invoice PDF is still written" "yes" \
+  "$([ -f "public_html/$(reg_col minimal-form@example.test invoice_path)" ] && echo yes || echo no)"
 check "a tampered tier still charges the real regular price" \
   "$(reg_col tier-tamper@example.test unit_price_amount)" \
   "$(printf '%s' "$TAMPER_RESP" | php -r '$d=json_decode(stream_get_contents(STDIN),true); printf("%.2f", (float) ($d["unit_price_amount"] ?? -1));')"
@@ -1566,9 +1596,10 @@ check "the flow script does no discount arithmetic" "0" \
 check "the page's price parser mirrors parseEventPrice()" "yes" \
   "$(php -r '
 $inv = (string) file_get_contents("public_html/includes/invoice.php");
-$reg = (string) file_get_contents("public_html/event-registration.php");
+$ev  = (string) file_get_contents("public_html/includes/events.php");
+preg_match("~function pmEventParsePrice.*?\n}\n~s", $ev, $fn);
 preg_match_all("~preg_match\(([^,]+),~", $inv, $a);
-preg_match_all("~preg_match\(([^,]+),~", $reg, $b);
+preg_match_all("~preg_match\(([^,]+),~", $fn[0] ?? "", $b);
 $a = array_values(array_unique($a[1]));
 $b = array_values(array_unique($b[1]));
 sort($a); sort($b);
@@ -1618,10 +1649,10 @@ echo (str_contains($tag, "action=\"/process-registration.php\"")
       && str_contains($tag, "method=\"post\"")) ? "yes" : "no";')"
 check "a real submit button is in the document" "1" \
   "$(printf '%s' "$R_BODY" | grep -c 'type="submit" data-pm-submit')"
-check "all four input steps are in the document" "4" \
+check "both input steps are in the document" "2" \
   "$(printf '%s' "$R_BODY" | grep -c 'class="pm-reg__panel"')"
-check "progress segments are real anchors" "5" \
-  "$(printf '%s' "$R_BODY" | grep -c 'href="#pm-reg-step-')"
+check "each step has its own real button without script" "2" \
+  "$(printf '%s' "$R_BODY" | grep -c 'pm-reg__inline-cta')"
 check "the confirmation ships hidden by attribute" "1" \
   "$(printf '%s' "$R_BODY" | grep -c 'data-pm-done hidden')"
 # The steps must collapse on an attribute the flow script sets ITSELF, not on
@@ -1688,7 +1719,7 @@ echo ""; echo "=== 12j. The register page survives a broken content table ==="
 "${DB_MAIN[@]}" "CREATE TABLE page_content (id INT PRIMARY KEY)" >/dev/null 2>&1
 R_BROKEN="$(curl -s "$R_URL")"
 check "broken page_content: register page still 200" "200" "$(page_code "event-registration.php?id=$R_EVENT")"
-check "broken page_content: still has its h1" "$R_TITLE" "$(page_h1 "event-registration.php?id=$R_EVENT")"
+check "broken page_content: still has its h1" "The school and you" "$(page_h1 "event-registration.php?id=$R_EVENT")"
 check "broken page_content: no error on the page" "0" \
   "$(printf '%s' "$R_BROKEN" | grep -ciE 'fatal error|parse error|warning:|uncaught|sqlstate')"
 check "broken page_content: still no em dash" "0" "$(printf '%s' "$R_BROKEN" | grep -c $'\xe2\x80\x94')"
@@ -1698,11 +1729,11 @@ check "broken page_content: the POST contract is intact" "yes" \
   "$([ "$(has_text "$R_BROKEN" 'name="first_name"')" = yes ] && \
      [ "$(has_text "$R_BROKEN" 'name="consent"')" = yes ] && \
      [ "$(has_text "$R_BROKEN" 'name="attendees[first_name][]"')" = yes ] && \
-     [ "$(has_text "$R_BROKEN" 'name="attendees[title][]"')" = yes ] && echo yes || echo no)"
+     [ "$(has_text "$R_BROKEN" 'name="attendees[email][]"')" = yes ] && echo yes || echo no)"
 check "broken page_content: the invoice figures still render" "599.00" \
   "$(reg_attr "$R_BROKEN" data-pm-total-amount)"
-check "broken page_content: five progress segments still render" "5" \
-  "$(printf '%s' "$R_BROKEN" | grep -c 'data-pm-progress=')"
+check "broken page_content: both steps still render" "2" \
+  "$(printf '%s' "$R_BROKEN" | grep -c 'class="pm-reg__panel"')"
 "${DB_MAIN[@]}" "DROP TABLE page_content" >/dev/null 2>&1
 "${DB_MAIN[@]}" "RENAME TABLE page_content_p4bak TO page_content" >/dev/null 2>&1
 check "page_content restored with its rows" "238" "$(pc_rows)"
@@ -1712,19 +1743,19 @@ echo ""; echo "=== 12k. Animated stat counters ==="
 # curl runs no script, so these are the no-JavaScript renderings.
 IDX="$(curl -s "$MAIN/index.php")"
 ABT="$(curl -s "$MAIN/about.php")"
-check "homepage: the real 875 is in the markup" "2" \
+check "homepage: the real 875 is in the markup" "1" \
   "$(printf '%s' "$IDX" | grep -c 'data-pm-count>875<')"
 check "about: the real 875 is in the markup" "1" \
   "$(printf '%s' "$ABT" | grep -c 'data-pm-count>875<')"
-check "homepage: the real 25 is in the markup" "2" \
+check "homepage: the real 25 is in the markup" "1" \
   "$(printf '%s' "$IDX" | grep -c 'data-pm-count>25<')"
 check "homepage: no counter renders as 0" "0" \
   "$(printf '%s' "$IDX" | grep -c 'data-pm-count>0<')"
 check "about: no counter renders as 0" "0" \
   "$(printf '%s' "$ABT" | grep -c 'data-pm-count>0<')"
-check "homepage: counter markup on every stat" "8" \
+check "homepage: counter markup on every stat" "2" \
   "$(printf '%s' "$IDX" | grep -c 'data-pm-count')"
-check "about: counter markup on every stat" "4" \
+check "about: counter markup on every stat" "2" \
   "$(printf '%s' "$ABT" | grep -c 'data-pm-count')"
 check "the counter lives in pm-layout.js, not a new file" "1" \
   "$(grep -c 'data-pm-count' public_html/assets/js/pm-layout.js)"
