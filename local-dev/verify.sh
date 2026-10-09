@@ -1040,7 +1040,7 @@ check "an archived cohort still has a detail page" "200" "$(page_code "event.php
 check "it says the cohort has already run" "yes" \
   "$(has_text "$ARCH_BODY" 'This cohort has already run')"
 check "it offers no registration link" "0" \
-  "$(printf '%s' "$ARCH_BODY" | grep -c 'event-registration.php\|/register"')"
+  "$(printf '%s' "$ARCH_BODY" | grep -c 'event-registration.php\|/school/[a-z0-9-]*/register')"
 check "it shows no early bird line" "0" \
   "$(printf '%s' "$ARCH_BODY" | grep -c 'early-bird discount')"
 
