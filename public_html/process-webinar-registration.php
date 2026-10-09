@@ -55,7 +55,7 @@ function webinarRespond(string $status, bool $success, string $message, string $
     }
 
     $separator = str_contains($returnPath, '?') ? '&' : '?';
-    $location = $returnPath . $separator . 'webinar=' . rawurlencode($status) . '#join';
+    $location = $returnPath . $separator . 'webinar=' . rawurlencode($status) . '#register';
 
     header('Location: ' . $location, true, 303);
     exit;

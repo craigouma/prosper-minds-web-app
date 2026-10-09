@@ -46,16 +46,6 @@
   }
 
   form.addEventListener('submit', function (event) {
-    // At least one school. The handler enforces this too and would answer with
-    // the same refusal; catching it here saves a round trip and puts the
-    // message beside the fieldset it is about.
-    var chosen = form.querySelectorAll('input[name="events[]"]:checked');
-    if (chosen.length === 0) {
-      event.preventDefault();
-      show(form.getAttribute('data-pm-events-required') || 'Please choose at least one school.', false);
-      return;
-    }
-
     // Let the browser's own required-field validation run first. If it fails,
     // it stops the submit event before this listener sees it.
     event.preventDefault();

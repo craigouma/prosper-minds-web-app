@@ -125,7 +125,7 @@ foreach ($attendeeFirstNames as $idx => $rawFirstName) {
 
 if (
     $firstName === '' || $lastName === '' || $phone === '' || $email === '' ||
-    $organization === '' || $country === '' || $address === '' || $eventName === ''
+    $organization === '' || $country === '' || $eventName === ''
 ) {
     registrationFailed('Please fill in all required fields.');
 }

@@ -34,7 +34,7 @@ pmPageBegin([
 
     <div class="pm-btn-row pm-mt-lg">
       <a class="pm-btn" href="/webinars.php">Back to PFM Insight Live</a>
-      <a class="pm-btn--link" href="/contact.php">Talk to somebody</a>
+      <a class="pm-btn--link" href="/about.php#contact">Talk to somebody</a>
     </div>
 
   </div>

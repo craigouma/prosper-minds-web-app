@@ -621,6 +621,75 @@ function pmEventCity(array $event): string
 }
 
 /**
+ * "Cape Town, South Africa" from a location that may begin with a venue
+ * ("Sarova Whitesands Beach Resort & Spa, Mombasa, Kenya" gives "Mombasa,
+ * Kenya"). The last two comma parts are the city and the country.
+ */
+function pmEventPlace(array $event): string
+{
+    $parts = array_values(array_filter(
+        array_map('trim', explode(',', pmEventProse((string) ($event['location'] ?? '')))),
+        static function (string $part): bool {
+            return $part !== '';
+        }
+    ));
+
+    return implode(', ', array_slice($parts, -2));
+}
+
+/**
+ * Currency and amount from price text such as "From USD 599 Per Delegate".
+ *
+ * Mirrors parseEventPrice() in includes/invoice.php, both patterns exactly.
+ * Restated rather than required because invoice.php loads vendor/autoload.php
+ * and the public pages must still render when the vendor tree is incomplete.
+ * verify.sh asserts the two have not drifted.
+ *
+ * @return array{0: string, 1: float}
+ */
+function pmEventParsePrice(string $priceText): array
+{
+    $priceText = trim($priceText);
+    $currency = 'USD';
+    $amount = 0.0;
+
+    if (preg_match('/(?<![A-Za-z])([A-Z]{3})(?![A-Za-z])/', $priceText, $currencyMatch)) {
+        $currency = $currencyMatch[1];
+    }
+
+    if (preg_match('/(\d[\d,]*(?:\.\d{1,2})?)/', $priceText, $amountMatch)) {
+        $amount = (float) str_replace(',', '', $amountMatch[1]);
+    }
+
+    return [$currency, $amount];
+}
+
+/** "USD 599" or "USD 1,999.50": cents appear only when there are cents. */
+function pmEventMoney(string $currency, float $amount): string
+{
+    $decimals = abs($amount - round($amount)) < 0.005 ? 0 : 2;
+
+    return $currency . ' ' . number_format($amount, $decimals);
+}
+
+/** "five" for 5; a numeral past ten, where a word stops reading better. */
+function pmNumberWord(int $n): string
+{
+    $words = [1 => 'one', 2 => 'two', 3 => 'three', 4 => 'four', 5 => 'five',
+              6 => 'six', 7 => 'seven', 8 => 'eight', 9 => 'nine', 10 => 'ten'];
+
+    return $words[$n] ?? (string) $n;
+}
+
+/** The headline price of an event, "USD 599", or '' when it has none. */
+function pmEventFromPrice(array $event): string
+{
+    [$currency, $amount] = pmEventParsePrice((string) ($event['price'] ?? ''));
+
+    return $amount > 0 ? pmEventMoney($currency, $amount) : '';
+}
+
+/**
  * A short early bird badge for an event card: "20% until 7 Sep 2026".
  *
  * $lapsedLabel is what to show once every tier has passed. It is a parameter

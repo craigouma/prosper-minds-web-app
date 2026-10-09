@@ -14,13 +14,10 @@ $activePage = 'menus';
 
 ensureMenuSchema($pdo);
 pmMenuSeedFromDefaults($pdo, 'header', [
-    ['label' => 'Home',        'href' => '/index.php'],
-    ['label' => 'Events',      'href' => '/events.php'],
-    ['label' => 'Webinars',    'href' => '/webinars.php'],
-    ['label' => 'Services',    'href' => '/services.php'],
-    ['label' => 'About',       'href' => '/about.php'],
-    ['label' => 'Sponsorship', 'href' => '/sponsorship.php'],
-    ['label' => 'Contact',     'href' => '/contact.php'],
+    ['label' => 'Schools',         'href' => '/#schools'],
+    ['label' => 'Webinars',        'href' => '/webinars.php'],
+    ['label' => 'Partner with us', 'href' => '/sponsorship.php'],
+    ['label' => 'About',           'href' => '/about.php'],
 ]);
 
 $location = isset($_GET['location']) && isset(PM_MENU_LOCATIONS[$_GET['location']]) ? $_GET['location'] : 'header';
@@ -124,11 +121,10 @@ foreach ($items as $row) {
 
 $pageChoices = [
     'index.php'       => 'Home',
-    'events.php'      => 'Events',
-    'services.php'    => 'Services',
+    '#schools'        => 'Schools (home page)',
+    'webinars.php'    => 'Webinars',
+    'sponsorship.php' => 'Partner with us',
     'about.php'       => 'About',
-    'sponsorship.php' => 'Sponsorship',
-    'contact.php'     => 'Contact',
     'privacy-policy.php' => 'Privacy policy',
 ];
 

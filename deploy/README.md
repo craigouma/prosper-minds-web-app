@@ -31,6 +31,35 @@ one setting filled in, and those are listed against the change that introduced t
 
 Newest first. Anything marked **outstanding** still needs doing.
 
+### 9 October 2026, the Site v2 redesign (public site)
+
+Review on the `redesign` branch first. Do not deploy `main` until it has been merged and agreed.
+
+- **Outstanding: deploy.** Merge and deploy as above.
+- **Outstanding: SQL.** Paste `deploy/2026-10-09-site-v2-menu.sql` into phpMyAdmin after the deploy. The header
+  menu stored in the database replaces the one in the code, and production has seven stored rows. Expect four
+  rows back: Schools, Webinars, Partner with us, About. Until it runs the old items still work, because Events,
+  Services and Contact now redirect.
+- **Outstanding: Settings.** Admin, Settings, **Appearance and chat**: choose the typeface (Manrope is the
+  recommendation), the home page treatment (white or dark), and enter the WhatsApp number with its country
+  code. While the number is blank no WhatsApp button appears anywhere.
+- The public site is rebuilt to the signed-off prototype: Home with the schools, a school page, a two-step
+  registration, Webinars, Partner with us, About (with Contact and the past cohorts), and a 404.
+- **Retired, with permanent redirects:** Events goes to the home page's schools section (the past cohorts view
+  goes to About), the three service pages and the Services overview go to About, and Contact goes to the
+  Contact section of About. Old links and search results keep working.
+- **Registration asks for less.** Gender, meal preference, future topics and the delegate job title are gone,
+  and the billing address is optional. The invoice uses the country when there is no address. The privacy
+  policy still lists those optional fields and needs a wording decision from you.
+- **Prices are the list prices.** The handler charges the listed price with no early-bird deduction, as it did
+  before, so cards and the registration total show list prices and the early-bird line says "discount until".
+  The prototype showed discounted prices; that needs the handler to apply the discount and is a decision for
+  you, not something this change did.
+- The sponsorship enquiry form no longer asks which schools, and takes one full name.
+- Settings: saving one form no longer blanks the other form's values (it used to).
+- The font trial banners and per-page font overrides are removed. The font is the one Settings choice.
+- Posters are shown whole in a 4:5 box on the home page, so portrait and square posters both appear uncropped.
+
 ### 8 October 2026, webinar posters
 
 - **Outstanding: deploy.** Merge and deploy as above. This is what puts the poster image on the server.

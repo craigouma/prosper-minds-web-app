@@ -658,11 +658,21 @@ check "served as text/css"               "text/css" \
 check "carries the brand tokens"         "yes" \
   "$(curl -s "$MAIN/assets/css/pm-design-system.css" | grep -q -- '--pm-green: #00BF63' && echo yes || echo no)"
 # The brand is green/black/white plus neutral greys. Any other hue in the
-# stylesheet is a bug: no purple, no blue, no red error states.
+# stylesheet is a bug: no purple, no blue, no red error states. A grey is a
+# colour whose three channels are equal, so any shade of grey is allowed and
+# nothing with a tint is.
 check "no hue outside the palette" "0" \
-  "$(curl -s "$MAIN/assets/css/pm-design-system.css" \
-      | grep -oiE '#[0-9a-f]{3,8}\b' | tr 'A-F' 'a-f' | sort -u \
-      | grep -vcE '^#(00bf63|000000|ffffff|f6f6f4|fafafa|dcdcdc|e2e2e2|cfcfcf|5a5a5a|5f5f5f|4a4a4a)$')"
+  "$(curl -s "$MAIN/assets/css/pm-design-system.css" | php -r '
+$css = stream_get_contents(STDIN);
+preg_match_all("/#([0-9a-fA-F]{3,8})\b/", $css, $m);
+$bad = 0;
+foreach (array_unique(array_map("strtolower", $m[1])) as $h) {
+    if ($h === "00bf63") { continue; }
+    if (strlen($h) === 3) { $h = $h[0] . $h[0] . $h[1] . $h[1] . $h[2] . $h[2]; }
+    if (strlen($h) !== 6) { $bad++; continue; }
+    if (!(substr($h, 0, 2) === substr($h, 2, 2) && substr($h, 2, 2) === substr($h, 4, 2))) { $bad++; }
+}
+echo $bad;')"
 check "Maharlika is served"              "200" "$(curl -s -o /dev/null -w '%{http_code}' "$MAIN/assets/fonts/Maharlika-Regular.ttf")"
 check "served as a font type"            "yes" \
   "$(curl -s -o /dev/null -w '%{content_type}' "$MAIN/assets/fonts/Maharlika-Regular.ttf" | grep -qi 'font' && echo yes || echo no)"
@@ -784,13 +794,32 @@ rm -f /tmp/verify-content.bak /tmp/verify-content-page.html "$NJAR" "$NBODY"
 # that the Phase 1 content-layer safety contract still holds for real pages and
 # not just the preview page.
 
-echo ""; echo "=== 10a. Every Phase 2 page answers with its own h1 ==="
+echo ""; echo "=== 10a. Every page answers with its own h1, and retired pages redirect ==="
+
+# A literal substring test, done in the shell rather than with grep.
+#
+# TWO REASONS, both of which cost a real false negative while this section was
+# being written.
+#
+#   1. `grep -qF` stops reading at the first match. On macOS the pipe buffer is
+#      16 KB, so for a page larger than that a match near the TOP leaves printf
+#      still writing into a closed pipe; it takes SIGPIPE, and `set -o pipefail`
+#      turns the whole pipeline non-zero. The assertion then reports "no" for a
+#      string that is plainly on the page, and only for the pages long enough to
+#      exhibit it. Anything that reads its input to the end (grep -c, grep -o)
+#      is safe; grep -q is not.
+#   2. The needles here are literal markup, and several contain brackets
+#      (name="events[]") that a basic regex reads as an unterminated character
+#      class.
+#
+# A case glob has neither problem and needs no subprocess.
+has_text() { case "$1" in *"$2"*) echo yes ;; *) echo no ;; esac; }
 
 page_h1() { curl -s "$MAIN/$1" | grep -o '<h1[^>]*>[^<]*' | head -1 | sed 's/<[^>]*>//' | sed 's/^ *//;s/ *$//'; }
 page_code() { curl -s -o /dev/null -w '%{http_code}' "$MAIN/$1"; }
+redirect_to() { curl -s -o /dev/null -w '%{redirect_url}' "$MAIN/$1" | sed "s|^$MAIN||"; }
 
-for pg in index.php about.php services.php service-pfm.php service-data.php \
-          service-sustainability.php contact.php privacy-policy.php; do
+for pg in index.php about.php webinars.php sponsorship.php privacy-policy.php; do
   check "$pg answers 200" "200" "$(page_code "$pg")"
 done
 
@@ -798,8 +827,7 @@ done
 # page accidentally rendering the homepage template.
 HOME_H1="$(page_h1 index.php)"
 check "index.php has an h1" "yes" "$([ -n "$HOME_H1" ] && echo yes || echo no)"
-for pg in about.php services.php service-pfm.php service-data.php \
-          service-sustainability.php contact.php privacy-policy.php; do
+for pg in about.php webinars.php sponsorship.php privacy-policy.php; do
   H="$(page_h1 "$pg")"
   check "$pg has its own h1" "yes" \
     "$([ -n "$H" ] && [ "$H" != "$HOME_H1" ] && echo yes || echo no)"
@@ -807,23 +835,34 @@ done
 
 check "404.php really returns 404" "404" "$(page_code 404.php)"
 
+# Events, Services and Contact are gone as pages. A permanent redirect keeps
+# links in old emails, posters and search results working.
+for pg in events.php services.php service-pfm.php service-data.php \
+          service-sustainability.php contact.php; do
+  check "$pg is a permanent redirect" "301" "$(page_code "$pg")"
+done
+check "events.php goes to the schools section"      "/#schools"            "$(redirect_to events.php)"
+check "the past cohorts view goes to About"         "/about.php#past-cohorts" "$(redirect_to 'events.php?show=past')"
+check "services.php goes to About"                  "/about.php"           "$(redirect_to services.php)"
+check "service-pfm.php goes to About"               "/about.php"           "$(redirect_to service-pfm.php)"
+check "contact.php goes to the contact section"     "/about.php#contact"   "$(redirect_to contact.php)"
+
 echo ""; echo "=== 10b. No em dashes in rendered output (client house style) ==="
 # Checked on the rendered HTML, not the source: source may legitimately contain
 # em dashes inside PHP comments, which are never shipped.
-for pg in index.php about.php services.php service-pfm.php service-data.php \
-          service-sustainability.php contact.php privacy-policy.php 404.php; do
-  check "$pg renders no em dash" "0" "$(curl -s "$MAIN/$pg" | grep -c '\xe2\x80\x94')"
+for pg in index.php about.php webinars.php sponsorship.php privacy-policy.php 404.php; do
+  check "$pg renders no em dash" "0" "$(curl -s "$MAIN/$pg" | grep -c $'\xe2\x80\x94')"
 done
 
 echo ""; echo "=== 10c. Contact enquiry endpoint ==="
+# The Contact page is gone but its endpoint is still live, so it is still held
+# to its contract. Any page carries the session's CSRF token in its footer form.
 CJAR=$(mktemp); CBODY=$(mktemp)
 contact_rows() { fq "SELECT COUNT(*) FROM contact_messages WHERE email='$1'"; }
 
-# A valid submission needs the session's own CSRF token, exactly as a browser
-# would carry it.
-CPAGE="$(curl -s -c "$CJAR" -b "$CJAR" "$MAIN/contact.php")"
+CPAGE="$(curl -s -c "$CJAR" -b "$CJAR" "$MAIN/index.php")"
 CTOK="$(printf '%s' "$CPAGE" | sed -n 's/.*name="csrf_token" value="\([a-f0-9]*\)".*/\1/p' | head -1)"
-check "contact form exposes a CSRF token" "yes" "$([ -n "$CTOK" ] && echo yes || echo no)"
+check "the footer form exposes a CSRF token" "yes" "$([ -n "$CTOK" ] && echo yes || echo no)"
 
 curl -s -o "$CBODY" -b "$CJAR" -c "$CJAR" -X POST "$MAIN/contact-submit.php" \
   -d "csrf_token=$CTOK" -d "name=Verify Tester" -d "email=contact-ok@example.test" \
@@ -837,7 +876,7 @@ curl -s -o /dev/null -b "$CJAR" -X POST "$MAIN/contact-submit.php" \
 check "forged CSRF stores nothing" "0" "$(contact_rows contact-forged@example.test)"
 
 # Invalid address must be rejected.
-CPAGE2="$(curl -s -c "$CJAR" -b "$CJAR" "$MAIN/contact.php")"
+CPAGE2="$(curl -s -c "$CJAR" -b "$CJAR" "$MAIN/index.php")"
 CTOK2="$(printf '%s' "$CPAGE2" | sed -n 's/.*name="csrf_token" value="\([a-f0-9]*\)".*/\1/p' | head -1)"
 curl -s -o /dev/null -b "$CJAR" -X POST "$MAIN/contact-submit.php" \
   -d "csrf_token=$CTOK2" -d "name=Bad Address" -d "email=not-an-email" \
@@ -845,25 +884,33 @@ curl -s -o /dev/null -b "$CJAR" -X POST "$MAIN/contact-submit.php" \
 check "invalid email stores nothing" "0" "$(contact_rows not-an-email)"
 rm -f "$CJAR" "$CBODY"
 
-echo ""; echo "=== 10d. Office map is self-hosted and wired ==="
-check "maplibre js served"  "200" "$(curl -s -o /dev/null -w '%{http_code}' "$MAIN/assets/js/maplibre-gl.js")"
-check "maplibre css served" "200" "$(curl -s -o /dev/null -w '%{http_code}' "$MAIN/assets/css/maplibre-gl.css")"
-check "pm-map.js served"    "200" "$(curl -s -o /dev/null -w '%{http_code}' "$MAIN/assets/js/pm-map.js")"
-# No CDN: a third-party script host is exactly what self-hosting avoided.
-check "no CDN script host on contact.php" "0" \
-  "$(curl -s "$MAIN/contact.php" | grep -c 'unpkg\|jsdelivr\|cdnjs')"
-check "map uses the positron style" "1" \
-  "$(curl -s "$MAIN/contact.php" | grep -c 'tiles.openfreemap.org/styles/positron')"
-# The address must be real text on the page, never only inside the map.
-check "address is real text, not only in the map" "yes" \
-  "$(curl -s "$MAIN/contact.php" | grep -q 'Twiga Towers' && echo yes || echo no)"
+echo ""; echo "=== 10d. Contact lives on About, and WhatsApp appears only once a number is set ==="
+ABOUT_BODY="$(curl -s "$MAIN/about.php")"
+check "the address is real text"            "yes" "$(has_text "$ABOUT_BODY" 'Twiga Towers')"
+check "directions are a plain link"         "yes" "$(has_text "$ABOUT_BODY" 'Get directions')"
+check "both phone numbers are tap to call"  "yes" \
+  "$([ "$(printf '%s' "$ABOUT_BODY" | grep -c 'href="tel:')" -ge 2 ] && echo yes || echo no)"
+check "the email is tap to send"            "yes" "$(has_text "$ABOUT_BODY" 'href="mailto:')"
+check "no map script or CDN host on About"  "0" \
+  "$(printf '%s' "$ABOUT_BODY" | grep -c 'unpkg\|jsdelivr\|cdnjs\|maplibre\|openfreemap')"
+check "no WhatsApp link while no number is set" "0" \
+  "$(for p in index.php about.php; do curl -s "$MAIN/$p"; done | grep -c 'wa\.me')"
+fq "INSERT INTO site_settings (setting_key, setting_value) VALUES ('whatsapp_number', '254700000001') ON DUPLICATE KEY UPDATE setting_value=VALUES(setting_value)" >/dev/null
+check "a saved number draws the WhatsApp button on About" "yes" \
+  "$(has_text "$(curl -s "$MAIN/about.php")" 'https://wa.me/254700000001')"
+check "and in the footer of every page" "yes" \
+  "$(has_text "$(curl -s "$MAIN/index.php")" 'https://wa.me/254700000001')"
+fq "UPDATE site_settings SET setting_value='not a number' WHERE setting_key='whatsapp_number'" >/dev/null
+check "a value that is not a number draws nothing" "0" \
+  "$(curl -s "$MAIN/about.php" | grep -c 'wa\.me')"
+fq "DELETE FROM site_settings WHERE setting_key='whatsapp_number'" >/dev/null
 
-echo ""; echo "=== 10e. CRITICAL: Phase 2 pages survive a broken content table ==="
+echo ""; echo "=== 10e. CRITICAL: pages survive a broken content table ==="
 # Phase 1 proved this for the preview page. It has to hold for the real pages
 # too, or the safety contract is decorative.
 "${DB_MAIN[@]}" "RENAME TABLE page_content TO page_content_p2bak" >/dev/null 2>&1
 "${DB_MAIN[@]}" "CREATE TABLE page_content (id INT PRIMARY KEY)" >/dev/null 2>&1
-for pg in index.php about.php services.php contact.php; do
+for pg in index.php about.php webinars.php sponsorship.php; do
   check "broken page_content: $pg still 200" "200" "$(page_code "$pg")"
   check "broken page_content: $pg still has an h1" "yes" \
     "$([ -n "$(page_h1 "$pg")" ] && echo yes || echo no)"
@@ -897,41 +944,6 @@ EV_DOWN=public_html/database/migrations/2026-08-29-01-seed-page-content-events.d
 SP_UP=public_html/database/migrations/2026-08-29-02-seed-page-content-sponsorship.up.sql
 SP_DOWN=public_html/database/migrations/2026-08-29-02-seed-page-content-sponsorship.down.sql
 
-# The count element on events.php is a single line by construction, so this
-# stays a sed one-liner rather than an HTML parser. Same approach as
-# funnel_shown() in section 8e.
-listing_count() { curl -s "$MAIN/$1" | sed -n 's/.*pm-listing__count">\([^<]*\)<.*/\1/p' | head -1; }
-# A literal substring test, done in the shell rather than with grep.
-#
-# TWO REASONS, both of which cost a real false negative while this section was
-# being written.
-#
-#   1. `grep -qF` stops reading at the first match. On macOS the pipe buffer is
-#      16 KB, so for a page larger than that a match near the TOP leaves printf
-#      still writing into a closed pipe; it takes SIGPIPE, and `set -o pipefail`
-#      turns the whole pipeline non-zero. The assertion then reports "no" for a
-#      string that is plainly on the page, and only for the pages long enough to
-#      exhibit it. Anything that reads its input to the end (grep -c, grep -o)
-#      is safe; grep -q is not.
-#   2. The needles here are literal markup, and several contain brackets
-#      (name="events[]") that a basic regex reads as an unterminated character
-#      class.
-#
-# A case glob has neither problem and needs no subprocess.
-has_text() { case "$1" in *"$2"*) echo yes ;; *) echo no ;; esac; }
-
-# The switch renders its href and its aria-current on separate lines, so the
-# newlines are flattened before matching. Scoped to .pm-switch__link so it
-# cannot accidentally match the header nav, which also marks the current page.
-# grep -o rather than grep -q, for reason 1 above.
-switch_current() {
-  local hits
-  hits="$(printf '%s' "$1" | tr '\n' ' ' \
-    | grep -o "pm-switch__link\" href=\"$2\"[^>]*aria-current=\"page\"" | wc -l | tr -d ' ')"
-
-  [ "${hits:-0}" -gt 0 ] && echo yes || echo no
-}
-
 echo ""; echo "=== 11a. Phase 3 seed migrations ==="
 for m in "$EV_UP" "$EV_DOWN" "$SP_UP" "$SP_DOWN"; do
   check "$(basename "$m") tracked in git" "yes" \
@@ -962,37 +974,43 @@ check "re-seeding does not overwrite an edited tier heading" "EDITED BY A HUMAN"
   "$(fq "SELECT content_value FROM page_content WHERE page_slug='sponsorship' AND section_key='tiers_title'")"
 fq "UPDATE page_content SET content_value='Four partnership tiers' WHERE page_slug='sponsorship' AND section_key='tiers_title'" >/dev/null
 
-echo ""; echo "=== 11b. Every Phase 3 page answers with its own h1 ==="
-for pg in events.php "events.php?show=past" "event.php?id=1" sponsorship.php; do
+echo ""; echo "=== 11b. The school and sponsorship pages answer with their own h1 ==="
+for pg in "event.php?id=1" "event.php?id=5" sponsorship.php; do
   check "$pg answers 200" "200" "$(page_code "$pg")"
 done
 
 HOME_H1="$(page_h1 index.php)"
-for pg in events.php "event.php?id=1" sponsorship.php; do
+for pg in "event.php?id=1" sponsorship.php; do
   H="$(page_h1 "$pg")"
   check "$pg has its own h1" "yes" \
     "$([ -n "$H" ] && [ "$H" != "$HOME_H1" ] && echo yes || echo no)"
 done
 
-# The archive is the same page and keeps the same h1 on purpose: it is one
-# calendar filtered, not a second page about a different subject.
-check "the past view keeps the calendar's h1" "$(page_h1 events.php)" \
-  "$(page_h1 "events.php?show=past")"
+# The slug address renders the same page, and is the one search engines are
+# told to prefer. (The /school/ rewrite itself lives in .htaccess, which the PHP
+# built-in server does not read, so the slug is passed the way the rewrite does.)
+SLUG_BODY="$(curl -s "$MAIN/event.php?slug=future-ready-pfm-leaders-cape-town-2026")"
+check "the slug address renders the school" "yes" "$(has_text "$SLUG_BODY" 'Future-Ready PFM Leaders')"
+check "and its canonical is the clean address" "yes" \
+  "$(has_text "$SLUG_BODY" 'rel="canonical" href="https://prosper-minds.com/school/future-ready-pfm-leaders-cape-town-2026"')"
 
 echo ""; echo "=== 11c. No em dashes in rendered output (client house style) ==="
 # Rendered, not source. The `events` table itself carries em dashes in nine
 # columns, so this is the assertion that pmEventProse() is actually applied at
 # every point event data reaches the page, not just at the obvious ones.
-for pg in events.php "events.php?show=past" "event.php?id=1" "event.php?id=2" \
-          "event.php?id=3" "event.php?id=5" "event.php?id=999999" sponsorship.php; do
+for pg in index.php about.php webinars.php "event.php?id=1" "event.php?id=2" \
+          "event.php?id=3" "event.php?id=5" "event.php?id=999999" sponsorship.php \
+          "event-registration.php?id=5" event-registration.php; do
   check "$pg renders no em dash" "0" "$(curl -s "$MAIN/$pg" | grep -c $'\xe2\x80\x94')"
 done
 
 echo ""; echo "=== 11d. Upcoming and past really are partitioned by date ==="
-check "the calendar starts with the four scheduled schools" "4 scheduled schools" \
-  "$(listing_count events.php)"
-check "nothing has run yet, so the archive is empty" "0 past cohorts" \
-  "$(listing_count 'events.php?show=past')"
+home_cards() { curl -s "$MAIN/index.php" | grep -c 'class="pm-school"'; }
+past_rows()  { curl -s "$MAIN/about.php" | grep -c 'pm-sessions__title'; }
+check "the home page starts with the four scheduled schools" "4" "$(home_cards)"
+check "nothing has run yet, so About lists no past cohorts" "0" "$(past_rows)"
+check "and offers no link to an empty archive" "0" \
+  "$(curl -s "$MAIN/about.php" | grep -c 'href="#past-cohorts"')"
 
 # A finished school that an admin has since unpublished. This is the real shape
 # of the archive: clearing is_active is how a cohort is retired today, so an
@@ -1004,21 +1022,17 @@ ARCHIVE_ID="$(fq "SELECT id FROM events WHERE title='Verify Archive Cohort'")"
 check "the archive fixture was created" "yes" \
   "$([ -n "$ARCHIVE_ID" ] && [ "$ARCHIVE_ID" != "ERR" ] && echo yes || echo no)"
 
-UP_BODY="$(curl -s "$MAIN/events.php")"
-PAST_BODY="$(curl -s "$MAIN/events.php?show=past")"
-check "a finished cohort is NOT in the upcoming tab" "0" \
-  "$(printf '%s' "$UP_BODY" | grep -c 'Verify Archive Cohort')"
-check "a finished cohort IS in the past tab" "yes" \
+HOME_BODY="$(curl -s "$MAIN/index.php")"
+PAST_BODY="$(curl -s "$MAIN/about.php")"
+check "a finished cohort is NOT on the home page" "0" \
+  "$(printf '%s' "$HOME_BODY" | grep -c 'Verify Archive Cohort')"
+check "a finished cohort IS in About's past cohorts" "yes" \
   "$(has_text "$PAST_BODY" 'Verify Archive Cohort')"
-check "the upcoming count still reads four" "4 scheduled schools" "$(listing_count events.php)"
-check "the past count now reads one" "1 past cohort" "$(listing_count 'events.php?show=past')"
-# The two tabs must not be the same list wearing different labels.
-check "the two tabs render different lists" "no" \
-  "$([ "$UP_BODY" = "$PAST_BODY" ] && echo yes || echo no)"
-# The state is announced, not merely coloured, and it follows the URL.
-check "the past tab marks itself current"            "yes" "$(switch_current "$PAST_BODY" '/events.php?show=past')"
-check "the upcoming tab is not current in that view" "no"  "$(switch_current "$PAST_BODY" '/events.php')"
-check "the upcoming tab is current in its own view"  "yes" "$(switch_current "$UP_BODY" '/events.php')"
+check "the home page still shows four schools" "4" "$(home_cards)"
+check "About now lists one past cohort" "1" "$(past_rows)"
+check "and links to the archive" "1" "$(printf '%s' "$PAST_BODY" | grep -c 'href="#past-cohorts"')"
+check "the two pages render different lists" "no" \
+  "$([ "$HOME_BODY" = "$PAST_BODY" ] && echo yes || echo no)"
 
 # A past cohort keeps a working detail page, and it must not sell seats.
 ARCH_BODY="$(curl -s "$MAIN/event.php?id=$ARCHIVE_ID")"
@@ -1026,20 +1040,19 @@ check "an archived cohort still has a detail page" "200" "$(page_code "event.php
 check "it says the cohort has already run" "yes" \
   "$(has_text "$ARCH_BODY" 'This cohort has already run')"
 check "it offers no registration link" "0" \
-  "$(printf '%s' "$ARCH_BODY" | grep -c 'event-registration.php')"
-check "it shows no early bird panel" "0" \
-  "$(printf '%s' "$ARCH_BODY" | grep -c 'pm-cell--accent')"
+  "$(printf '%s' "$ARCH_BODY" | grep -c 'event-registration.php\|/school/[a-z0-9-]*/register')"
+check "it shows no early bird line" "0" \
+  "$(printf '%s' "$ARCH_BODY" | grep -c 'early-bird discount')"
 
 # The same row moved into the future is a DRAFT, not an archive entry, and must
-# disappear from both tabs and answer 404.
+# disappear from both pages and answer 404.
 fq "UPDATE events SET event_start_date='2027-05-03', date_display='3-7 May 2027' WHERE title='Verify Archive Cohort'" >/dev/null
 check "an unpublished FUTURE event answers 404" "404" "$(page_code "event.php?id=$ARCHIVE_ID")"
-check "a draft appears in neither tab" "0" \
-  "$(( $(curl -s "$MAIN/events.php" | grep -c 'Verify Archive Cohort') + $(curl -s "$MAIN/events.php?show=past" | grep -c 'Verify Archive Cohort') ))"
+check "a draft appears on neither page" "0" \
+  "$(( $(curl -s "$MAIN/index.php" | grep -c 'Verify Archive Cohort') + $(curl -s "$MAIN/about.php" | grep -c 'Verify Archive Cohort') ))"
 
 fq "DELETE FROM events WHERE title='Verify Archive Cohort'" >/dev/null
-check "the calendar is back to four scheduled schools" "4 scheduled schools" \
-  "$(listing_count events.php)"
+check "the home page is back to four schools" "4" "$(home_cards)"
 
 echo ""; echo "=== 11e. event.php renders a real event from the database ==="
 E1="$(curl -s "$MAIN/event.php?id=1")"
@@ -1047,13 +1060,13 @@ check "the h1 is the event's own title" "Future-Ready PFM Leaders in the Age of 
   "$(page_h1 'event.php?id=1')"
 check "the agenda comes from the agenda column" "yes" \
   "$(has_text "$E1" 'IPSAS That Earns Clean Audits')"
-check "all five agenda days render" "5" "$(printf '%s' "$E1" | grep -c 'pm-row__index')"
-check "the agenda heading counts the real days" "yes" "$(has_text "$E1" '5 days, one arc')"
-check "the eyebrow counts the real days too" "yes" "$(has_text "$E1" '5 day residential school')"
+check "all five agenda days render" "5" "$(printf '%s' "$E1" | grep -c '<span>Day [0-9]')"
+check "the agenda heading counts the real days" "yes" "$(has_text "$E1" 'The five days')"
+check "the format fact counts the real days too" "yes" "$(has_text "$E1" 'Five days, residential')"
 check "the audience comes from the audience column" "yes" "$(has_text "$E1" 'Budget controllers')"
 check "the outcomes come from master_points" "yes" \
   "$(has_text "$E1" 'Return with a 90-day action plan')"
-check "exactly three delegate tiers render" "3" "$(printf '%s' "$E1" | grep -c 'class="pm-price">')"
+check "exactly three delegate tiers render" "3" "$(printf '%s' "$E1" | grep -c 'class="pm-tier__price"')"
 for price in 'USD 599' 'USD 1,999' 'USD 2,899'; do
   check "the $price tier renders from the database" "yes" "$(has_text "$E1" "$price")"
 done
@@ -1061,10 +1074,28 @@ check "the VVIP seats note renders" "yes" "$(has_text "$E1" 'Limited to 15 seats
 check "the location and dates render" "yes" "$(has_text "$E1" 'Cape Town, South Africa')"
 # The date range is spelled out rather than dashed, matching the approved design.
 check "the date range is spelled out" "yes" "$(has_text "$E1" '19 to 23 October 2026')"
-check "the early bird panel is computed, not seeded" "1" \
-  "$(printf '%s' "$E1" | grep -c 'pm-cell--accent')"
+check "every tier has its own register button" "3" \
+  "$(printf '%s' "$E1" | grep -c 'Register as ')"
 check "it links to the registration entry point" "yes" \
-  "$(has_text "$E1" 'event-registration.php?id=1')"
+  "$([ "$(printf '%s' "$E1" | grep -c 'href="/school/[a-z0-9-]*/register\|href="/event-registration.php?id=1')" -ge 1 ] && echo yes || echo no)"
+
+# The early-bird line is computed from the three tier columns on every render,
+# never stored. A fixture school with a deadline a month away must show it; the
+# same school with that deadline yesterday must say the standard rate applies.
+fq "INSERT INTO events (title, tagline, date_display, event_start_date, location, price, is_active, sort_order, agenda, audience, regular_price, regular_perks, early_bird_1_pct, early_bird_1_date)
+    VALUES ('Verify Early Bird School', 'Deadline fixture.', '1-5 June 2027', '2027-06-01', 'Nairobi, Kenya', 'From USD 599 Per Delegate', 1, 92, '[{\"day\":1,\"title\":\"Day one\",\"desc\":\"Topic A\"}]', 'Finance officers', 'USD 599', 'Course materials', 20, DATE_ADD(CURDATE(), INTERVAL 30 DAY))" >/dev/null
+EB_ID="$(fq "SELECT id FROM events WHERE title='Verify Early Bird School'")"
+EB_DATE="$(php -r 'echo date("j F Y", strtotime("+30 days"));')"
+EB_BODY="$(curl -s "$MAIN/event.php?id=$EB_ID")"
+check "an open early-bird tier is shown with its percentage and date" "yes" \
+  "$(has_text "$EB_BODY" "20% early-bird discount until $EB_DATE")"
+check "and the school card on the home page carries it too" "yes" \
+  "$(has_text "$(curl -s "$MAIN/index.php")" "20% early-bird discount until $EB_DATE")"
+fq "UPDATE events SET early_bird_1_date = DATE_SUB(CURDATE(), INTERVAL 1 DAY) WHERE id=$EB_ID" >/dev/null
+EB_LAPSED="$(curl -s "$MAIN/event.php?id=$EB_ID")"
+check "a lapsed tier is not shown" "0" "$(printf '%s' "$EB_LAPSED" | grep -c 'early-bird discount')"
+check "the page says the standard rate applies" "yes" "$(has_text "$EB_LAPSED" 'Standard rate')"
+fq "DELETE FROM events WHERE id=$EB_ID" >/dev/null
 
 # A malformed agenda must cost the section, not the page. The column carries a
 # json_valid CHECK constraint, so the realistic break is valid JSON of the wrong
@@ -1074,11 +1105,11 @@ fq "INSERT INTO events (title, tagline, date_display, event_start_date, location
 BROKEN_ID="$(fq "SELECT id FROM events WHERE title='Verify Malformed Agenda School'")"
 BROKEN="$(curl -s "$MAIN/event.php?id=$BROKEN_ID")"
 check "a malformed agenda still renders the page" "200" "$(page_code "event.php?id=$BROKEN_ID")"
-check "the agenda section is omitted" "0" "$(printf '%s' "$BROKEN" | grep -c 'one arc')"
+check "the agenda section is omitted" "0" "$(printf '%s' "$BROKEN" | grep -c 'class="pm-disclosure"')"
 check "the audience survives a malformed agenda" "yes" \
   "$(has_text "$BROKEN" 'Finance officers')"
 check "the three tiers survive a malformed agenda" "3" \
-  "$(printf '%s' "$BROKEN" | grep -c 'class="pm-price">')"
+  "$(printf '%s' "$BROKEN" | grep -c 'class="pm-tier__price"')"
 check "no error leaks to the visitor" "0" \
   "$(printf '%s' "$BROKEN" | grep -ciE 'fatal error|parse error|warning:|uncaught')"
 fq "DELETE FROM events WHERE title='Verify Malformed Agenda School'" >/dev/null
@@ -1096,41 +1127,31 @@ check "the 404 branch is a real page with an h1" "yes" \
 check "the 404 branch leaks no error" "0" \
   "$(printf '%s' "$MISSING" | grep -ciE 'fatal error|parse error|warning:|uncaught|sqlstate')"
 check "the 404 branch is noindex" "1" "$(printf '%s' "$MISSING" | grep -c 'noindex')"
-check "the 404 branch links back to the calendar" "yes" \
-  "$(has_text "$MISSING" 'href="/events.php"')"
+check "the 404 branch links back to the schools" "yes" \
+  "$(has_text "$MISSING" 'href="/#schools"')"
 
 echo ""; echo "=== 11g. The sponsorship enquiry still posts what the handler reads ==="
-# process-sponsorship.php is live code and is not modified by this phase. It
-# reads exactly these names, and it requires first_name, last_name,
-# organisation, email and at least one event.
+# process-sponsorship.php reads these names. The form asks for one full name and
+# the handler splits it, so the contract is name, organisation and email; the
+# older first_name and last_name are still accepted from any other client.
 SPPAGE="$(curl -s "$MAIN/sponsorship.php")"
 SPFORM="$(printf '%s' "$SPPAGE" | awk '/action="\/process-sponsorship.php"/,/<\/form>/')"
 
 check "the form posts to the live handler" "1" \
   "$(printf '%s' "$SPPAGE" | grep -c 'action="/process-sponsorship.php"')"
 check "the form has a real method" "yes" "$(has_text "$SPFORM" 'method="post"')"
-for f in first_name last_name organisation email phone country tier message; do
+for f in name organisation email phone tier message; do
   check "the form carries name=\"$f\"" "yes" "$(has_text "$SPFORM" "name=\"$f\"")"
 done
-# The specific trap: the approved prototype draws ONE name field, and the
-# handler reads two. Building the prototype literally would produce enquiries
-# with an empty name, silently.
-check "the name is two inputs, not one" "yes" \
-  "$([ "$(has_text "$SPFORM" 'name="first_name"')" = yes ] && \
-     [ "$(has_text "$SPFORM" 'name="last_name"')" = yes ] && echo yes || echo no)"
-check "one checkbox per scheduled school" "4" \
+check "the form no longer asks which schools" "0" \
   "$(printf '%s' "$SPFORM" | grep -c 'name="events\[\]"')"
-# The live page listed three events and had never listed Mombasa. It is read
-# from the events table now, so it cannot fall behind again.
-check "Mombasa is on the sponsorship page" "yes" "$(has_text "$SPPAGE" 'Mombasa')"
 
 clearmail
 SPBODY="$(curl -s -X POST "$MAIN/process-sponsorship.php" \
-  -F "first_name=Verify" -F "last_name=Sponsorlead" \
+  -F "name=Verify Sponsorlead" \
   -F "organisation=Ministry of Testing" -F "email=sponsor-verify@example.test" \
-  -F "phone=+254700000000" -F "country=Kenya" \
-  -F "tier=Platinum, \$15,000" -F "message=Sent by verify.sh" \
-  -F "events[]=Cape Town, Oct 2026")"
+  -F "phone=+254700000000" \
+  -F "tier=Platinum, \$15,000" -F "message=Sent by verify.sh")"
 check "a complete enquiry is accepted" "true" "$(json_success "$SPBODY")"
 sleep 1
 check "the enquiry produced the admin and confirmation emails" "2" "$(mailcount)"
@@ -1154,12 +1175,24 @@ foreach (($d["messages"] ?? []) as $m) {
     if (strpos((string) ($m["Subject"] ?? ""), "Ministry of Testing") !== false) { echo "yes"; exit; }
 }
 echo "no";')"
-# The handler refuses an enquiry with no event selected. The page must not be
-# able to produce one that looks valid and is not.
-check "an enquiry with no event is refused" "false" \
+check "the full name was split at the last space" "Verify|Sponsorlead" \
+  "$(fq "SELECT CONCAT(first_name, '|', last_name) FROM sponsorship_enquiries WHERE email='sponsor-verify@example.test'")"
+# An enquiry no longer has to name a school.
+check "an enquiry with no school is accepted" "true" \
   "$(json_success "$(curl -s -X POST "$MAIN/process-sponsorship.php" \
-      -F "first_name=No" -F "last_name=Event" -F "organisation=Nowhere" \
+      -F "name=Cher" -F "organisation=Nowhere" \
       -F "email=no-event@example.test")")"
+check "a single name is kept whole" "Cher|" \
+  "$(fq "SELECT CONCAT(first_name, '|', last_name) FROM sponsorship_enquiries WHERE email='no-event@example.test'")"
+check "and the school is recorded as none" "yes" \
+  "$([ "$(fq "SELECT IFNULL(events, 'NULL') FROM sponsorship_enquiries WHERE email='no-event@example.test'")" = NULL ] && echo yes || echo no)"
+check "the older first_name and last_name are still accepted" "true" \
+  "$(json_success "$(curl -s -X POST "$MAIN/process-sponsorship.php" \
+      -F "first_name=Old" -F "last_name=Client" -F "organisation=Legacy" \
+      -F "email=legacy-sponsor@example.test" -F "events[]=Cape Town, Oct 2026")")"
+check "a missing email is refused" "false" \
+  "$(json_success "$(curl -s -X POST "$MAIN/process-sponsorship.php" \
+      -F "name=No Email" -F "organisation=Nowhere")")"
 clearmail
 
 echo ""; echo "=== 11h. A tier card carries its own tier into the form ==="
@@ -1178,40 +1211,32 @@ INJECT="$(curl -s "$MAIN/sponsorship.php?tier=%22%3E%3Cscript%3Ealert(1)%3C%2Fsc
 check "an unknown tier selects nothing"            "0" "$(printf '%s' "$INJECT" | grep -c ' selected>')"
 check "the injected string never reaches the markup" "0" \
   "$(printf '%s' "$INJECT" | grep -c 'script>alert')"
-# Four tiers plus three specialised packages, each carrying its own key. The
-# five add-ons deliberately have none: the handler has one `tier` field, so five
-# more buttons would each pre-select the same option and be pretending to carry
-# a distinct choice.
-check "every tier and package deep links into the form" "7" \
-  "$(printf '%s' "$SPPAGE" | grep -c 'sponsorship.php?tier=[a-z-]*#apply"')"
+# Each of the four tiers carries its own key. The packages and add-ons sit in a
+# list without buttons, but remain choices in the form's dropdown.
+check "every tier deep links into the form" "4" \
+  "$(printf '%s' "$SPPAGE" | grep -c 'href="?tier=[a-z-]*#enquire"')"
 
 echo ""; echo "=== 11i. Navigation, sitemap and third-party requests ==="
-check "the Events nav item points at the real page" "yes" \
-  "$(has_text "$(curl -s "$MAIN/about.php")" 'href="/events.php"')"
-# Every nav destination is now a page. No fragment survives anywhere.
+check "the Schools nav item points at the schools section" "yes" \
+  "$(has_text "$(curl -s "$MAIN/about.php")" 'href="/#schools"')"
+# Every nav destination is a page or a real section. No stale fragment survives.
 check "no page still links to the old #events fragment" "0" \
-  "$(for p in index.php events.php 'event.php?id=1' sponsorship.php about.php \
-              services.php contact.php 404.php; do curl -s "$MAIN/$p"; done \
+  "$(for p in index.php 'event.php?id=1' sponsorship.php about.php webinars.php 404.php; do curl -s "$MAIN/$p"; done \
      | grep -c 'index.php#events')"
-check "events.php is listed in the sitemap" "1" \
-  "$(curl -s "$MAIN/sitemap.php" | grep -c '<loc>https://prosper-minds.com/events.php</loc>')"
-check "pm-copy-link.js is served" "200" \
-  "$(curl -s -o /dev/null -w '%{http_code}' "$MAIN/assets/js/pm-copy-link.js")"
+check "the home page is listed as the site root in the sitemap" "1" \
+  "$(curl -s "$MAIN/sitemap.php" | grep -c '<loc>https://prosper-minds.com/</loc>')"
+check "webinars are listed in the sitemap" "1" \
+  "$(curl -s "$MAIN/sitemap.php" | grep -c '<loc>https://prosper-minds.com/webinars.php</loc>')"
+check "retired pages are not listed in the sitemap" "0" \
+  "$(curl -s "$MAIN/sitemap.php" | grep -c '/events.php\|/services.php\|/service-\|/contact.php')"
 check "pm-sponsorship-form.js is served" "200" \
   "$(curl -s -o /dev/null -w '%{http_code}' "$MAIN/assets/js/pm-sponsorship-form.js")"
 # The old event.php and sponsorship.php made three cross-border requests per
 # view between them: Google Fonts, a Font Awesome CDN, and a QR code image
 # generated by api.qrserver.com. None of them survive.
-check "no third-party host on the Phase 3 pages" "0" \
-  "$(for p in events.php 'event.php?id=1' sponsorship.php; do curl -s "$MAIN/$p"; done \
+check "no third-party host on the public pages" "0" \
+  "$(for p in index.php 'event.php?id=1' sponsorship.php webinars.php about.php; do curl -s "$MAIN/$p"; done \
      | grep -c 'unpkg\|jsdelivr\|cdnjs\|fonts.googleapis\|qrserver')"
-# Never show a control that would do nothing. "Copy link" needs the clipboard
-# API and is hidden until head.php confirms scripts run; "Download" beside it is
-# a plain anchor and is always present.
-check "one Copy link per banner, hidden without scripts" "4" \
-  "$(curl -s "$MAIN/events.php" | grep -c 'pm-js-only')"
-check "one plain Download link per banner" "4" \
-  "$(curl -s "$MAIN/events.php" | grep -c 'download>')"
 
 echo ""; echo "=== 11j. Every pm- class on the page is defined in the design system ==="
 # This mistake has been made and caught twice in this project: markup shipped
@@ -1220,9 +1245,8 @@ echo ""; echo "=== 11j. Every pm- class on the page is defined in the design sys
 # reading a diff, so it is asserted across every rebuilt page rather than only
 # the new ones.
 check "no undefined pm- class on any rebuilt page" "0" \
-  "$(for p in index.php events.php 'events.php?show=past' 'event.php?id=1' \
-              'event.php?id=999999' sponsorship.php about.php services.php \
-              service-pfm.php contact.php 404.php privacy-policy.php; do
+  "$(for p in index.php 'event.php?id=1' 'event.php?id=999999' sponsorship.php \
+              about.php webinars.php 404.php privacy-policy.php event-registration.php; do
        curl -s "$MAIN/$p"
      done | php -r '
 $html = stream_get_contents(STDIN);
@@ -1238,14 +1262,14 @@ foreach ($u[1] as $attr) {
 }
 echo count(array_diff_key($used, $defined));')"
 
-echo ""; echo "=== 11k. CRITICAL: Phase 3 pages survive a broken content table ==="
+echo ""; echo "=== 11k. CRITICAL: pages survive a broken content table ==="
 # Same shape as 9f and 10e, for the third time. Break the secondary concern for
 # real, then prove the primary outcome is untouched. A DROP is not a sufficient
 # break: ensurePageContentSchema() would recreate the table and every SELECT
 # would succeed against an empty one.
 "${DB_MAIN[@]}" "RENAME TABLE page_content TO page_content_p3bak" >/dev/null 2>&1
 "${DB_MAIN[@]}" "CREATE TABLE page_content (id INT PRIMARY KEY)" >/dev/null 2>&1
-for pg in events.php "events.php?show=past" "event.php?id=1" sponsorship.php; do
+for pg in "event.php?id=1" sponsorship.php; do
   check "broken page_content: $pg still 200" "200" "$(page_code "$pg")"
   check "broken page_content: $pg still has an h1" "yes" \
     "$([ -n "$(page_h1 "$pg")" ] && echo yes || echo no)"
@@ -1254,16 +1278,16 @@ BROKEN_SP="$(curl -s "$MAIN/sponsorship.php")"
 # The whole sponsorship offer lives in page_content now, so the inline defaults
 # have to be a complete offer rather than placeholders.
 check "broken page_content: the four tiers still render" "4" \
-  "$(printf '%s' "$BROKEN_SP" | grep -c 'class="pm-price">')"
+  "$(printf '%s' "$BROKEN_SP" | grep -c 'class="pm-package__name"')"
 check "broken page_content: the form still posts the right names" "yes" \
-  "$([ "$(has_text "$BROKEN_SP" 'name="first_name"')" = yes ] && \
-     [ "$(has_text "$BROKEN_SP" 'name="last_name"')" = yes ] && \
-     [ "$(has_text "$BROKEN_SP" 'name="events[]"')" = yes ] && echo yes || echo no)"
+  "$([ "$(has_text "$BROKEN_SP" 'name="name"')" = yes ] && \
+     [ "$(has_text "$BROKEN_SP" 'name="organisation"')" = yes ] && \
+     [ "$(has_text "$BROKEN_SP" 'name="email"')" = yes ] && echo yes || echo no)"
 check "broken page_content: no error on any page" "0" \
-  "$(for p in events.php 'event.php?id=1' sponsorship.php; do curl -s "$MAIN/$p"; done \
+  "$(for p in 'event.php?id=1' sponsorship.php; do curl -s "$MAIN/$p"; done \
      | grep -ciE 'fatal error|parse error|warning:|uncaught|sqlstate')"
 check "broken page_content: still no em dash" "0" \
-  "$(for p in events.php 'event.php?id=1' sponsorship.php; do curl -s "$MAIN/$p"; done \
+  "$(for p in 'event.php?id=1' sponsorship.php; do curl -s "$MAIN/$p"; done \
      | grep -c $'\xe2\x80\x94')"
 "${DB_MAIN[@]}" "DROP TABLE page_content" >/dev/null 2>&1
 "${DB_MAIN[@]}" "RENAME TABLE page_content_p3bak TO page_content" >/dev/null 2>&1
@@ -1276,7 +1300,7 @@ check "events down migration applies cleanly" "0" \
   "$("${DB_MAIN_FILE[@]}" < "$EV_DOWN" >/dev/null 2>&1; echo $?)"
 check "back to migration 03's rows exactly" "77" "$(pc_rows)"
 # Unseeded is not broken: every call site passes its own inline default.
-for pg in events.php "event.php?id=1" sponsorship.php; do
+for pg in "event.php?id=1" sponsorship.php; do
   check "unseeded: $pg still 200 with its h1" "yes" \
     "$([ "$(page_code "$pg")" = 200 ] && [ -n "$(page_h1 "$pg")" ] && echo yes || echo no)"
 done
@@ -1378,7 +1402,8 @@ check "register seed restored" "56" "$(reg_rows)"
 echo ""; echo "=== 12b. The page renders on the design system ==="
 R_BODY="$(curl -s "$R_URL")"
 check "register page answers 200" "200" "$(page_code "event-registration.php?id=$R_EVENT")"
-check "h1 is the school itself" "$R_TITLE" "$(page_h1 "event-registration.php?id=$R_EVENT")"
+check "h1 is the first step" "The school and you" "$(page_h1 "event-registration.php?id=$R_EVENT")"
+check "the school is named on the page" "yes" "$(has_text "$R_BODY" "$R_TITLE")"
 check "no PHP error in the page" "0" \
   "$(printf '%s' "$R_BODY" | grep -ciE 'fatal error|parse error|warning:|uncaught|sqlstate')"
 check "no em dash in the rendered page" "0" "$(printf '%s' "$R_BODY" | grep -c $'\xe2\x80\x94')"
@@ -1388,18 +1413,15 @@ check "no longer loads a font or icon CDN" "0" \
   "$(printf '%s' "$R_BODY" | grep -ciE 'fonts\.googleapis|cdnjs\.cloudflare')"
 check "loads the flow script" "yes" "$(has_text "$R_BODY" '/assets/js/pm-register.js')"
 check "flow script is served" "200" "$(curl -s -o /dev/null -w '%{http_code}' "$MAIN/assets/js/pm-register.js")"
-# The prototype's five segments, by their own labels.
-check "five progress segments" "5" "$(printf '%s' "$R_BODY" | grep -c 'data-pm-progress=')"
-for lbl in 'Event and tickets' 'Contact and billing' 'Delegates' 'Review and consent' 'Confirmation'; do
-  check "progress names: $lbl" "yes" "$(has_text "$R_BODY" "$lbl")"
-done
-check "step counter present" "yes" "$(has_text "$R_BODY" 'Step 1 of 5')"
-check "selected school card names the location" "yes" "$(has_text "$R_BODY" "$R_LOC")"
-check "change school links to the calendar" "yes" \
-  "$(has_text "$R_BODY" 'pm-btn--link" href="/events.php"')"
+# Two steps and a confirmation, not the old five segments.
+check "no progress segments any more" "0" "$(printf '%s' "$R_BODY" | grep -c 'data-pm-progress=')"
+check "step counter present" "yes" "$(has_text "$R_BODY" 'Step 1 of 2')"
+check "selected school card names the city and country" "yes" "$(has_text "$R_BODY" 'Mombasa, Kenya')"
+check "change school links to the school chooser" "yes" \
+  "$(has_text "$R_BODY" 'pm-link" href="/register">Change')"
 check "invoice summary panel present" "yes" "$(has_text "$R_BODY" 'Invoice summary')"
 check "bank transfer note present" "yes" \
-  "$(has_text "$R_BODY" 'No card details are collected on this site')"
+  "$(has_text "$R_BODY" 'Pay by bank transfer or purchase order')"
 check "no undefined pm- class on the register page" "0" \
   "$(printf '%s' "$R_BODY" | php -r '
 $html = stream_get_contents(STDIN);
@@ -1432,23 +1454,38 @@ $page    = (string) file_get_contents("/tmp/verify-reg-page.html");
 preg_match_all("/\\\$_POST\\[.attendees.\\]\\[.(\\w+).\\]/", $handler, $nested);
 preg_match_all("/\\\$_POST\\[.(\\w+).\\]/", $handler, $scalar);
 $missing = 0;
+// Asked for no more: the handler still stores these as empty strings.
+$retired = ["gender", "meal_preference", "future_topics", "title"];
 foreach (array_unique($scalar[1]) as $name) {
-    if ($name === "attendees") { continue; }
+    if ($name === "attendees" || in_array($name, $retired, true)) { continue; }
     if (strpos($page, "name=\"" . $name . "\"") === false) { $missing++; }
 }
 foreach (array_unique($nested[1]) as $name) {
+    if (in_array($name, $retired, true)) { continue; }
     if (strpos($page, "name=\"attendees[" . $name . "][]\"") === false) { $missing++; }
 }
 echo $missing;')"
 # Named individually as well, so a failure above says which one.
 for n in csrf_token event_id event_name first_name last_name phone email \
-         organization country address gender meal_preference future_topics consent; do
+         organization country address consent; do
   check "form sends name=\"$n\"" "yes" "$(has_text "$R_BODY" "name=\"$n\"")"
 done
-for n in first_name last_name email title; do
+for n in first_name last_name email; do
   check "form sends attendees[$n][], five rows" "5" \
     "$(printf '%s' "$R_BODY" | grep -c -F "name=\"attendees[$n][]\"")"
 done
+# What the form no longer asks for must not be sent by it either.
+for n in gender meal_preference future_topics; do
+  check "form no longer sends name=\"$n\"" "no" "$(has_text "$R_BODY" "name=\"$n\"")"
+done
+check "form no longer sends the delegate job title" "0" \
+  "$(printf '%s' "$R_BODY" | grep -c -F 'name="attendees[title][]"')"
+check "the address is optional, the rest are required" "yes" \
+  "$(printf '%s' "$R_BODY" | php -r '
+$html = stream_get_contents(STDIN);
+preg_match("/<input[^>]*name=\"address\"[^>]*>/", $html, $a);
+preg_match("/<input[^>]*name=\"organization\"[^>]*>/", $html, $o);
+echo (!str_contains($a[0] ?? "", "required") && str_contains($o[0] ?? "", "required")) ? "yes" : "no";')"
 check "delegate rows are real markup, not a template" "0" \
   "$(printf '%s' "$R_BODY" | grep -ci '<template')"
 
@@ -1503,8 +1540,8 @@ check "response total matches the stored total" \
 # The prototype shows an early bird deduction. The handler applies none, so the
 # panel must not promise one.
 check "no discount line in the summary panel" "0" \
-  "$(printf '%s' "$R_BODY" | awk '/pm-reg__summary/,/<\/aside>/' \
-     | grep -ciE 'early bird|discount|deduct|per cent off')"
+  "$(printf '%s' "$R_BODY" | awk '/class="pm-summary"/,/<\/dl>/; /class="pm-reg__aside"/,/<\/aside>/' \
+     | grep -ciE 'early bird|early-bird|discount|deduct|per cent off')"
 # Was "no tier selector that could change the price" -- true until Lydia asked
 # for exactly that (VIP/VVIP registering at their own price, not the standard
 # rate). The selector now exists; what still must hold is that a client cannot
@@ -1534,7 +1571,24 @@ TAMPER_RESP="$(curl -s -c "$TAMPER_JAR" -b "$TAMPER_JAR" "$MAIN/process-registra
   --data-urlencode "gender=Male" --data-urlencode "meal_preference=None" --data-urlencode "consent=yes" \
   --data-urlencode "attendees[first_name][]=Tamper" --data-urlencode "attendees[last_name][]=Test" \
   --data-urlencode "attendees[email][]=tier-tamper@example.test" --data-urlencode "attendees[title][]=Officer")"
+# The same session, the minimal field set the new form sends: no address, no
+# gender, no meal preference, no topics and no job titles.
+MIN_TOKEN="$(curl -s -c "$TAMPER_JAR" -b "$TAMPER_JAR" "$R_URL" | grep -o 'name="csrf_token" value="[^"]*"' | head -1 | sed -E 's/.*value="([^"]*)".*/\1/')"
+MIN_RESP="$(curl -s -c "$TAMPER_JAR" -b "$TAMPER_JAR" "$MAIN/process-registration.php" \
+  --data-urlencode "csrf_token=$MIN_TOKEN" \
+  --data-urlencode "event_id=$R_EVENT" --data-urlencode "event_name=$R_TITLE" \
+  --data-urlencode "tier=vip" \
+  --data-urlencode "first_name=Minimal" --data-urlencode "last_name=Form" \
+  --data-urlencode "phone=+254700000198" --data-urlencode "email=minimal-form@example.test" \
+  --data-urlencode "organization=Verify" --data-urlencode "country=Kenya" --data-urlencode "consent=yes" \
+  --data-urlencode "attendees[first_name][]=Minimal" --data-urlencode "attendees[last_name][]=Form" \
+  --data-urlencode "attendees[email][]=minimal-form@example.test")"
 rm -f "$TAMPER_JAR"
+check "the minimal form is accepted without an address" "true" "$(json_success "$MIN_RESP")"
+check "it stores a blank address, not a failure" "" "$(reg_col minimal-form@example.test address)"
+check "and still invoices at the chosen tier's real price" "1999.00" "$(reg_col minimal-form@example.test unit_price_amount)"
+check "and its invoice PDF is still written" "yes" \
+  "$([ -f "public_html/$(reg_col minimal-form@example.test invoice_path)" ] && echo yes || echo no)"
 check "a tampered tier still charges the real regular price" \
   "$(reg_col tier-tamper@example.test unit_price_amount)" \
   "$(printf '%s' "$TAMPER_RESP" | php -r '$d=json_decode(stream_get_contents(STDIN),true); printf("%.2f", (float) ($d["unit_price_amount"] ?? -1));')"
@@ -1552,9 +1606,10 @@ check "the flow script does no discount arithmetic" "0" \
 check "the page's price parser mirrors parseEventPrice()" "yes" \
   "$(php -r '
 $inv = (string) file_get_contents("public_html/includes/invoice.php");
-$reg = (string) file_get_contents("public_html/event-registration.php");
+$ev  = (string) file_get_contents("public_html/includes/events.php");
+preg_match("~function pmEventParsePrice.*?\n}\n~s", $ev, $fn);
 preg_match_all("~preg_match\(([^,]+),~", $inv, $a);
-preg_match_all("~preg_match\(([^,]+),~", $reg, $b);
+preg_match_all("~preg_match\(([^,]+),~", $fn[0] ?? "", $b);
 $a = array_values(array_unique($a[1]));
 $b = array_values(array_unique($b[1]));
 sort($a); sort($b);
@@ -1604,10 +1659,10 @@ echo (str_contains($tag, "action=\"/process-registration.php\"")
       && str_contains($tag, "method=\"post\"")) ? "yes" : "no";')"
 check "a real submit button is in the document" "1" \
   "$(printf '%s' "$R_BODY" | grep -c 'type="submit" data-pm-submit')"
-check "all four input steps are in the document" "4" \
+check "both input steps are in the document" "2" \
   "$(printf '%s' "$R_BODY" | grep -c 'class="pm-reg__panel"')"
-check "progress segments are real anchors" "5" \
-  "$(printf '%s' "$R_BODY" | grep -c 'href="#pm-reg-step-')"
+check "each step has its own real button without script" "2" \
+  "$(printf '%s' "$R_BODY" | grep -c 'pm-reg__inline-cta')"
 check "the confirmation ships hidden by attribute" "1" \
   "$(printf '%s' "$R_BODY" | grep -c 'data-pm-done hidden')"
 # The steps must collapse on an attribute the flow script sets ITSELF, not on
@@ -1674,7 +1729,7 @@ echo ""; echo "=== 12j. The register page survives a broken content table ==="
 "${DB_MAIN[@]}" "CREATE TABLE page_content (id INT PRIMARY KEY)" >/dev/null 2>&1
 R_BROKEN="$(curl -s "$R_URL")"
 check "broken page_content: register page still 200" "200" "$(page_code "event-registration.php?id=$R_EVENT")"
-check "broken page_content: still has its h1" "$R_TITLE" "$(page_h1 "event-registration.php?id=$R_EVENT")"
+check "broken page_content: still has its h1" "The school and you" "$(page_h1 "event-registration.php?id=$R_EVENT")"
 check "broken page_content: no error on the page" "0" \
   "$(printf '%s' "$R_BROKEN" | grep -ciE 'fatal error|parse error|warning:|uncaught|sqlstate')"
 check "broken page_content: still no em dash" "0" "$(printf '%s' "$R_BROKEN" | grep -c $'\xe2\x80\x94')"
@@ -1684,11 +1739,11 @@ check "broken page_content: the POST contract is intact" "yes" \
   "$([ "$(has_text "$R_BROKEN" 'name="first_name"')" = yes ] && \
      [ "$(has_text "$R_BROKEN" 'name="consent"')" = yes ] && \
      [ "$(has_text "$R_BROKEN" 'name="attendees[first_name][]"')" = yes ] && \
-     [ "$(has_text "$R_BROKEN" 'name="attendees[title][]"')" = yes ] && echo yes || echo no)"
+     [ "$(has_text "$R_BROKEN" 'name="attendees[email][]"')" = yes ] && echo yes || echo no)"
 check "broken page_content: the invoice figures still render" "599.00" \
   "$(reg_attr "$R_BROKEN" data-pm-total-amount)"
-check "broken page_content: five progress segments still render" "5" \
-  "$(printf '%s' "$R_BROKEN" | grep -c 'data-pm-progress=')"
+check "broken page_content: both steps still render" "2" \
+  "$(printf '%s' "$R_BROKEN" | grep -c 'class="pm-reg__panel"')"
 "${DB_MAIN[@]}" "DROP TABLE page_content" >/dev/null 2>&1
 "${DB_MAIN[@]}" "RENAME TABLE page_content_p4bak TO page_content" >/dev/null 2>&1
 check "page_content restored with its rows" "238" "$(pc_rows)"
@@ -1698,19 +1753,19 @@ echo ""; echo "=== 12k. Animated stat counters ==="
 # curl runs no script, so these are the no-JavaScript renderings.
 IDX="$(curl -s "$MAIN/index.php")"
 ABT="$(curl -s "$MAIN/about.php")"
-check "homepage: the real 875 is in the markup" "2" \
+check "homepage: the real 875 is in the markup" "1" \
   "$(printf '%s' "$IDX" | grep -c 'data-pm-count>875<')"
 check "about: the real 875 is in the markup" "1" \
   "$(printf '%s' "$ABT" | grep -c 'data-pm-count>875<')"
-check "homepage: the real 25 is in the markup" "2" \
+check "homepage: the real 25 is in the markup" "1" \
   "$(printf '%s' "$IDX" | grep -c 'data-pm-count>25<')"
 check "homepage: no counter renders as 0" "0" \
   "$(printf '%s' "$IDX" | grep -c 'data-pm-count>0<')"
 check "about: no counter renders as 0" "0" \
   "$(printf '%s' "$ABT" | grep -c 'data-pm-count>0<')"
-check "homepage: counter markup on every stat" "8" \
+check "homepage: counter markup on every stat" "2" \
   "$(printf '%s' "$IDX" | grep -c 'data-pm-count')"
-check "about: counter markup on every stat" "4" \
+check "about: counter markup on every stat" "2" \
   "$(printf '%s' "$ABT" | grep -c 'data-pm-count')"
 check "the counter lives in pm-layout.js, not a new file" "1" \
   "$(grep -c 'data-pm-count' public_html/assets/js/pm-layout.js)"
@@ -2084,25 +2139,27 @@ nav_labels() { curl -s "$MAIN/index.php" | grep -c 'class="pm-nav__link"'; }
 menu_login
 check "menus.php returns 200" "200" "$(curl -s -b "$NJAR" -o /dev/null -w '%{http_code}' "$MAIN/admin/menus.php")"
 check "cms_menu_items was created on demand" "1" "$(table_exists cms_menu_items)"
-check "the header menu was seeded from the built-in list" "7" \
+check "the header menu was seeded from the built-in list" "4" \
   "$("${DB_MAIN[@]}" "SELECT COUNT(*) FROM cms_menu_items WHERE location='header'")"
 check "the menu migration has both halves" "2" \
   "$(ls public_html/database/migrations/2026-09-03-05-create-cms-menu-items.*.sql 2>/dev/null | wc -l | tr -d ' ')"
-check "the public nav renders seven links" "7" "$(nav_labels)"
-check "the current page is still marked" "2" "$(curl -s "$MAIN/events.php" | grep -c 'aria-current="page"')"
+check "the public nav renders four links" "4" "$(nav_labels)"
+check "the current page is still marked" "1" "$(curl -s "$MAIN/about.php" | grep -c 'aria-current="page"')"
+check "the Schools link goes to the home page's section" "yes" \
+  "$(has_text "$(curl -s "$MAIN/about.php")" 'href="/#schools"')"
 
-MID="$("${DB_MAIN[@]}" "SELECT id FROM cms_menu_items WHERE label='Services' LIMIT 1")"
+MID="$("${DB_MAIN[@]}" "SELECT id FROM cms_menu_items WHERE label='Webinars' LIMIT 1")"
 curl -s -b "$NJAR" -o /dev/null -X POST "$MAIN/admin/menus.php" \
   --data-urlencode "csrf_token=$(menu_token)" -d "action=update" -d "location=header" \
-  -d "id=$MID" -d "label=Programmes" -d "link_type=page" -d "target=services.php" -d "is_active=1"
-check "renaming an item changes the live site" "2" "$(curl -s "$MAIN/index.php" | grep -c '>Programmes<')"
+  -d "id=$MID" -d "label=Programmes" -d "link_type=page" -d "target=webinars.php" -d "is_active=1"
+check "renaming an item changes the live site" "1" "$(curl -s "$MAIN/index.php" | grep -c '>Programmes<')"
 check "renaming a menu item is audited"        "1" \
   "$("${DB_MAIN[@]}" "SELECT COUNT(*) FROM cms_audit_log WHERE action='menu_update'")"
 
 curl -s -b "$NJAR" -o /dev/null -X POST "$MAIN/admin/menus.php" \
   --data-urlencode "csrf_token=$(menu_token)" -d "action=update" -d "location=header" \
-  -d "id=$MID" -d "label=Programmes" -d "link_type=page" -d "target=services.php"
-check "an item can be hidden from the site" "6" "$(nav_labels)"
+  -d "id=$MID" -d "label=Programmes" -d "link_type=page" -d "target=webinars.php"
+check "an item can be hidden from the site" "3" "$(nav_labels)"
 
 OUT="$(curl -s -b "$NJAR" -X POST "$MAIN/admin/menus.php" \
   --data-urlencode "csrf_token=$(menu_token)" -d "action=add" -d "location=header" \
@@ -2113,9 +2170,9 @@ check "and nothing was stored for it"        "0" \
 
 echo "  ---- CRITICAL: an empty or missing menu table must not empty the navigation ----"
 "${DB_MAIN[@]}" "DELETE FROM cms_menu_items" >/dev/null 2>&1
-check "an empty menu falls back to the built-in nav" "7" "$(nav_labels)"
+check "an empty menu falls back to the built-in nav" "4" "$(nav_labels)"
 "${DB_MAIN[@]}" "RENAME TABLE cms_menu_items TO cms_menu_items_parked" >/dev/null 2>&1
-check "a missing menu table falls back too"          "7" "$(nav_labels)"
+check "a missing menu table falls back too"          "4" "$(nav_labels)"
 check "the homepage still returns 200"             "200" "$(curl -s -o /dev/null -w '%{http_code}' "$MAIN/index.php")"
 "${DB_MAIN[@]}" "RENAME TABLE cms_menu_items_parked TO cms_menu_items" >/dev/null 2>&1
 
@@ -2280,14 +2337,14 @@ check "the trash records who did it" "Craig" \
   "$("${DB_MAIN[@]}" "SELECT deleted_by FROM cms_trash ORDER BY id DESC LIMIT 1")"
 check "and where it came from" "Header menu" \
   "$("${DB_MAIN[@]}" "SELECT context FROM cms_trash ORDER BY id DESC LIMIT 1")"
-check "the live menu is one shorter" "6" \
+check "the live menu is one shorter" "3" \
   "$("${DB_MAIN[@]}" "SELECT COUNT(*) FROM cms_menu_items WHERE location='header'")"
 
 TU="$MAIN/admin/trash.php"
 TID="$("${DB_MAIN[@]}" "SELECT id FROM cms_trash ORDER BY id DESC LIMIT 1")"
 curl -s -b "$TJAR" -o /dev/null -X POST "$TU" --data-urlencode "csrf_token=$(tr_token "$TU")" \
   -d "action=restore" -d "id=$TID"
-check "restoring puts the menu item back" "7" \
+check "restoring puts the menu item back" "4" \
   "$("${DB_MAIN[@]}" "SELECT COUNT(*) FROM cms_menu_items WHERE location='header'")"
 check "and the trash row is marked restored" "1" \
   "$("${DB_MAIN[@]}" "SELECT COUNT(*) FROM cms_trash WHERE id=$TID AND restored_at IS NOT NULL")"
@@ -2672,6 +2729,9 @@ curl -s -b "$RJ" -o /dev/null -X POST "$RU" --data-urlencode "csrf_token=$(r_tok
   --data-urlencode "role=Chief Accountant" --data-urlencode "org=Verify Ministry" -d "is_published=1"
 check "adding a review stores it" "1" \
   "$("${DB_MAIN[@]}" "SELECT COUNT(*) FROM cms_testimonials WHERE org='Verify Ministry'")"
+# The homepage shows three reviews in the editor's order, so the new one is put
+# first, which is what an editor wanting it seen would do.
+"${DB_MAIN[@]}" "UPDATE cms_testimonials SET sort_order = -1 WHERE org='Verify Ministry'" >/dev/null 2>&1
 check "and it reaches the homepage" "1" \
   "$(curl -s "$MAIN/index.php" | grep -c 'A verified delegate review for the acceptance suite')"
 check "adding is audited" "1" "$("${DB_MAIN[@]}" "SELECT COUNT(*) FROM cms_audit_log WHERE action='review_add'")"
@@ -2736,31 +2796,29 @@ check "nor an early bird percentage" "0" \
 check "so no price reaches a past cohort's page" "0" \
   "$(curl -s "$MAIN/event.php?id=25" | grep -c 'USD 599')"
 
-PAST="$(curl -s "$MAIN/events.php?show=past")"
-check "the past tab lists all seven" "7"  "$(printf '%s' "$PAST" | grep -c 'class="pm-listing__row"')"
-check "the count says so"            "1"  "$(printf '%s' "$PAST" | grep -c '7 past cohorts')"
-check "no early bird badge on a finished school" "0" \
-  "$(printf '%s' "$PAST" | grep -c 'pm-label--green')"
+PAST="$(curl -s "$MAIN/about.php")"
+check "About lists all seven past cohorts" "7"  "$(printf '%s' "$PAST" | grep -c 'pm-sessions__title')"
+check "and links to them"                  "1"  "$(printf '%s' "$PAST" | grep -c 'href="#past-cohorts"')"
+check "no early bird line on a finished school" "0" \
+  "$(printf '%s' "$PAST" | grep -c 'early-bird discount')"
 check "a past cohort's own page still opens" "200" \
   "$(curl -s -o /dev/null -w '%{http_code}' "$MAIN/event.php?id=20")"
 check "and says the cohort has run" "1" \
   "$(curl -s "$MAIN/event.php?id=20" | grep -c 'already run')"
-check "the upcoming tab is unaffected" "4" \
-  "$(curl -s "$MAIN/events.php" | grep -c 'class="pm-listing__row"')"
+check "the home page's schools are unaffected" "4" \
+  "$(curl -s "$MAIN/index.php" | grep -c 'class="pm-school"')"
 
-echo "  ---- a cohort with no designed banner gets a monogram, not a gap ----"
-check "all seven draw one"     "7"  "$(printf '%s' "$PAST" | grep -c 'pm-banner--monogram')"
-check "initials come from the words that carry the name" "1" \
-  "$(printf '%s' "$PAST" | grep -c '>FF<')"
-check "joining words are skipped"  "1"  "$(printf '%s' "$PAST" | grep -c '>TE<')"
-check "it is hidden from a screen reader" "7" \
-  "$(printf '%s' "$PAST" | grep -c 'pm-banner--monogram" aria-hidden')"
-check "an event with a real banner still shows it" "0" \
-  "$(curl -s "$MAIN/events.php" | grep -c 'pm-banner--monogram')"
-check "the monogram style is defined" "1" \
-  "$(grep -c '^\.pm-banner--monogram {' public_html/assets/css/pm-design-system.css)"
-check "both card shapes share one renderer" "2" \
-  "$(grep -l 'pmRenderEventBanner(' public_html/events.php public_html/includes/layout/event-card.php | wc -l | tr -d ' ')"
+echo "  ---- a school with no designed poster gets a monogram, not a gap ----"
+fq "INSERT INTO events (title, tagline, date_display, event_start_date, location, price, is_active, sort_order, agenda, audience, regular_price, regular_perks)
+    VALUES ('Verify Monogram School', 'No poster.', '1-5 June 2027', '2027-06-01', 'Nairobi, Kenya', 'From USD 599 Per Delegate', 1, 93, '[{\"day\":1,\"title\":\"Day one\",\"desc\":\"Topic A\"}]', 'Finance officers', 'USD 599', 'Course materials')" >/dev/null
+MONO="$(curl -s "$MAIN/index.php")"
+check "the card draws one"                          "1" "$(printf '%s' "$MONO" | grep -c 'pm-poster--empty')"
+check "initials come from the words that carry the name" "1" "$(printf '%s' "$MONO" | grep -c '>VM<')"
+check "it is hidden from a screen reader"          "1" "$(printf '%s' "$MONO" | grep -c 'aria-hidden="true">VM<')"
+check "schools with a real poster still show it"   "4" "$(printf '%s' "$MONO" | grep -c 'alt="Poster for ')"
+check "the monogram style is defined"              "1" \
+  "$(grep -c '^\.pm-poster--empty {' public_html/assets/css/pm-design-system.css)"
+fq "DELETE FROM events WHERE title='Verify Monogram School'" >/dev/null
 
 echo
 echo "=== 25. Registration details modal ==="
@@ -2785,11 +2843,11 @@ check "nor an unversioned local script" "0" \
   "$(grep -rn 'script src="[/.][^"]*\.js"' public_html/admin public_html/includes/layout | grep -vc 'pmAssetUrl')"
 
 check "the public page stamps its stylesheet" "1" \
-  "$(curl -s "$MAIN/events.php" | grep -c 'pm-design-system\.css?v=[0-9]')"
+  "$(curl -s "$MAIN/index.php" | grep -c 'pm-design-system\.css?v=[0-9]')"
 check "and its script"                        "1" \
-  "$(curl -s "$MAIN/events.php" | grep -c 'pm-layout\.js?v=[0-9]')"
+  "$(curl -s "$MAIN/index.php" | grep -c 'pm-layout\.js?v=[0-9]')"
 check "a per-page script is stamped too"      "1" \
-  "$(curl -s "$MAIN/events.php" | grep -c 'pm-copy-link\.js?v=[0-9]')"
+  "$(curl -s "$MAIN/event-registration.php?id=5" | grep -c 'pm-register\.js?v=[0-9]')"
 check "the sign in screen stamps its stylesheet" "1" \
   "$(curl -s "$MAIN/admin/login.php" | grep -c 'pm-admin\.css?v=[0-9]')"
 
@@ -3289,9 +3347,9 @@ check "and no counted row survives it" "0" \
   "$(fq "SELECT COUNT(*) FROM page_content WHERE content_value LIKE '%our flagship%'")"
 
 check "the homepage heading reads without a count" "1" \
-  "$(curl -s "$MAIN/index.php" | grep -c '>Flagship events<')"
-check "so does the sponsorship one"                "1" \
-  "$(curl -s "$MAIN/sponsorship.php" | grep -c 'Flagship schools in 2026')"
+  "$(curl -s "$MAIN/index.php" | grep -c '>2026 schools<')"
+check "so does the sponsorship one"                "Partner with us" \
+  "$(page_h1 sponsorship.php)"
 
 echo "  ---- CRITICAL: a correction must not overwrite a human edit ----"
 fq "UPDATE page_content SET content_value='Our 2027 schools'
@@ -3367,16 +3425,15 @@ DS=public_html/assets/css/pm-design-system.css
 echo "  ---- CRITICAL: cover cut the title and phone numbers off the posters ----"
 # The September 2026 posters are 1254x1254. In the old 16:9 slot, object-fit
 # cover removed 44% of their height from the middle outwards.
-check "the banner no longer crops to fill" "0" \
-  "$(awk '/^\.pm-banner > img \{/,/^}/' $DS | grep -c 'object-fit: cover')"
-check "it contains the whole image instead" "1" \
-  "$(awk '/^\.pm-banner > img \{/,/^}/' $DS | grep -c 'object-fit: contain')"
+check "nothing in the stylesheet crops to fill" "0" "$(grep -c 'object-fit: cover' $DS)"
+check "a poster is contained whole instead" "1" \
+  "$(grep -c '^\.pm-poster img { .*object-fit: contain' $DS)"
 
 echo "  ---- one shape, so a row of cards is not ragged ----"
-check "the slot has a single ratio" "1" \
-  "$(awk '/^\.pm-banner \{/,/^}/' $DS | grep -c 'aspect-ratio: 1 / 1')"
-check "and the narrow listing column has its own" "1" \
-  "$(grep -c '^\.pm-listing__row \.pm-banner {' $DS)"
+check "the card slot has a single ratio" "1" \
+  "$(grep -c '^\.pm-poster--card { aspect-ratio: 4 / 5; }' $DS)"
+check "the school page poster keeps its own proportions" "1" \
+  "$(grep -c '^\.pm-school-page__poster img { width: 100%; height: auto;' $DS)"
 
 echo "  ---- intrinsic size is emitted, so the page does not jump ----"
 check "the helper exists"                    "1" \
@@ -3385,6 +3442,104 @@ check "and the width attribute is rendered"  "1" \
   "$(grep -c 'width="<?php echo \$size\[0\]' public_html/includes/layout/event-card.php)"
 check "an unmeasurable file just goes without" "1" \
   "$(grep -c 'if (\$size !== null)' public_html/includes/layout/event-card.php)"
+
+echo
+echo "=== 36. Site v2: typeface, home treatment, Appearance settings, the school chooser ==="
+
+echo "  ---- the typeface is one setting, from a fixed list ----"
+font_override() { curl -s "$MAIN/$1" | grep -c -- '--pm-font:'; }
+check "the default typeface sets no override"       "0" "$(font_override about.php)"
+check "Manrope is the preloaded file"               "yes" \
+  "$(has_text "$(curl -s "$MAIN/about.php")" 'Manrope-Variable.ttf" as="font"')"
+fq "INSERT INTO site_settings (setting_key, setting_value) VALUES ('site_typeface', 'Inter') ON DUPLICATE KEY UPDATE setting_value=VALUES(setting_value)" >/dev/null
+check "Inter sets the stack on every page"          "1" \
+  "$(curl -s "$MAIN/about.php" | grep -c -- "--pm-font: 'Inter'")"
+check "and preloads the Inter file"                 "yes" \
+  "$(has_text "$(curl -s "$MAIN/index.php")" 'Inter-Variable.ttf" as="font"')"
+fq "UPDATE site_settings SET setting_value='Comic Sans; } body { display:none } /*' WHERE setting_key='site_typeface'" >/dev/null
+check "a value outside the list falls back to Manrope" "0" "$(font_override about.php)"
+check "and injects nothing into the page"           "0" \
+  "$(curl -s "$MAIN/about.php" | grep -c 'display:none } /\*')"
+fq "DELETE FROM site_settings WHERE setting_key='site_typeface'" >/dev/null
+
+echo "  ---- only the home page can go dark ----"
+check "white is the default"                        "0" "$(curl -s "$MAIN/index.php" | grep -c 'data-pm-treatment')"
+fq "INSERT INTO site_settings (setting_key, setting_value) VALUES ('home_treatment', 'dark') ON DUPLICATE KEY UPDATE setting_value=VALUES(setting_value)" >/dev/null
+check "the home page takes the dark treatment"      "1" "$(curl -s "$MAIN/index.php" | grep -c 'data-pm-treatment="dark"')"
+check "every other page stays white"                "0" \
+  "$(for p in about.php webinars.php sponsorship.php 'event.php?id=1'; do curl -s "$MAIN/$p"; done | grep -c 'data-pm-treatment')"
+check "the dark tokens are defined"                 "1" \
+  "$(grep -c '^body\[data-pm-treatment="dark"\] {' public_html/assets/css/pm-design-system.css)"
+fq "DELETE FROM site_settings WHERE setting_key='home_treatment'" >/dev/null
+
+echo "  ---- Settings: Appearance and chat ----"
+SJ=/tmp/verify-v2-settings.txt
+rm -f "$SJ"
+STOK="$(curl -s -c "$SJ" "$MAIN/admin/login.php" | sed -n 's/.*name="csrf_token" value="\([^"]*\)".*/\1/p' | head -1)"
+curl -s -b "$SJ" -c "$SJ" -o /dev/null --data-urlencode "csrf_token=$STOK" \
+  --data-urlencode "username=Craig" --data-urlencode "password=localtest-analytics-pw" "$MAIN/admin/login.php"
+s_tok() { curl -s -b "$SJ" "$MAIN/admin/settings.php" | sed -n 's/.*name="csrf_token" value="\([^"]*\)".*/\1/p' | head -1; }
+setting() { fq "SELECT IFNULL((SELECT setting_value FROM site_settings WHERE setting_key='$1'), 'UNSET')"; }
+
+check "the Appearance card is on the Settings screen" "yes" \
+  "$(has_text "$(curl -s -b "$SJ" "$MAIN/admin/settings.php")" 'Appearance and chat')"
+curl -s -b "$SJ" -o /dev/null -X POST "$MAIN/admin/settings.php" \
+  --data-urlencode "csrf_token=$(s_tok)" -d "save_appearance=1" -d "site_typeface=Roboto" \
+  -d "home_treatment=dark" --data-urlencode "whatsapp_number=+254 712 345 678"
+check "the typeface is stored"             "Roboto"       "$(setting site_typeface)"
+check "the home treatment is stored"       "dark"         "$(setting home_treatment)"
+check "the WhatsApp number is stored as digits only" "254712345678" "$(setting whatsapp_number)"
+check "and the site uses it at once"       "yes" \
+  "$(has_text "$(curl -s "$MAIN/about.php")" 'https://wa.me/254712345678')"
+check "the save is audited"                "1" \
+  "$(fq "SELECT COUNT(*) FROM cms_audit_log WHERE action='settings_appearance'")"
+
+curl -s -b "$SJ" -o /dev/null -X POST "$MAIN/admin/settings.php" \
+  --data-urlencode "csrf_token=$(s_tok)" -d "save_appearance=1" -d "site_typeface=Papyrus" \
+  -d "home_treatment=purple" --data-urlencode "whatsapp_number=254712345678"
+check "a typeface outside the list is stored as Manrope" "Manrope" "$(setting site_typeface)"
+check "a treatment outside the list is stored as white"  "white"   "$(setting home_treatment)"
+
+OUT="$(curl -s -b "$SJ" -X POST "$MAIN/admin/settings.php" \
+  --data-urlencode "csrf_token=$(s_tok)" -d "save_appearance=1" -d "site_typeface=Inter" \
+  -d "home_treatment=dark" -d "whatsapp_number=123")"
+check "a number too short to dial is refused"            "yes" "$(has_text "$OUT" 'country code')"
+check "and nothing from that save was kept"              "Manrope" "$(setting site_typeface)"
+check "a forged token saves nothing"                     "Manrope" \
+  "$(curl -s -b "$SJ" -o /dev/null -X POST "$MAIN/admin/settings.php" -d "csrf_token=forged" \
+       -d "save_appearance=1" -d "site_typeface=Inter" >/dev/null; setting site_typeface)"
+
+echo "  ---- one Settings form no longer blanks the other's values ----"
+fq "INSERT INTO site_settings (setting_key, setting_value) VALUES ('company_name', 'Probe Co') ON DUPLICATE KEY UPDATE setting_value=VALUES(setting_value)" >/dev/null
+curl -s -b "$SJ" -o /dev/null -X POST "$MAIN/admin/settings.php" \
+  --data-urlencode "csrf_token=$(s_tok)" -d "save_settings=1" -d "site_title=Probe Title"
+check "the form's own field is saved"              "Probe Title" "$(setting site_title)"
+check "a field the form did not send is left alone" "Probe Co"   "$(setting company_name)"
+curl -s -b "$SJ" -o /dev/null -X POST "$MAIN/admin/settings.php" \
+  --data-urlencode "csrf_token=$(s_tok)" -d "save_settings=1" -d "site_title="
+check "a field sent empty is still cleared"        "" "$(setting site_title)"
+fq "DELETE FROM site_settings WHERE setting_key IN ('site_typeface','home_treatment','whatsapp_number','site_title','company_name')" >/dev/null
+rm -f "$SJ"
+
+echo "  ---- the school chooser ----"
+check "/register with several open schools asks which" "200" "$(page_code event-registration.php)"
+check "and lists each open school"                  "4" \
+  "$(curl -s "$MAIN/event-registration.php" | grep -c 'class="pm-pick"')"
+fq "UPDATE events SET is_active=0 WHERE id IN (2,3,5)" >/dev/null
+check "with one school open it goes straight to it" "302" "$(page_code event-registration.php)"
+check "and the destination is that school's form"   "yes" \
+  "$(has_text "$(redirect_to event-registration.php)" 'register')"
+fq "UPDATE events SET is_active=0 WHERE id=1" >/dev/null
+check "with none open it goes to the schools section" "/#schools" "$(redirect_to event-registration.php)"
+fq "UPDATE events SET is_active=1 WHERE id IN (1,2,3,5)" >/dev/null
+fq "UPDATE events SET is_active=0 WHERE id=5" >/dev/null
+check "a link to a closed school goes to the schools section" "/#schools" \
+  "$(redirect_to 'event-registration.php?id=5')"
+fq "UPDATE events SET is_active=1 WHERE id=5" >/dev/null
+check "the header Register button points at the chooser" "yes" \
+  "$(has_text "$(curl -s "$MAIN/index.php")" 'href="/register"')"
+check "and is left out of the registration page itself" "0" \
+  "$(curl -s "$MAIN/event-registration.php?id=5" | grep -c 'pm-header__cta')"
 
 echo
 printf '\n%s\npassed=%d failed=%d\n%s\n' "$(printf '=%.0s' {1..78})" "$pass" "$fail" "$(printf '=%.0s' {1..78})"

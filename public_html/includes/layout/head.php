@@ -46,7 +46,7 @@ $pmBodyClass = trim('pm ' . (string) ($pmPage['body_class'] ?? ''));
     <meta name="twitter:description" content="<?php echo pmEsc($pmDescription); ?>">
     <meta name="twitter:image" content="<?php echo pmEsc($pmOgImage); ?>">
 
-    <meta name="theme-color" content="#000000">
+    <meta name="theme-color" content="<?php echo ($pmPage['treatment'] ?? '') === 'dark' ? '#000000' : '#FFFFFF'; ?>">
     <!-- Favicons cropped from the real logo file (the shield and neural head,
          without the wordmark), not redrawn. The full lock-up is 713x183 and is
          unreadable squashed into a square, which is the only reason a separate
@@ -55,34 +55,20 @@ $pmBodyClass = trim('pm ' . (string) ($pmPage['body_class'] ?? ''));
     <link rel="icon" href="/assets/images/favicon-512.png" sizes="512x512" type="image/png">
     <link rel="apple-touch-icon" href="/assets/images/favicon-180.png">
 
-    <!-- Maharlika is self-hosted and is the only typeface. Preloaded because it
-         is used for every character on the page including the first heading;
-         crossorigin is required even same-origin for font fetches. -->
-    <link rel="preload" href="/assets/fonts/Maharlika-Regular.ttf" as="font" type="font/ttf" crossorigin>
+<?php
+$pmFace = pmTypeface();
+$pmFaceFile = PM_TYPEFACE_FILES[$pmFace];
+?>
+    <link rel="preload" href="<?php echo pmEsc($pmFaceFile); ?>" as="font" type="font/ttf" crossorigin>
     <link rel="stylesheet" href="<?php echo pmAssetUrl('/assets/css/pm-design-system.css'); ?>">
-<?php // Per-page stylesheets, after the design system so a page can override
-      // and never the other way round. Paths only, escaped: see pmPageConfig().
-      foreach ((array) ($pmPage['styles'] ?? []) as $pmStyle): ?>
+<?php // The face is one setting. Only a name from PM_TYPEFACES reaches this
+      // line, so the stack is a constant and never visitor or admin text. ?>
+<?php if ($pmFace !== 'Manrope'): ?>
+    <style>:root { --pm-font: <?php echo PM_TYPEFACES[$pmFace]; ?>; }</style>
+<?php endif; ?>
+<?php foreach ((array) ($pmPage['styles'] ?? []) as $pmStyle): ?>
     <link rel="stylesheet" href="<?php echo pmEsc(pmAssetUrl((string) $pmStyle)); ?>">
 <?php endforeach; ?>
-<?php // A client-requested font trial, one typeface per page, so the same four
-      // pages can be reopened later with a different font and compared side by
-      // side. Overrides --pm-font after the design system loads, so nothing
-      // else about the page changes. Removed entirely once a font is chosen.
-      // Self-hosted, same as every other typeface on the site: no third-party
-      // font request, no dependency on an external CDN staying reachable.
-      $pmFontTrial = (array) ($pmPage['font_trial'] ?? []);
-      if (!empty($pmFontTrial['family'])):
-        // Not pmEsc(): this is CSS text, not an HTML attribute, and a
-        // font-family value needs its literal single quotes to survive.
-        // pmEsc() HTML-entity-encodes them into &#039;, which a <style>
-        // element's raw text does not decode, silently breaking the whole
-        // declaration. The value is always a hardcoded array literal from a
-        // page's own pmPageBegin() call, never user or database content;
-        // stripping ; { } < > is defense in depth, not a response to any
-        // untrusted input this ever actually carries. ?>
-    <style>:root { --pm-font: <?php echo preg_replace('/[;{}<>]/', '', (string) $pmFontTrial['family']); ?>; }</style>
-<?php endif; ?>
 
     <!-- Marks the document as script-capable before first paint, so the mobile
          menu's collapsed state is never applied to a browser that could not
@@ -92,11 +78,6 @@ $pmBodyClass = trim('pm ' . (string) ($pmPage['body_class'] ?? ''));
 
     <?php include __DIR__ . '/../google-tag.php'; ?>
 </head>
-<body class="<?php echo pmEsc($pmBodyClass); ?>">
+<body class="<?php echo pmEsc($pmBodyClass); ?>"<?php echo ($pmPage['treatment'] ?? '') === 'dark' ? ' data-pm-treatment="dark"' : ''; ?>>
 <?php pmGtmBody(); ?>
 <a class="pm-skip-link" href="#pm-main">Skip to content</a>
-<?php if (!empty($pmFontTrial['name'])): ?>
-<div style="background:#111;color:#fff;text-align:center;font:600 12px/2.4 sans-serif;letter-spacing:.03em;">
-  Font trial: this page is set in <?php echo pmEsc((string) $pmFontTrial['name']); ?>. Compare with the other three trial pages.
-</div>
-<?php endif; ?>
