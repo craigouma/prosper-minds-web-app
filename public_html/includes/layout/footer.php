@@ -119,7 +119,8 @@ foreach ($pmSocials as $pmKey => $pmMeta) {
           <a href="/sponsorship.php">Partner with us</a>
           <a href="/about.php">About</a>
 <?php foreach ($pmSocialLinks as $pmLink): ?>
-          <a href="<?php echo pmEsc($pmLink['href']); ?>" target="_blank" rel="noopener noreferrer"><?php
+          <a href="<?php echo pmEsc($pmLink['href']); ?>" target="_blank" rel="noopener noreferrer"
+             aria-label="Prosperminds on <?php echo pmEsc($pmLink['label']); ?>"><?php
             echo pmEsc($pmLink['label']); ?></a>
 <?php endforeach; ?>
         </div>
