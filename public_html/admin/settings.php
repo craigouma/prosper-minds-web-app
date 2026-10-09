@@ -50,6 +50,42 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_settings'])) {
     }
 }
 
+// ── Appearance and chat ────────────────────────────────────
+// Its own form and its own keys, so the allowlists below cannot be bypassed by
+// a value posted through the general settings form.
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_appearance'])) {
+    if (!validateCsrfToken($_POST['csrf_token'] ?? '')) {
+        $error = 'Invalid security token.';
+    } else {
+        $typeface  = (string) ($_POST['site_typeface'] ?? 'Manrope');
+        $treatment = (string) ($_POST['home_treatment'] ?? 'white');
+        $whatsapp  = preg_replace('/\D+/', '', (string) ($_POST['whatsapp_number'] ?? '')) ?? '';
+
+        if (!in_array($typeface, ['Manrope', 'Inter', 'Roboto', 'Calibri'], true)) {
+            $typeface = 'Manrope';
+        }
+        if (!in_array($treatment, ['white', 'dark'], true)) {
+            $treatment = 'white';
+        }
+
+        if ($whatsapp !== '' && (strlen($whatsapp) < 8 || strlen($whatsapp) > 15)) {
+            $error = 'Enter the WhatsApp number with its country code, for example 254712345678.';
+        } else {
+            $stmt = $pdo->prepare(
+                "INSERT INTO site_settings (setting_key, setting_value)
+                 VALUES (?, ?)
+                 ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value)"
+            );
+            $stmt->execute(['site_typeface', $typeface]);
+            $stmt->execute(['home_treatment', $treatment]);
+            $stmt->execute(['whatsapp_number', $whatsapp]);
+            pmAudit($pdo, 'settings_appearance', 'Typeface ' . $typeface . ', home ' . $treatment
+                . ', WhatsApp ' . ($whatsapp === '' ? 'off' : 'on'));
+            $success = 'Appearance saved.';
+        }
+    }
+}
+
 // ── One click brand fill, for a host with no shell ──────────
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['seed_identity'])) {
     if (!validateCsrfToken($_POST['csrf_token'] ?? '')) {
@@ -250,6 +286,44 @@ foreach ([
       </div>
     </div>
     <button type="submit" class="btn btn-primary btn-sm">Save site details</button>
+  </form>
+</div>
+
+<div class="card" style="margin-bottom:24px;">
+  <div class="card-title" style="margin-bottom:4px;">
+    <i class="fas fa-palette" style="color:var(--primary);margin-right:6px;"></i>Appearance and chat
+  </div>
+  <div class="card-subtitle" style="margin-bottom:20px;">How the public site looks, and the WhatsApp button</div>
+  <form method="POST" action="settings.php">
+    <?php echo csrfField(); ?>
+    <input type="hidden" name="save_appearance" value="1">
+    <div class="form-grid">
+      <div class="form-group">
+        <label for="site_typeface">Typeface</label>
+        <select id="site_typeface" name="site_typeface" class="form-control">
+<?php foreach (['Manrope' => 'Manrope (recommended)', 'Inter' => 'Inter', 'Roboto' => 'Roboto', 'Calibri' => 'Calibri (served as Carlito)'] as $pmFaceKey => $pmFaceLabel): ?>
+          <option value="<?php echo $pmFaceKey; ?>"<?php echo sv($settings, 'site_typeface', 'Manrope') === $pmFaceKey ? ' selected' : ''; ?>><?php echo $pmFaceLabel; ?></option>
+<?php endforeach; ?>
+        </select>
+        <small>One setting for the whole public site. Every page follows it.</small>
+      </div>
+      <div class="form-group">
+        <label for="home_treatment">Home page</label>
+        <select id="home_treatment" name="home_treatment" class="form-control">
+          <option value="white"<?php echo sv($settings, 'home_treatment', 'white') === 'white' ? ' selected' : ''; ?>>White</option>
+          <option value="dark"<?php echo sv($settings, 'home_treatment', 'white') === 'dark' ? ' selected' : ''; ?>>Dark</option>
+        </select>
+        <small>Only the home page changes; the other pages stay white.</small>
+      </div>
+      <div class="form-group">
+        <label for="whatsapp_number">WhatsApp number</label>
+        <input type="text" id="whatsapp_number" name="whatsapp_number" class="form-control"
+               inputmode="numeric" placeholder="254712345678"
+               value="<?php echo sv($settings, 'whatsapp_number'); ?>">
+        <small>With the country code and no plus sign. Leave blank to hide every WhatsApp button.</small>
+      </div>
+    </div>
+    <button type="submit" class="btn btn-primary btn-sm">Save appearance</button>
   </form>
 </div>
 
