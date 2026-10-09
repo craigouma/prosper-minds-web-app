@@ -195,6 +195,8 @@ ul, ol { padding: 0; list-style: none; }
 .pm-measure { max-width: 52ch; }
 
 .pm-stack > * + * { margin-top: var(--pm-stack, 16px); }
+.pm-stack--form { --pm-stack: 18px; }
+.pm-stack--form .pm-btn { width: 100%; }
 .pm-mt-sm { margin-top: 8px; }
 .pm-mt-md { margin-top: 20px; }
 .pm-mt-lg { margin-top: clamp(28px, 3.4vw, 52px); }
@@ -214,6 +216,11 @@ ul, ol { padding: 0; list-style: none; }
 
 .pm-band .pm-text,
 .pm-band p { color: #C4C4C4; }
+
+.pm-band h2,
+.pm-band h3 { color: #FFFFFF; }
+
+.pm-partner strong { color: var(--pm-fg); }
 
 .pm-split {
   display: grid;
@@ -974,10 +981,8 @@ html[data-pm-nav-open='true'] body { overflow: hidden; }
   display: grid;
   gap: 10px;
   margin-top: 12px;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 180px), 1fr));
+  grid-template-columns: minmax(0, 1fr);
 }
-
-.pm-choices--stack { grid-template-columns: minmax(0, 1fr); }
 
 .pm-choice { display: block; position: relative; cursor: pointer; }
 
@@ -1058,7 +1063,7 @@ html[data-pm-nav-open='true'] body { overflow: hidden; }
 .pm-summary { margin-top: 40px; padding-top: 18px; border-top: 2px solid #000; }
 .pm-summary__title { font-size: 17px; font-weight: 800; }
 
-.pm-summary dl { display: grid; grid-template-columns: minmax(0, 1fr) auto; margin-top: 12px; }
+.pm-summary dl { display: grid; grid-template-columns: max-content minmax(0, 1fr); margin-top: 12px; }
 .pm-summary dt,
 .pm-summary dd { padding: 12px 0; border-bottom: 1px solid var(--pm-rule); font-size: 16px; }
 .pm-summary dt { padding-right: 16px; color: var(--pm-muted); }
@@ -1084,10 +1089,34 @@ html[data-pm-nav-open='true'] body { overflow: hidden; }
 
 @media (max-width: 900px) { .pm-reg__aside { display: none; } }
 
+/* The one primary button lives in the panel and the bar, and only works with
+   script; without it each step carries its own real button. */
+.pm-reg__cta,
+.pm-reg__bar { display: none; }
+
+[data-pm-steps='on'] .pm-reg__inline-cta { display: none; }
+[data-pm-steps='on'] .pm-reg__aside .pm-reg__cta { display: inline-flex; }
+
+@media (max-width: 900px) {
+  [data-pm-steps='on'] .pm-reg__bar { display: flex; }
+}
+
+.pm-pick {
+  display: block;
+  padding: 16px 18px;
+  border: 1.5px solid #000;
+  border-radius: var(--pm-radius);
+  text-decoration: none;
+}
+
+.pm-pick:hover { border-width: 3px; padding: 14.5px 16.5px; text-decoration: none; }
+.pm-pick__title { display: block; font-size: 17px; line-height: 1.35; font-weight: 800; }
+.pm-pick__when { display: block; margin-top: 4px; font-size: 15px; color: var(--pm-muted); }
+
 .pm-done { max-width: 620px; margin: 0 auto; }
 .pm-done__mark { display: flex; align-items: center; justify-content: center; width: 56px; height: 56px; background: var(--pm-green); }
 .pm-done__invoice { margin-top: 28px; padding-top: 18px; border-top: 2px solid #000; }
-.pm-done__number { margin-top: 4px; font-size: clamp(26px, 2.4vw, 34px); font-weight: 800; letter-spacing: 0.01em; font-variant-numeric: tabular-nums; }
+.pm-done__number { margin-top: 4px; font-size: clamp(26px, 2.4vw, 34px); font-weight: 800; letter-spacing: 0.01em; overflow-wrap: anywhere; }
 .pm-done h2 { margin-top: 40px; font-size: 22px; font-weight: 800; }
 .pm-done ol { margin-top: 12px; border-bottom: 1px solid var(--pm-rule); }
 .pm-done ol li { display: grid; grid-template-columns: 36px minmax(0, 1fr); gap: 8px; padding: 14px 0; border-top: 1px solid var(--pm-rule); font-size: 17px; line-height: 1.5; }

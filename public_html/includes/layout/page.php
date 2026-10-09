@@ -65,9 +65,12 @@ if (!function_exists('pmActiveEvents')) {
     function pmEventNextEarlyBird(array $event, ?string $today = null): ?array { return null; }
     function pmSoonestEarlyBird(array $events, ?string $today = null): ?array { return null; }
     function pmEventCity(array $event): string { return trim((string) strtok((string) ($event['location'] ?? ''), ',')); }
-    function pmEarlyBirdBadge(array $event, string $lapsedLabel, ?string $today = null): string { return $lapsedLabel; }
+    function pmEventPlace(array $event): string { return pmEventCity($event); }
+    function pmEventParsePrice(string $priceText): array { return ['USD', 0.0]; }
+    function pmEventMoney(string $currency, float $amount): string { return $currency . ' ' . $amount; }
+    function pmEventFromPrice(array $event): string { return ''; }
+    function pmNumberWord(int $n): string { return (string) $n; }
     function pmEarlyBirdFill(string $template, array $earlyBird, array $event): string { return $template; }
-    function pmEventsMatchingTags(array $events, array $tags): array { return $events; }
     function pmEventIsPast(array $event, ?string $today = null): bool { return false; }
     function pmEventIsListable(array $event, ?string $today = null): bool { return false; }
     function pmPartitionEventsByDate(array $events, ?string $today = null): array { return ['upcoming' => [], 'past' => []]; }
@@ -86,10 +89,9 @@ if (!function_exists('pmActiveEvents')) {
 }
 
 // ── Event card markup, loaded defensively ───────────────────────────────────
-// Loaded after events.php because the card calls pmEarlyBirdBadge(). Same
-// treatment and the same reason as the layers above: five Phase 2 pages print
-// an event grid, and a missing or truncated partial must cost those pages
-// their grid, not their page.
+// Loaded after events.php because the card calls its price and early-bird
+// helpers. A missing or truncated partial must cost the page its cards, not
+// the page.
 if (is_file(__DIR__ . '/event-card.php')) {
     try {
         require_once __DIR__ . '/event-card.php';
@@ -98,18 +100,12 @@ if (is_file(__DIR__ . '/event-card.php')) {
     }
 }
 
-if (!function_exists('pmRenderEventGrid')) {
+if (!function_exists('pmRenderSchoolCard')) {
     function pmEventDetailUrl(array $event): string { return '/event.php?id=' . (int) ($event['id'] ?? 0); }
     function pmEventRegisterUrl(array $event): string { return '/event-registration.php?id=' . (int) ($event['id'] ?? 0); }
     function pmEventImageUrl(array $event): string { return ''; }
-    function pmEventMonthLabel(array $event): string { return ''; }
-    function pmRenderEventCard(array $event, array $labels, string $variant, int $index, int $level): void {}
-    /** Falls back to the page's own empty message, which is a sentence rather
-     *  than a silent gap where a calendar should be. */
-    function pmRenderEventGrid(array $events, array $labels, string $emptyMessage, string $variant = 'full', int $level = 3): void
-    {
-        echo '<p class="pm-body pm-mt-lg">' . htmlspecialchars($emptyMessage, ENT_QUOTES, 'UTF-8') . "</p>\n";
-    }
+    function pmEventImageSize(string $rootRelative): ?array { return null; }
+    function pmRenderSchoolCard(array $event, int $index = 0): void {}
 }
 
 // ── Newsletter, loaded defensively ──────────────────────────────────────────
