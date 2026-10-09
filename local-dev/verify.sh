@@ -658,11 +658,21 @@ check "served as text/css"               "text/css" \
 check "carries the brand tokens"         "yes" \
   "$(curl -s "$MAIN/assets/css/pm-design-system.css" | grep -q -- '--pm-green: #00BF63' && echo yes || echo no)"
 # The brand is green/black/white plus neutral greys. Any other hue in the
-# stylesheet is a bug: no purple, no blue, no red error states.
+# stylesheet is a bug: no purple, no blue, no red error states. A grey is a
+# colour whose three channels are equal, so any shade of grey is allowed and
+# nothing with a tint is.
 check "no hue outside the palette" "0" \
-  "$(curl -s "$MAIN/assets/css/pm-design-system.css" \
-      | grep -oiE '#[0-9a-f]{3,8}\b' | tr 'A-F' 'a-f' | sort -u \
-      | grep -vcE '^#(00bf63|000000|ffffff|f6f6f4|fafafa|dcdcdc|e2e2e2|cfcfcf|5a5a5a|5f5f5f|4a4a4a)$')"
+  "$(curl -s "$MAIN/assets/css/pm-design-system.css" | php -r '
+$css = stream_get_contents(STDIN);
+preg_match_all("/#([0-9a-fA-F]{3,8})\b/", $css, $m);
+$bad = 0;
+foreach (array_unique(array_map("strtolower", $m[1])) as $h) {
+    if ($h === "00bf63") { continue; }
+    if (strlen($h) === 3) { $h = $h[0] . $h[0] . $h[1] . $h[1] . $h[2] . $h[2]; }
+    if (strlen($h) !== 6) { $bad++; continue; }
+    if (!(substr($h, 0, 2) === substr($h, 2, 2) && substr($h, 2, 2) === substr($h, 4, 2))) { $bad++; }
+}
+echo $bad;')"
 check "Maharlika is served"              "200" "$(curl -s -o /dev/null -w '%{http_code}' "$MAIN/assets/fonts/Maharlika-Regular.ttf")"
 check "served as a font type"            "yes" \
   "$(curl -s -o /dev/null -w '%{content_type}' "$MAIN/assets/fonts/Maharlika-Regular.ttf" | grep -qi 'font' && echo yes || echo no)"
@@ -2129,25 +2139,27 @@ nav_labels() { curl -s "$MAIN/index.php" | grep -c 'class="pm-nav__link"'; }
 menu_login
 check "menus.php returns 200" "200" "$(curl -s -b "$NJAR" -o /dev/null -w '%{http_code}' "$MAIN/admin/menus.php")"
 check "cms_menu_items was created on demand" "1" "$(table_exists cms_menu_items)"
-check "the header menu was seeded from the built-in list" "7" \
+check "the header menu was seeded from the built-in list" "4" \
   "$("${DB_MAIN[@]}" "SELECT COUNT(*) FROM cms_menu_items WHERE location='header'")"
 check "the menu migration has both halves" "2" \
   "$(ls public_html/database/migrations/2026-09-03-05-create-cms-menu-items.*.sql 2>/dev/null | wc -l | tr -d ' ')"
-check "the public nav renders seven links" "7" "$(nav_labels)"
-check "the current page is still marked" "2" "$(curl -s "$MAIN/events.php" | grep -c 'aria-current="page"')"
+check "the public nav renders four links" "4" "$(nav_labels)"
+check "the current page is still marked" "1" "$(curl -s "$MAIN/about.php" | grep -c 'aria-current="page"')"
+check "the Schools link goes to the home page's section" "yes" \
+  "$(has_text "$(curl -s "$MAIN/about.php")" 'href="/#schools"')"
 
-MID="$("${DB_MAIN[@]}" "SELECT id FROM cms_menu_items WHERE label='Services' LIMIT 1")"
+MID="$("${DB_MAIN[@]}" "SELECT id FROM cms_menu_items WHERE label='Webinars' LIMIT 1")"
 curl -s -b "$NJAR" -o /dev/null -X POST "$MAIN/admin/menus.php" \
   --data-urlencode "csrf_token=$(menu_token)" -d "action=update" -d "location=header" \
-  -d "id=$MID" -d "label=Programmes" -d "link_type=page" -d "target=services.php" -d "is_active=1"
-check "renaming an item changes the live site" "2" "$(curl -s "$MAIN/index.php" | grep -c '>Programmes<')"
+  -d "id=$MID" -d "label=Programmes" -d "link_type=page" -d "target=webinars.php" -d "is_active=1"
+check "renaming an item changes the live site" "1" "$(curl -s "$MAIN/index.php" | grep -c '>Programmes<')"
 check "renaming a menu item is audited"        "1" \
   "$("${DB_MAIN[@]}" "SELECT COUNT(*) FROM cms_audit_log WHERE action='menu_update'")"
 
 curl -s -b "$NJAR" -o /dev/null -X POST "$MAIN/admin/menus.php" \
   --data-urlencode "csrf_token=$(menu_token)" -d "action=update" -d "location=header" \
-  -d "id=$MID" -d "label=Programmes" -d "link_type=page" -d "target=services.php"
-check "an item can be hidden from the site" "6" "$(nav_labels)"
+  -d "id=$MID" -d "label=Programmes" -d "link_type=page" -d "target=webinars.php"
+check "an item can be hidden from the site" "3" "$(nav_labels)"
 
 OUT="$(curl -s -b "$NJAR" -X POST "$MAIN/admin/menus.php" \
   --data-urlencode "csrf_token=$(menu_token)" -d "action=add" -d "location=header" \
@@ -2158,9 +2170,9 @@ check "and nothing was stored for it"        "0" \
 
 echo "  ---- CRITICAL: an empty or missing menu table must not empty the navigation ----"
 "${DB_MAIN[@]}" "DELETE FROM cms_menu_items" >/dev/null 2>&1
-check "an empty menu falls back to the built-in nav" "7" "$(nav_labels)"
+check "an empty menu falls back to the built-in nav" "4" "$(nav_labels)"
 "${DB_MAIN[@]}" "RENAME TABLE cms_menu_items TO cms_menu_items_parked" >/dev/null 2>&1
-check "a missing menu table falls back too"          "7" "$(nav_labels)"
+check "a missing menu table falls back too"          "4" "$(nav_labels)"
 check "the homepage still returns 200"             "200" "$(curl -s -o /dev/null -w '%{http_code}' "$MAIN/index.php")"
 "${DB_MAIN[@]}" "RENAME TABLE cms_menu_items_parked TO cms_menu_items" >/dev/null 2>&1
 
@@ -2717,6 +2729,9 @@ curl -s -b "$RJ" -o /dev/null -X POST "$RU" --data-urlencode "csrf_token=$(r_tok
   --data-urlencode "role=Chief Accountant" --data-urlencode "org=Verify Ministry" -d "is_published=1"
 check "adding a review stores it" "1" \
   "$("${DB_MAIN[@]}" "SELECT COUNT(*) FROM cms_testimonials WHERE org='Verify Ministry'")"
+# The homepage shows three reviews in the editor's order, so the new one is put
+# first, which is what an editor wanting it seen would do.
+"${DB_MAIN[@]}" "UPDATE cms_testimonials SET sort_order = -1 WHERE org='Verify Ministry'" >/dev/null 2>&1
 check "and it reaches the homepage" "1" \
   "$(curl -s "$MAIN/index.php" | grep -c 'A verified delegate review for the acceptance suite')"
 check "adding is audited" "1" "$("${DB_MAIN[@]}" "SELECT COUNT(*) FROM cms_audit_log WHERE action='review_add'")"
@@ -2781,31 +2796,29 @@ check "nor an early bird percentage" "0" \
 check "so no price reaches a past cohort's page" "0" \
   "$(curl -s "$MAIN/event.php?id=25" | grep -c 'USD 599')"
 
-PAST="$(curl -s "$MAIN/events.php?show=past")"
-check "the past tab lists all seven" "7"  "$(printf '%s' "$PAST" | grep -c 'class="pm-listing__row"')"
-check "the count says so"            "1"  "$(printf '%s' "$PAST" | grep -c '7 past cohorts')"
-check "no early bird badge on a finished school" "0" \
-  "$(printf '%s' "$PAST" | grep -c 'pm-label--green')"
+PAST="$(curl -s "$MAIN/about.php")"
+check "About lists all seven past cohorts" "7"  "$(printf '%s' "$PAST" | grep -c 'pm-sessions__title')"
+check "and links to them"                  "1"  "$(printf '%s' "$PAST" | grep -c 'href="#past-cohorts"')"
+check "no early bird line on a finished school" "0" \
+  "$(printf '%s' "$PAST" | grep -c 'early-bird discount')"
 check "a past cohort's own page still opens" "200" \
   "$(curl -s -o /dev/null -w '%{http_code}' "$MAIN/event.php?id=20")"
 check "and says the cohort has run" "1" \
   "$(curl -s "$MAIN/event.php?id=20" | grep -c 'already run')"
-check "the upcoming tab is unaffected" "4" \
-  "$(curl -s "$MAIN/events.php" | grep -c 'class="pm-listing__row"')"
+check "the home page's schools are unaffected" "4" \
+  "$(curl -s "$MAIN/index.php" | grep -c 'class="pm-school"')"
 
-echo "  ---- a cohort with no designed banner gets a monogram, not a gap ----"
-check "all seven draw one"     "7"  "$(printf '%s' "$PAST" | grep -c 'pm-banner--monogram')"
-check "initials come from the words that carry the name" "1" \
-  "$(printf '%s' "$PAST" | grep -c '>FF<')"
-check "joining words are skipped"  "1"  "$(printf '%s' "$PAST" | grep -c '>TE<')"
-check "it is hidden from a screen reader" "7" \
-  "$(printf '%s' "$PAST" | grep -c 'pm-banner--monogram" aria-hidden')"
-check "an event with a real banner still shows it" "0" \
-  "$(curl -s "$MAIN/events.php" | grep -c 'pm-banner--monogram')"
-check "the monogram style is defined" "1" \
-  "$(grep -c '^\.pm-banner--monogram {' public_html/assets/css/pm-design-system.css)"
-check "both card shapes share one renderer" "2" \
-  "$(grep -l 'pmRenderEventBanner(' public_html/events.php public_html/includes/layout/event-card.php | wc -l | tr -d ' ')"
+echo "  ---- a school with no designed poster gets a monogram, not a gap ----"
+fq "INSERT INTO events (title, tagline, date_display, event_start_date, location, price, is_active, sort_order, agenda, audience, regular_price, regular_perks)
+    VALUES ('Verify Monogram School', 'No poster.', '1-5 June 2027', '2027-06-01', 'Nairobi, Kenya', 'From USD 599 Per Delegate', 1, 93, '[{\"day\":1,\"title\":\"Day one\",\"desc\":\"Topic A\"}]', 'Finance officers', 'USD 599', 'Course materials')" >/dev/null
+MONO="$(curl -s "$MAIN/index.php")"
+check "the card draws one"                          "1" "$(printf '%s' "$MONO" | grep -c 'pm-poster--empty')"
+check "initials come from the words that carry the name" "1" "$(printf '%s' "$MONO" | grep -c '>VM<')"
+check "it is hidden from a screen reader"          "1" "$(printf '%s' "$MONO" | grep -c 'aria-hidden="true">VM<')"
+check "schools with a real poster still show it"   "4" "$(printf '%s' "$MONO" | grep -c 'alt="Poster for ')"
+check "the monogram style is defined"              "1" \
+  "$(grep -c '^\.pm-poster--empty {' public_html/assets/css/pm-design-system.css)"
+fq "DELETE FROM events WHERE title='Verify Monogram School'" >/dev/null
 
 echo
 echo "=== 25. Registration details modal ==="
@@ -2830,11 +2843,11 @@ check "nor an unversioned local script" "0" \
   "$(grep -rn 'script src="[/.][^"]*\.js"' public_html/admin public_html/includes/layout | grep -vc 'pmAssetUrl')"
 
 check "the public page stamps its stylesheet" "1" \
-  "$(curl -s "$MAIN/events.php" | grep -c 'pm-design-system\.css?v=[0-9]')"
+  "$(curl -s "$MAIN/index.php" | grep -c 'pm-design-system\.css?v=[0-9]')"
 check "and its script"                        "1" \
-  "$(curl -s "$MAIN/events.php" | grep -c 'pm-layout\.js?v=[0-9]')"
+  "$(curl -s "$MAIN/index.php" | grep -c 'pm-layout\.js?v=[0-9]')"
 check "a per-page script is stamped too"      "1" \
-  "$(curl -s "$MAIN/events.php" | grep -c 'pm-copy-link\.js?v=[0-9]')"
+  "$(curl -s "$MAIN/event-registration.php?id=5" | grep -c 'pm-register\.js?v=[0-9]')"
 check "the sign in screen stamps its stylesheet" "1" \
   "$(curl -s "$MAIN/admin/login.php" | grep -c 'pm-admin\.css?v=[0-9]')"
 
@@ -3334,9 +3347,9 @@ check "and no counted row survives it" "0" \
   "$(fq "SELECT COUNT(*) FROM page_content WHERE content_value LIKE '%our flagship%'")"
 
 check "the homepage heading reads without a count" "1" \
-  "$(curl -s "$MAIN/index.php" | grep -c '>Flagship events<')"
-check "so does the sponsorship one"                "1" \
-  "$(curl -s "$MAIN/sponsorship.php" | grep -c 'Flagship schools in 2026')"
+  "$(curl -s "$MAIN/index.php" | grep -c '>2026 schools<')"
+check "so does the sponsorship one"                "Partner with us" \
+  "$(page_h1 sponsorship.php)"
 
 echo "  ---- CRITICAL: a correction must not overwrite a human edit ----"
 fq "UPDATE page_content SET content_value='Our 2027 schools'
@@ -3412,16 +3425,15 @@ DS=public_html/assets/css/pm-design-system.css
 echo "  ---- CRITICAL: cover cut the title and phone numbers off the posters ----"
 # The September 2026 posters are 1254x1254. In the old 16:9 slot, object-fit
 # cover removed 44% of their height from the middle outwards.
-check "the banner no longer crops to fill" "0" \
-  "$(awk '/^\.pm-banner > img \{/,/^}/' $DS | grep -c 'object-fit: cover')"
-check "it contains the whole image instead" "1" \
-  "$(awk '/^\.pm-banner > img \{/,/^}/' $DS | grep -c 'object-fit: contain')"
+check "nothing in the stylesheet crops to fill" "0" "$(grep -c 'object-fit: cover' $DS)"
+check "a poster is contained whole instead" "1" \
+  "$(grep -c '^\.pm-poster img { .*object-fit: contain' $DS)"
 
 echo "  ---- one shape, so a row of cards is not ragged ----"
-check "the slot has a single ratio" "1" \
-  "$(awk '/^\.pm-banner \{/,/^}/' $DS | grep -c 'aspect-ratio: 1 / 1')"
-check "and the narrow listing column has its own" "1" \
-  "$(grep -c '^\.pm-listing__row \.pm-banner {' $DS)"
+check "the card slot has a single ratio" "1" \
+  "$(grep -c '^\.pm-poster--card { aspect-ratio: 4 / 5; }' $DS)"
+check "the school page poster keeps its own proportions" "1" \
+  "$(grep -c '^\.pm-school-page__poster img { width: 100%; height: auto;' $DS)"
 
 echo "  ---- intrinsic size is emitted, so the page does not jump ----"
 check "the helper exists"                    "1" \
