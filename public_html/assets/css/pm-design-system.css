@@ -197,10 +197,6 @@ ul, ol { padding: 0; list-style: none; }
 .pm-stack > * + * { margin-top: var(--pm-stack, 16px); }
 .pm-stack--form { --pm-stack: 18px; }
 .pm-stack--form .pm-btn { width: 100%; }
-.pm-mt-sm { margin-top: 8px; }
-.pm-mt-md { margin-top: 20px; }
-.pm-mt-lg { margin-top: clamp(28px, 3.4vw, 52px); }
-.pm-mt-xl { margin-top: clamp(48px, 5vw, 88px); }
 
 /* A band is the one dark block inside a light page. */
 .pm-band {
@@ -1184,7 +1180,66 @@ html[data-pm-nav-open='true'] body { overflow: hidden; }
 .pm-rows dt { font-size: 19px; font-weight: 800; }
 .pm-rows dd { font-size: 17px; line-height: 1.55; color: var(--pm-text); }
 
+.pm-sessions--plain li { grid-template-columns: minmax(0, 1fr) auto; }
+
+@media (min-width: 901px) {
+  .pm-sessions--plain li { grid-template-columns: 300px minmax(0, 1fr) auto; }
+}
+
 .pm-contact-actions { display: flex; flex-direction: column; gap: 12px; }
 
 .pm-404 { min-height: 70vh; display: flex; align-items: center; }
+.pm-h1--404 { max-width: 16ch; font-size: clamp(38px, 5vw, 72px); line-height: 1.05; }
 .pm-404 .pm-btn { margin-top: 36px; width: 100%; max-width: 360px; }
+
+
+/* 12b. CMS page-builder blocks ----------------------------------------------
+   includes/blocks.php renders pages composed in the admin. These are the
+   shapes it needs, in the same language as the rest of the site. */
+
+.pm-grid {
+  display: grid;
+  gap: 32px 40px;
+  grid-template-columns: minmax(0, 1fr);
+}
+
+@media (min-width: 701px) {
+  .pm-grid--2,
+  .pm-grid--3,
+  .pm-grid--4 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+@media (min-width: 1001px) {
+  .pm-grid--3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .pm-grid--4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+}
+
+.pm-grid--ruled > * { padding-top: 20px; border-top: 2px solid var(--pm-fg); }
+.pm-cell { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+
+.pm-section--dark,
+.pm-section--accent { padding-top: clamp(56px, 6vw, 104px); padding-bottom: clamp(56px, 6vw, 104px); }
+
+.pm-section--dark { background: #000; color: #fff; }
+.pm-section--dark p { color: #C4C4C4; }
+.pm-section--accent { background: var(--pm-green); color: #000; }
+.pm-section--accent p { color: #000; }
+.pm-btn--invert { background: #000; color: #fff; }
+
+.pm-figure img { width: 100%; }
+.pm-figure figcaption { margin-top: 8px; font-size: 15px; color: var(--pm-muted); }
+.pm-embed { position: relative; aspect-ratio: 16 / 9; }
+.pm-embed iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; }
+
+.pm-accordion { border-top: 1px solid var(--pm-rule); }
+.pm-accordion:last-child { border-bottom: 1px solid var(--pm-rule); }
+.pm-accordion__summary { display: flex; align-items: center; min-height: 56px; font-weight: 800; cursor: pointer; }
+.pm-accordion__summary::-webkit-details-marker { display: none; }
+
+
+/* 13. Spacing utilities, last so they beat the component rules above ---- */
+
+.pm-mt-sm { margin-top: 8px; }
+.pm-mt-md { margin-top: 20px; }
+.pm-mt-lg { margin-top: clamp(28px, 3.4vw, 52px); }
+.pm-mt-xl { margin-top: clamp(48px, 5vw, 88px); }
