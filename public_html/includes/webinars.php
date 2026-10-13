@@ -196,6 +196,58 @@ function pmWebinarDateLong(array $session): string
 }
 
 /**
+ * A session's own page, or its place on the series page for a row with no slug.
+ */
+function pmWebinarUrl(array $session): string
+{
+    $slug = trim((string) ($session['slug'] ?? ''));
+
+    return $slug !== ''
+        ? '/webinars/' . rawurlencode($slug)
+        : '/webinars.php?session=' . (int) ($session['id'] ?? 0);
+}
+
+/**
+ * The session's time as people read it, converted for the other zones its
+ * audience lives in. time_label is free text ("12:00 EAT"); only that exact
+ * shape is converted, and anything else is shown as written with no zones.
+ *
+ * @return array{range: string, zones: string, start: string, end: string}
+ */
+function pmWebinarTimes(array $session): array
+{
+    $label = trim((string) ($session['time_label'] ?? ''));
+    $plain = ['range' => $label, 'zones' => '', 'start' => '', 'end' => ''];
+
+    if (preg_match('/^(\d{1,2}):(\d{2})\s*EAT$/i', $label, $m) !== 1) {
+        return $plain;
+    }
+
+    try {
+        $start = new DateTimeImmutable(
+            (string) ($session['session_date'] ?? '') . sprintf(' %02d:%02d', (int) $m[1], (int) $m[2]),
+            new DateTimeZone('Africa/Nairobi')
+        );
+    } catch (Throwable $e) {
+        return $plain;
+    }
+
+    // Sessions run for one hour.
+    $end = $start->modify('+1 hour');
+    $zones = [];
+    foreach ([['CAT/SAST', 'Africa/Johannesburg'], ['WAT', 'Africa/Lagos'], ['GMT', 'UTC']] as [$name, $tz]) {
+        $zones[] = $start->setTimezone(new DateTimeZone($tz))->format('H:i') . ' ' . $name;
+    }
+
+    return [
+        'range' => $start->format('H:i') . ' to ' . $end->format('H:i') . ' EAT',
+        'zones' => implode(', ', $zones),
+        'start' => $start->format('c'),
+        'end'   => $end->format('c'),
+    ];
+}
+
+/**
  * Root-relative URL of a session's poster, or '' when it has none.
  *
  * Same rule as pmEventImageUrl(): stored without a leading slash, each path
