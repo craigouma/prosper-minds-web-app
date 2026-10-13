@@ -110,7 +110,7 @@ pmPageBegin([
          decoding="async">
 
     <div class="pm-btn-row pm-mt-md">
-      <a class="pm-btn" href="/webinars.php?session=<?php echo (int) $pmNext['id']; ?>#register-one">Register free</a>
+      <a class="pm-btn" href="<?php echo pmEsc(pmWebinarUrl($pmNext)); ?>#join">Register free</a>
       <a class="pm-btn pm-btn--secondary" href="#join">Join the whole series</a>
     </div>
 
@@ -159,7 +159,8 @@ pmPageBegin([
 
           <div>
             <span class="pm-caption">Session <?php echo pmEsc(str_pad((string) $pmSession['session_number'], 2, '0', STR_PAD_LEFT)); ?></span>
-            <h3 class="pm-h3"><?php echo pmEsc((string) $pmSession['title']); ?></h3>
+            <h3 class="pm-h3"><a href="<?php echo pmEsc(pmWebinarUrl($pmSession)); ?>"><?php
+              echo pmEsc((string) $pmSession['title']); ?></a></h3>
 <?php if ((string) $pmSession['description'] !== ''): ?>
             <p class="pm-body pm-mt-sm"><?php echo pmEsc((string) $pmSession['description']); ?></p>
 <?php endif; ?>
@@ -172,7 +173,7 @@ pmPageBegin([
 
           <div class="pm-listing__side">
             <span class="pm-label pm-label--green">Free &middot; Online</span>
-            <a class="pm-btn--link pm-mt-sm" href="/webinars.php?session=<?php echo (int) $pmSession['id']; ?>#register-one">
+            <a class="pm-btn--link pm-mt-sm" href="<?php echo pmEsc(pmWebinarUrl($pmSession)); ?>#join">
               Register
               <span class="pm-sr-only"> for <?php echo pmEsc((string) $pmSession['title']); ?></span>
             </a>

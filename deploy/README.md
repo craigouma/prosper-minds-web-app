@@ -31,6 +31,25 @@ one setting filled in, and those are listed against the change that introduced t
 
 Newest first. Anything marked **outstanding** still needs doing.
 
+### 13 October 2026, every PFM Insight Live session has its own page
+
+- **Outstanding: deploy.** Merge and deploy as above. No SQL and no setting are needed: the pages are read from the
+  sessions already in the database. Send the calendar PDF to Evans only after the deploy, because its links open
+  these new pages.
+- Each session is now at `/webinars/{slug}` (for example
+  `/webinars/pfm-insight-live-session-01-start-here-data-for-public-money`). The page shows the session's number,
+  title, what it covers, who it is best for, the date, the time (with the same hour in CAT/SAST, WAT and GMT), the
+  poster if there is one, and a sign-up form for that session alone, with a link to join the whole series.
+- The Zoom link is never shown on the page. It is only emailed after someone registers.
+- A session that has already run still opens (so a shared link does not die) but offers no form. A session unpublished
+  in the admin, or an unknown address, shows a not-found page.
+- The series page now links each session to its own page, and the sitemap lists all 13 pages. The old
+  `webinars.php?session=N` address still works.
+- The calendar PDF's 13 "Register" cells and its "Join the series" button now open those pages (before, they all went
+  to the home page). The file is `public_html/assets/pdfs/pfm-insight-live-2026-2027.pdf`; nothing else in it changed.
+- A page's address comes from the session's slug, set when the session is created. Renaming a session in the admin does
+  not change its slug, so printed links stay valid.
+
 ### 8 October 2026, webinar posters
 
 - **Outstanding: deploy.** Merge and deploy as above. This is what puts the poster image on the server.
