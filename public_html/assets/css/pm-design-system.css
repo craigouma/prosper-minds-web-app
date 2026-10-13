@@ -1141,6 +1141,8 @@ html[data-pm-nav-open="true"] body { overflow: hidden; }
 .pm-sessions__date { grid-column: 1 / -1; font-size: 15px; font-weight: 600; color: var(--pm-muted); font-variant-numeric: tabular-nums; }
 .pm-sessions__title { font-size: 17px; font-weight: 700; }
 .pm-sessions__title--tba { font-weight: 400; color: var(--pm-muted); }
+.pm-sessions__title a { text-decoration: none; }
+.pm-sessions__title a:hover { text-decoration: underline; }
 
 @media (min-width: 901px) {
   .pm-sessions li { grid-template-columns: 200px minmax(0, 1fr) auto; }
