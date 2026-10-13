@@ -27,12 +27,11 @@ if ($pmSession === null || (int) ($pmSession['is_active'] ?? 0) !== 1) {
         'noindex'     => true,
     ]);
     ?>
-<section class="pm-section">
+<section class="pm-section pm-404">
   <div class="pm-container">
     <span class="pm-eyebrow">Not found</span>
-    <h1 class="pm-h1">That session is not on the calendar</h1>
-    <p class="pm-lede pm-mt-lg">The link may be old. Every PFM Insight Live session is listed on the webinars page.</p>
-    <p class="pm-mt-lg"><a class="pm-btn" href="/webinars.php#sessions">See all sessions</a></p>
+    <h1 class="pm-h1 pm-h1--404 pm-mt-sm">That session is not on the calendar.</h1>
+    <a class="pm-btn" href="/webinars.php#sessions">See all sessions</a>
   </div>
 </section>
     <?php
@@ -75,7 +74,6 @@ $pmNotice = match ($pmStatus) {
     'error'   => 'We could not save that just now. Please email info@prosper-minds.com and we will add you directly.',
     default   => '',
 };
-$pmNoticeFailed = $pmStatus !== '' && $pmStatus !== 'ok';
 
 pmPageBegin([
     'slug'        => 'webinar',
@@ -116,156 +114,127 @@ if ($pmTimes['start'] !== '') {
 }
 ?>
 
-<section class="pm-section pm-section--tight">
-  <div class="pm-container">
+<div class="pm-container pm-page-head">
 
-    <p><a class="pm-btn--link" href="/webinars.php#sessions">All sessions</a></p>
+  <a class="pm-back" href="/webinars.php#sessions">All sessions</a>
 
-    <span class="pm-eyebrow pm-mt-md">PFM Insight Live &middot; Session <?php echo pmEsc($pmNumber); ?> of <?php echo (int) $pmTotal; ?></span>
-    <h1 class="pm-h1"><?php echo pmEsc($pmTitle); ?></h1>
+  <div class="pm-split">
+    <div>
+<?php if ($pmIsPast): ?>
+      <span class="pm-eyebrow">PFM Insight Live, session <?php echo pmEsc($pmNumber); ?> of <?php echo (int) $pmTotal; ?>, finished</span>
+<?php else: ?>
+      <span class="pm-live pm-live--tag">PFM Insight Live, session <?php echo pmEsc($pmNumber); ?> of <?php echo (int) $pmTotal; ?></span>
+<?php endif; ?>
+      <h1 class="pm-h1 pm-h1--long pm-mt-md"><?php echo pmEsc($pmTitle); ?></h1>
 
 <?php if ($pmAbout !== ''): ?>
-    <p class="pm-lede pm-mt-lg pm-measure"><?php echo pmEsc($pmAbout); ?></p>
+      <p class="pm-lede pm-mt-md"><?php echo pmEsc($pmAbout); ?></p>
 <?php endif; ?>
 
-    <div class="pm-grid pm-grid--ruled pm-grid--3 pm-mt-lg">
-      <div class="pm-cell">
-        <span class="pm-label">Date</span>
-        <span class="pm-body"><?php echo pmEsc($pmDateText); ?></span>
-      </div>
-      <div class="pm-cell">
-        <span class="pm-label">Time</span>
-        <span class="pm-body"><?php echo pmEsc($pmTimes['range']); ?></span>
-<?php if ($pmTimes['zones'] !== ''): ?>
-        <span class="pm-caption"><?php echo pmEsc($pmTimes['zones']); ?></span>
-<?php endif; ?>
-      </div>
-      <div class="pm-cell">
-        <span class="pm-label">Where and cost</span>
-        <span class="pm-body">Online, live, one hour</span>
-        <span class="pm-caption">Free to join</span>
-      </div>
-    </div>
-
+      <dl class="pm-facts">
+        <dt>Date</dt>
+        <dd><?php echo pmEsc($pmDateText); ?></dd>
+        <dt>Time</dt>
+        <dd><?php echo pmEsc($pmTimes['range']); ?><?php
+          if ($pmTimes['zones'] !== ''): ?><br><span class="pm-caption"><?php echo pmEsc($pmTimes['zones']); ?></span><?php endif; ?></dd>
+        <dt>Where</dt>
+        <dd>Online, live, one hour</dd>
+        <dt>Cost</dt>
+        <dd>Free</dd>
 <?php if ($pmBestFor !== ''): ?>
-    <p class="pm-body pm-mt-md"><strong>Best for:</strong> <?php echo pmEsc($pmBestFor); ?></p>
+        <dt>Best for</dt>
+        <dd><?php echo pmEsc($pmBestFor); ?></dd>
 <?php endif; ?>
-
-    <div class="pm-btn-row pm-mt-lg">
-<?php if ($pmIsPast): ?>
-      <a class="pm-btn" href="/webinars.php#sessions">See the upcoming sessions</a>
-<?php else: ?>
-      <a class="pm-btn" href="#join">Register free</a>
-      <a class="pm-btn pm-btn--secondary" href="/webinars.php#join">Join the whole series</a>
-<?php endif; ?>
-    </div>
-
-  </div>
-</section>
+        <dt>You take home</dt>
+        <dd>A tool or template, and a certificate of attendance</dd>
+      </dl>
 
 <?php if ($pmPosterUrl !== ''): ?>
-<section class="pm-section pm-section--tight">
-  <div class="pm-container">
-    <?php // Shown whole, never cropped: it carries its own title, date and
-          // time. Real dimensions when they can be read, so the page does not
-          // jump. ?>
-    <img src="<?php echo pmEsc($pmPosterUrl); ?>"
-         alt="Poster: PFM Insight Live, Session <?php echo pmEsc($pmNumber); ?>, <?php echo pmEsc($pmTitle); ?>. <?php echo pmEsc($pmDateText); ?>, <?php echo pmEsc($pmTimes['range']); ?>. Free and online."
-<?php if ($pmPosterSize !== null): ?>
-         width="<?php echo $pmPosterSize[0]; ?>" height="<?php echo $pmPosterSize[1]; ?>"
-<?php endif; ?>
-         decoding="async">
-  </div>
-</section>
-<?php endif; ?>
-
-<section class="pm-section pm-section--ruled">
-  <div class="pm-container">
-    <div class="pm-grid pm-grid--ruled pm-grid--2">
-      <div class="pm-cell">
-        <span class="pm-label">You take home</span>
-        <span class="pm-body">A tool or template to use at your desk.</span>
+      <?php // Shown whole, never cropped: it carries its own title, date and
+            // time. Real dimensions when they can be read, so the page does
+            // not jump. ?>
+      <div class="pm-next-session__poster">
+        <img src="<?php echo pmEsc($pmPosterUrl); ?>"
+             alt="Poster: PFM Insight Live, Session <?php echo pmEsc($pmNumber); ?>, <?php echo pmEsc($pmTitle); ?>. <?php echo pmEsc($pmDateText); ?>, <?php echo pmEsc($pmTimes['range']); ?>. Free and online."
+<?php   if ($pmPosterSize !== null): ?>
+             width="<?php echo $pmPosterSize[0]; ?>" height="<?php echo $pmPosterSize[1]; ?>"
+<?php   endif; ?>
+             decoding="async">
       </div>
-      <div class="pm-cell">
-        <span class="pm-label">And a certificate</span>
-        <span class="pm-body">A certificate of attendance for your CPD records.</span>
-      </div>
+<?php endif; ?>
     </div>
-  </div>
-</section>
 
-<?php if (!$pmIsPast): ?>
-<section class="pm-section pm-section--tight" id="join">
-  <div class="pm-container">
+    <div class="pm-box" id="register">
+<?php if ($pmIsPast): ?>
+      <h2 class="pm-h2 pm-h2--md">This session has taken place</h2>
+      <p class="pm-body pm-mt-sm">Registration for it is closed. The next sessions are open.</p>
+      <p class="pm-mt-md"><a class="pm-btn" href="/webinars.php#sessions">See the upcoming sessions</a></p>
+<?php elseif ($pmStatus === 'ok'): ?>
+      <h2 class="pm-h2 pm-h2--md">You are registered</h2>
+      <p class="pm-body pm-mt-sm"><?php echo pmEsc($pmNotice); ?></p>
+      <p class="pm-mt-sm"><a class="pm-link" href="/webinars.php#sessions">See the other sessions</a></p>
+<?php else: ?>
+      <h2 class="pm-h2 pm-h2--md">Register for this session</h2>
+      <p class="pm-body pm-mt-sm">We email you the join link now and a reminder the day before.
+        Prefer every session? <a href="/webinars.php#register">Join the whole series instead</a>.</p>
 
-    <h2 class="pm-h2">Register for this session</h2>
-    <p class="pm-body pm-mt-md pm-measure">We will email you the join link now and a reminder the day before.
-      Prefer every session? <a href="/webinars.php#join">Join the whole series instead</a>.</p>
+<?php   if ($pmNotice !== ''): ?>
+      <p class="pm-notice pm-notice--error pm-mt-md" role="alert"><?php echo pmEsc($pmNotice); ?></p>
+<?php   endif; ?>
 
-<?php if ($pmNotice !== ''): ?>
-    <p class="pm-notice<?php echo $pmNoticeFailed ? ' pm-notice--error' : ''; ?> pm-mt-md" role="status">
-      <?php echo pmEsc($pmNotice); ?>
-    </p>
-<?php endif; ?>
+      <form class="pm-stack pm-stack--form pm-mt-md" action="/process-webinar-registration.php" method="post">
+        <?php echo formCsrfField(); ?>
+        <input type="hidden" name="session_id" value="<?php echo (int) $pmSession['id']; ?>">
+        <input type="hidden" name="return_to" value="<?php echo pmEsc($pmUrl); ?>">
 
-    <form class="pm-mt-lg" action="/process-webinar-registration.php" method="post" novalidate>
-      <?php echo formCsrfField(); ?>
-      <input type="hidden" name="session_id" value="<?php echo (int) $pmSession['id']; ?>">
-      <input type="hidden" name="return_to" value="<?php echo pmEsc($pmUrl); ?>">
+        <div class="pm-honeypot" aria-hidden="true">
+          <label for="pm-webinar-company">Company</label>
+          <input type="text" id="pm-webinar-company" name="company" tabindex="-1" autocomplete="off">
+        </div>
 
-      <div class="pm-sr-only" aria-hidden="true">
-        <label for="pm-webinar-company">Company</label>
-        <input type="text" id="pm-webinar-company" name="company" tabindex="-1" autocomplete="off">
-      </div>
-
-      <div class="pm-grid pm-grid--3">
         <div class="pm-field">
           <label class="pm-field__label" for="pm-webinar-name">Full name</label>
           <input class="pm-input" type="text" id="pm-webinar-name" name="name" autocomplete="name" required>
         </div>
+
         <div class="pm-field">
-          <label class="pm-field__label" for="pm-webinar-email">Email</label>
-          <input class="pm-input" type="email" id="pm-webinar-email" name="email" autocomplete="email" required>
+          <label class="pm-field__label" for="pm-webinar-email">Work email</label>
+          <input class="pm-input" type="email" id="pm-webinar-email" name="email"
+                 inputmode="email" autocomplete="email" required>
         </div>
-        <div class="pm-field">
-          <label class="pm-field__label" for="pm-webinar-organization">Institution</label>
-          <input class="pm-input" type="text" id="pm-webinar-organization" name="organization" autocomplete="organization">
-        </div>
-      </div>
 
-      <label class="pm-check pm-mt-md" for="pm-webinar-consent">
-        <input type="checkbox" id="pm-webinar-consent" name="consent" value="yes" required>
-        <span>I am happy to be emailed the join link and a reminder for this session.</span>
-      </label>
+        <label class="pm-check" for="pm-webinar-consent">
+          <input type="checkbox" id="pm-webinar-consent" name="consent" value="yes" required>
+          <span>Email me the joining link and a reminder before this session.</span>
+        </label>
 
-      <button class="pm-btn pm-mt-md" type="submit">Register for this session</button>
-    </form>
-
-  </div>
-</section>
+        <button class="pm-btn" type="submit">Register for this session</button>
+      </form>
 <?php endif; ?>
+    </div>
+  </div>
 
 <?php if ($pmPrevious !== null || $pmNextOne !== null): ?>
-<section class="pm-section pm-section--ruled pm-section--tight">
-  <div class="pm-container">
-    <nav class="pm-grid pm-grid--2" aria-label="Other sessions">
-<?php if ($pmPrevious !== null): ?>
-      <div class="pm-cell">
-        <span class="pm-label">Previous session</span>
-        <a class="pm-body pm-link" href="<?php echo pmEsc(pmWebinarUrl($pmPrevious)); ?>"><?php
-          echo pmEsc((string) $pmPrevious['title']); ?></a>
-      </div>
+  <nav class="pm-grid pm-grid--2 pm-grid--ruled pm-mt-xl" aria-label="Other sessions">
+<?php   if ($pmPrevious !== null): ?>
+    <div class="pm-cell">
+      <span class="pm-caption">Previous session</span>
+      <a class="pm-link" href="<?php echo pmEsc(pmWebinarUrl($pmPrevious)); ?>"><?php
+        echo pmEsc((string) $pmPrevious['title']); ?></a>
+    </div>
+<?php   endif; ?>
+<?php   if ($pmNextOne !== null): ?>
+    <div class="pm-cell">
+      <span class="pm-caption">Next session</span>
+      <a class="pm-link" href="<?php echo pmEsc(pmWebinarUrl($pmNextOne)); ?>"><?php
+        echo pmEsc((string) $pmNextOne['title']); ?></a>
+    </div>
+<?php   endif; ?>
+  </nav>
 <?php endif; ?>
-<?php if ($pmNextOne !== null): ?>
-      <div class="pm-cell">
-        <span class="pm-label">Next session</span>
-        <a class="pm-body pm-link" href="<?php echo pmEsc(pmWebinarUrl($pmNextOne)); ?>"><?php
-          echo pmEsc((string) $pmNextOne['title']); ?></a>
-      </div>
-<?php endif; ?>
-    </nav>
-  </div>
-</section>
-<?php endif; ?>
+
+</div>
+
+<div class="pm-section"></div>
 
 <?php pmPageEnd(); ?>
