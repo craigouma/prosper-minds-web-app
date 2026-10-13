@@ -3552,7 +3552,7 @@ WB_PAGE="$(wb_body "$WB1")"
 echo "  ---- the page itself ----"
 check "a session page answers 200"                 "200" "$(wb_code "$WB1")"
 check "its h1 is the session's own title"          "Start Here: Data for Public Money" "$(printf '%s' "$WB_PAGE" | grep -o '<h1[^>]*>[^<]*' | head -1 | sed 's/<[^>]*>//')"
-check "it says which session of how many"          "yes" "$(has_text "$WB_PAGE" 'Session 01 of 13')"
+check "it says which session of how many"          "yes" "$(has_text "$WB_PAGE" 'session 01 of 13')"
 check "the canonical address is the clean one"     "yes" \
   "$(has_text "$WB_PAGE" "rel=\"canonical\" href=\"https://prosper-minds.com/webinars/$WB1\"")"
 check "the date is written out"                    "yes" "$(has_text "$WB_PAGE" 'Thursday 29 October 2026')"
@@ -3604,7 +3604,7 @@ SERIES="$(curl -s "$MAIN/webinars.php")"
 check "every session's page is linked from it"     "13" \
   "$(printf '%s' "$SERIES" | grep -o 'href="/webinars/pfm-insight-live-session-[a-z0-9-]*"' | sort -u | wc -l | tr -d ' ')"
 check "and the old ?session=N address still works" "3" \
-  "$(curl -s "$MAIN/webinars.php?session=3" | sed -n 's/.*<option value="\([0-9]*\)" selected>.*/\1/p' | head -1)"
+  "$(curl -s "$MAIN/webinars.php?session=3" | sed -n 's/.*name="session_id" value="\([0-9]*\)".*/\1/p' | head -1)"
 
 echo "  ---- the sign-up form ----"
 check "it posts to the live handler"               "yes" "$(has_text "$WB_PAGE" 'action="/process-webinar-registration.php"')"
