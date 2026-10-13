@@ -31,6 +31,18 @@ one setting filled in, and those are listed against the change that introduced t
 
 Newest first. Anything marked **outstanding** still needs doing.
 
+### 13 October 2026, a registration link per session in the webinar calendar PDF
+
+- **Outstanding: deploy.** Merge and deploy as above. This replaces the PDF that the Webinars page offers as
+  "Download the calendar". The links work without a deploy, because the pages they open already exist on the
+  live site, so the file can be sent to Evans straight away.
+- Each of the 13 "Register" cells opens the Webinars page with that session already chosen
+  (`webinars.php?session=N#register-one`), and "Join the series" opens the series sign-up. Before this they all
+  went to the home page. The file is `public_html/assets/pdfs/pfm-insight-live-2026-2027.pdf`; nothing else in it
+  changed.
+- The session number in each link is the session's row id in the database (1 to 13, in date order). If a session
+  is ever deleted and added again it gets a new id and its link in the PDF would need updating.
+
 ### 8 October 2026, webinar posters
 
 - **Outstanding: deploy.** Merge and deploy as above. This is what puts the poster image on the server.
