@@ -3387,5 +3387,132 @@ check "an unmeasurable file just goes without" "1" \
   "$(grep -c 'if (\$size !== null)' public_html/includes/layout/event-card.php)"
 
 echo
+echo "=== 36. Each PFM Insight Live session has its own page ==="
+
+WB1="pfm-insight-live-session-01-start-here-data-for-public-money"
+WB13="pfm-insight-live-session-13-show-results-citizens-can-trust"
+wb_body() { curl -s "$MAIN/webinar.php?slug=$1"; }
+wb_code() { curl -s -o /dev/null -w '%{http_code}' "$MAIN/webinar.php?slug=$1"; }
+WB_PAGE="$(wb_body "$WB1")"
+
+echo "  ---- the page itself ----"
+check "a session page answers 200"                 "200" "$(wb_code "$WB1")"
+check "its h1 is the session's own title"          "Start Here: Data for Public Money" "$(printf '%s' "$WB_PAGE" | grep -o '<h1[^>]*>[^<]*' | head -1 | sed 's/<[^>]*>//')"
+check "it says which session of how many"          "yes" "$(has_text "$WB_PAGE" 'Session 01 of 13')"
+check "the canonical address is the clean one"     "yes" \
+  "$(has_text "$WB_PAGE" "rel=\"canonical\" href=\"https://prosper-minds.com/webinars/$WB1\"")"
+check "the date is written out"                    "yes" "$(has_text "$WB_PAGE" 'Thursday 29 October 2026')"
+check "the time is a one hour range"               "yes" "$(has_text "$WB_PAGE" '12:00 to 13:00 EAT')"
+check "and converted for the other zones"          "yes" "$(has_text "$WB_PAGE" '11:00 CAT/SAST, 10:00 WAT, 09:00 GMT')"
+check "what it covers and who it is for are shown" "yes" \
+  "$([ "$(has_text "$WB_PAGE" 'Turn budget and spending records')" = yes ] && [ "$(has_text "$WB_PAGE" 'Everyone new to data')" = yes ] && echo yes || echo no)"
+check "the poster is shown whole, with its size"   "yes" \
+  "$(printf '%s' "$WB_PAGE" | php -r 'echo preg_match("/<img[^>]*pfm-insight-live-session-01[^>]*width=\"\d+\" height=\"\d+\"/s", stream_get_contents(STDIN)) ? "yes" : "no";')"
+check "no em dash"                                 "0" "$(printf '%s' "$WB_PAGE" | grep -c $'\xe2\x80\x94')"
+check "no PHP error on the page"                   "0" \
+  "$(printf '%s' "$WB_PAGE" | grep -ciE 'fatal error|parse error|warning:|uncaught|sqlstate')"
+check "first session has a next link, no previous" "yes" \
+  "$([ "$(has_text "$WB_PAGE" 'Next session')" = yes ] && [ "$(has_text "$WB_PAGE" 'Previous session')" = no ] && echo yes || echo no)"
+check "the last session has a previous link, no next" "yes" \
+  "$(W="$(wb_body "$WB13")"; [ "$(has_text "$W" 'Previous session')" = yes ] && [ "$(has_text "$W" 'Next session')" = no ] && echo yes || echo no)"
+check "no undefined pm- class on the page" "0" \
+  "$(printf '%s' "$WB_PAGE" | php -r '
+$html = stream_get_contents(STDIN);
+$css  = (string) @file_get_contents("public_html/assets/css/pm-design-system.css");
+preg_match_all("/\.(pm-[A-Za-z0-9_-]+)/", $css, $m);
+$defined = array_flip($m[1]);
+preg_match_all("/class=\"([^\"]*)\"/", $html, $u);
+$used = [];
+foreach ($u[1] as $attr) { foreach (preg_split("/\s+/", trim($attr)) as $c) { if ($c !== "" && str_starts_with($c, "pm-")) { $used[$c] = true; } } }
+echo count(array_diff_key($used, $defined));')"
+
+echo "  ---- CRITICAL: the Zoom link is for people who registered, never for the page ----"
+WB_ZOOM="$(fq "SELECT zoom_link FROM webinar_sessions WHERE slug='$WB1'")"
+fq "UPDATE webinar_sessions SET zoom_link='https://us02web.zoom.us/j/99900011122PROBE' WHERE slug='$WB1'" >/dev/null
+check "the session page does not print it"         "0" "$(wb_body "$WB1" | grep -c 'zoom.us\|99900011122PROBE')"
+check "nor does the series page"                   "0" "$(curl -s "$MAIN/webinars.php" | grep -c '99900011122PROBE')"
+check "nor does the structured data"               "0" \
+  "$(wb_body "$WB1" | grep -o '<script type="application/ld+json">.*</script>' | grep -c 'zoom')"
+fq "UPDATE webinar_sessions SET zoom_link='$WB_ZOOM' WHERE slug='$WB1'" >/dev/null
+
+echo "  ---- search engines ----"
+LD="$(printf '%s' "$WB_PAGE" | grep -o '<script type="application/ld+json">.*</script>' | sed 's/<[^>]*>//g')"
+check "structured data is valid JSON"              "Event" "$(printf '%s' "$LD" | php -r '$d=json_decode(stream_get_contents(STDIN),true); echo $d["@type"] ?? "invalid";')"
+check "it carries the real start time"             "2026-10-29T12:00:00+03:00" \
+  "$(printf '%s' "$LD" | php -r '$d=json_decode(stream_get_contents(STDIN),true); echo $d["startDate"] ?? "";')"
+check "and says it is online and free"             "yes" \
+  "$(printf '%s' "$LD" | php -r '$d=json_decode(stream_get_contents(STDIN),true); echo (($d["isAccessibleForFree"] ?? false) === true && str_ends_with($d["eventAttendanceMode"] ?? "", "OnlineEventAttendanceMode")) ? "yes" : "no";')"
+check "the sitemap lists all 13 session pages"     "13" "$(curl -s "$MAIN/sitemap.php" | grep -c '<loc>https://prosper-minds.com/webinars/pfm-insight-live-session-')"
+check "and the series page"                        "1"  "$(curl -s "$MAIN/sitemap.php" | grep -c '<loc>https://prosper-minds.com/webinars.php</loc>')"
+
+echo "  ---- the series page links to each session ----"
+SERIES="$(curl -s "$MAIN/webinars.php")"
+check "every session's page is linked from it"     "13" \
+  "$(printf '%s' "$SERIES" | grep -o 'href="/webinars/pfm-insight-live-session-[a-z0-9-]*"' | sort -u | wc -l | tr -d ' ')"
+check "and the old ?session=N address still works" "3" \
+  "$(curl -s "$MAIN/webinars.php?session=3" | sed -n 's/.*<option value="\([0-9]*\)" selected>.*/\1/p' | head -1)"
+
+echo "  ---- the sign-up form ----"
+check "it posts to the live handler"               "yes" "$(has_text "$WB_PAGE" 'action="/process-webinar-registration.php"')"
+check "for this session's own id"                  "1" \
+  "$(printf '%s' "$WB_PAGE" | sed -n 's/.*name="session_id" value="\([0-9]*\)".*/\1/p' | head -1)"
+check "and returns to this page"                   "yes" "$(has_text "$WB_PAGE" "name=\"return_to\" value=\"/webinars/$WB1\"")"
+check "the honeypot is there"                      "yes" "$(has_text "$WB_PAGE" 'name="company"')"
+WJ="$(mktemp)"
+WTOK="$(curl -s -c "$WJ" -b "$WJ" "$MAIN/webinar.php?slug=$WB1" | sed -n 's/.*name="csrf_token" value="\([a-f0-9]*\)".*/\1/p' | head -1)"
+clearmail
+WLOC="$(curl -s -o /dev/null -w '%{redirect_url}' -b "$WJ" -c "$WJ" -X POST "$MAIN/process-webinar-registration.php" \
+  -d "csrf_token=$WTOK" -d "session_id=1" -d "return_to=/webinars/$WB1" \
+  -d "name=Session Page" -d "email=wb-page@example.test" -d "consent=yes")"
+check "registering sends the visitor back to the session page" "yes" "$(has_text "$WLOC" "/webinars/$WB1?webinar=ok")"
+check "and stores that session's registration"     "1" \
+  "$(fq "SELECT COUNT(*) FROM webinar_registrations WHERE email='wb-page@example.test' AND session_id=1")"
+sleep 1
+check "and the confirmation email is sent"         "1" "$(mailcount)"
+fq "DELETE FROM webinar_registrations WHERE email='wb-page@example.test'" >/dev/null
+clearmail
+rm -f "$WJ"
+check "a hand-written return address is still kept on this site" "/webinars.php" \
+  "$(curl -s -o /dev/null -w '%{redirect_url}' -X POST "$MAIN/process-webinar-registration.php" -d "return_to=//evil.example/x" -d "name=x" | sed 's|^.*://[^/]*||; s|?.*||')"
+
+echo "  ---- states: unknown, unpublished, finished, and an odd time label ----"
+check "an unknown session answers 404"             "404" "$(wb_code no-such-session)"
+check "the 404 is noindex and leaks nothing"       "yes" \
+  "$(B="$(wb_body no-such-session)"; [ "$(printf '%s' "$B" | grep -c noindex)" = 1 ] && [ "$(printf '%s' "$B" | grep -ciE 'fatal error|warning:|uncaught|sqlstate')" = 0 ] && echo yes || echo no)"
+check "an empty slug answers 404"                  "404" "$(wb_code '')"
+fq "UPDATE webinar_sessions SET is_active=0 WHERE slug='$WB1'" >/dev/null
+check "an unpublished session answers 404"         "404" "$(wb_code "$WB1")"
+fq "UPDATE webinar_sessions SET is_active=1 WHERE slug='$WB1'" >/dev/null
+check "and is back when published again"           "200" "$(wb_code "$WB1")"
+
+WB_DATE="$(fq "SELECT session_date FROM webinar_sessions WHERE slug='$WB1'")"
+fq "UPDATE webinar_sessions SET session_date=DATE_SUB(CURDATE(), INTERVAL 1 DAY) WHERE slug='$WB1'" >/dev/null
+PAST_WB="$(wb_body "$WB1")"
+check "a finished session stays reachable"         "200" "$(wb_code "$WB1")"
+check "but offers no sign-up form"                 "0" "$(printf '%s' "$PAST_WB" | grep -c 'name="session_id"')"
+check "and points to the upcoming sessions"        "yes" "$(has_text "$PAST_WB" 'See the upcoming sessions')"
+fq "UPDATE webinar_sessions SET session_date='$WB_DATE' WHERE slug='$WB1'" >/dev/null
+
+fq "UPDATE webinar_sessions SET time_label='Noon, probably' WHERE slug='$WB1'" >/dev/null
+ODD="$(wb_body "$WB1")"
+check "a time label of an unknown shape is shown as written" "yes" "$(has_text "$ODD" 'Noon, probably')"
+check "with no invented time zones"                "0" "$(printf '%s' "$ODD" | grep -c 'CAT/SAST')"
+check "and no structured data to get wrong"        "0" "$(printf '%s' "$ODD" | grep -c 'application/ld+json')"
+fq "UPDATE webinar_sessions SET time_label='12:00 EAT' WHERE slug='$WB1'" >/dev/null
+
+echo "  ---- CRITICAL: a broken sessions table must cost the page, not the site ----"
+fq "RENAME TABLE webinar_sessions TO webinar_sessions_p36bak" >/dev/null
+BROKEN_WB="$(wb_body "$WB1")"
+check "the session page answers 404, not a fatal"  "404" "$(wb_code "$WB1")"
+check "it leaks no error"                          "0" "$(printf '%s' "$BROKEN_WB" | grep -ciE 'fatal error|warning:|uncaught|sqlstate')"
+check "the home page still answers 200"            "200" "$(curl -s -o /dev/null -w '%{http_code}' "$MAIN/index.php")"
+check "the sitemap still answers, with its other pages" "yes" \
+  "$([ "$(curl -s "$MAIN/sitemap.php" | grep -c '<loc>')" -ge 6 ] && echo yes || echo no)"
+fq "DROP TABLE IF EXISTS webinar_sessions" >/dev/null
+fq "RENAME TABLE webinar_sessions_p36bak TO webinar_sessions" >/dev/null
+check "the table is restored with its 13 sessions" "13" "$(fq "SELECT COUNT(*) FROM webinar_sessions")"
+check "and the page is back"                       "200" "$(wb_code "$WB1")"
+
+echo
 printf '\n%s\npassed=%d failed=%d\n%s\n' "$(printf '=%.0s' {1..78})" "$pass" "$fail" "$(printf '=%.0s' {1..78})"
 exit $((fail > 0 ? 1 : 0))
