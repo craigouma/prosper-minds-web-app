@@ -31,17 +31,24 @@ one setting filled in, and those are listed against the change that introduced t
 
 Newest first. Anything marked **outstanding** still needs doing.
 
-### 13 October 2026, a registration link per session in the webinar calendar PDF
+### 13 October 2026, every PFM Insight Live session has its own page
 
-- **Outstanding: deploy.** Merge and deploy as above. This replaces the PDF that the Webinars page offers as
-  "Download the calendar". The links work without a deploy, because the pages they open already exist on the
-  live site, so the file can be sent to Evans straight away.
-- Each of the 13 "Register" cells opens the Webinars page with that session already chosen
-  (`webinars.php?session=N#register-one`), and "Join the series" opens the series sign-up. Before this they all
-  went to the home page. The file is `public_html/assets/pdfs/pfm-insight-live-2026-2027.pdf`; nothing else in it
-  changed.
-- The session number in each link is the session's row id in the database (1 to 13, in date order). If a session
-  is ever deleted and added again it gets a new id and its link in the PDF would need updating.
+- **Outstanding: deploy.** Merge and deploy as above. No SQL and no setting are needed: the pages are read from the
+  sessions already in the database. Send the calendar PDF to Evans only after the deploy, because its links open
+  these new pages.
+- Each session is now at `/webinars/{slug}` (for example
+  `/webinars/pfm-insight-live-session-01-start-here-data-for-public-money`). The page shows the session's number,
+  title, what it covers, who it is best for, the date, the time (with the same hour in CAT/SAST, WAT and GMT), the
+  poster if there is one, and a sign-up form for that session alone, with a link to join the whole series.
+- The Zoom link is never shown on the page. It is only emailed after someone registers.
+- A session that has already run still opens (so a shared link does not die) but offers no form. A session unpublished
+  in the admin, or an unknown address, shows a not-found page.
+- The series page now links each session to its own page, and the sitemap lists all 13 pages. The old
+  `webinars.php?session=N` address still works.
+- The calendar PDF's 13 "Register" cells and its "Join the series" button now open those pages (before, they all went
+  to the home page). The file is `public_html/assets/pdfs/pfm-insight-live-2026-2027.pdf`; nothing else in it changed.
+- A page's address comes from the session's slug, set when the session is created. Renaming a session in the admin does
+  not change its slug, so printed links stay valid.
 
 ### 8 October 2026, webinar posters
 
