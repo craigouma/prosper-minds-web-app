@@ -19,8 +19,17 @@ $tier         = trim($_POST['tier']          ?? 'Not specified');
 $message      = trim($_POST['message']       ?? '');
 $events       = $_POST['events'] ?? [];
 
+// The enquiry form asks for one "Full name". Everything before the last space
+// is the first name, so a single name is kept whole as the first name.
+$fullInput = trim($_POST['name'] ?? '');
+if ($firstName === '' && $lastName === '' && $fullInput !== '') {
+    $split = strrpos($fullInput, ' ');
+    $firstName = $split === false ? $fullInput : trim(substr($fullInput, 0, $split));
+    $lastName  = $split === false ? '' : trim(substr($fullInput, $split + 1));
+}
+
 // Validation
-if (!$firstName || !$lastName || !$organisation || !$email) {
+if (!$firstName || !$organisation || !$email) {
     echo json_encode(['success' => false, 'message' => 'Please fill in all required fields.']);
     exit;
 }
@@ -28,13 +37,9 @@ if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
     echo json_encode(['success' => false, 'message' => 'Invalid email address.']);
     exit;
 }
-if (empty($events)) {
-    echo json_encode(['success' => false, 'message' => 'Please select at least one event.']);
-    exit;
-}
-
-$eventsList = implode(', ', array_map('htmlspecialchars', $events));
-$fullName   = "$firstName $lastName";
+$events     = is_array($events) ? $events : [$events];
+$eventsList = $events ? implode(', ', array_map('htmlspecialchars', $events)) : 'No school chosen';
+$fullName   = trim("$firstName $lastName");
 
 $enquiryId = pmSponsorshipStore($pdo, [
     'first_name'   => $firstName,
@@ -45,7 +50,7 @@ $enquiryId = pmSponsorshipStore($pdo, [
     'country'      => $country,
     'tier'         => $tier,
     'message'      => $message,
-], is_array($events) ? $events : [$events]);
+], $events);
 
 if ($enquiryId === 0) {
     echo json_encode([

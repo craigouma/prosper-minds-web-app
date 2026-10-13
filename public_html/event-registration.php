@@ -9,70 +9,97 @@ require_once __DIR__ . '/includes/resume.php';
  * the failure looks like success:
  *
  *   csrf_token, event_id, event_name, tier, first_name, last_name, phone,
- *   email, organization, country, address, gender, meal_preference,
- *   future_topics, consent, and attendees[first_name][] / [last_name][] /
- *   [email][] / [title][]
+ *   email, organization, country, address, consent, and
+ *   attendees[first_name][] / [last_name][] / [email][]
+ *
+ * gender, meal_preference, future_topics and attendees[title][] are no longer
+ * asked for: the handler stores '' for them. address is optional.
  *
  * tier is 'regular', 'vip' or 'vvip'. The handler treats anything else, or a
- * tier the event has no price for, as 'regular' -- it is never trusted to set
+ * tier the event has no price for, as 'regular': it is never trusted to set
  * the price, only to choose which of the event's own prices applies.
  *
- * The handler zips the four attendees arrays by index, so a delegate row must
- * contribute all four fields or none. A row whose four values are all empty is
- * skipped, which is what lets the undriven form below ship five rows and have a
+ * The handler zips the attendees arrays by index, so a delegate row must
+ * contribute all its fields or none. A row whose values are all empty is
+ * skipped, which is what lets the undriven form ship five rows and have a
  * visitor fill in only the first.
  */
-
-/**
- * Mirrors parseEventPrice() in includes/invoice.php, both patterns exactly.
- * Restated rather than reused because invoice.php requires vendor/autoload.php,
- * and this page must still render when the vendor tree is incomplete.
- * verify.sh section 12 asserts the two have not drifted.
- *
- * @return array{0: string, 1: float}
- */
-function pmRegisterUnitPrice(string $priceText): array
-{
-    $priceText = trim($priceText);
-    $currency = 'USD';
-    $amount = 0.0;
-
-    if (preg_match('/(?<![A-Za-z])([A-Z]{3})(?![A-Za-z])/', $priceText, $currencyMatch)) {
-        $currency = $currencyMatch[1];
-    }
-
-    if (preg_match('/(\d[\d,]*(?:\.\d{1,2})?)/', $priceText, $amountMatch)) {
-        $amount = (float) str_replace(',', '', $amountMatch[1]);
-    }
-
-    return [$currency, $amount];
-}
-
-function pmRegisterMoney(string $currency, float $amount): string
-{
-    return $currency . ' ' . number_format($amount, 2);
-}
 
 /** Real rows in the markup, not a template, so the undriven form is completable. */
 const PM_REG_ROWS = 5;
 const PM_REG_MAX = 20;
 
+const PM_REG_COUNTRIES = [
+    'Kenya', 'Uganda', 'Tanzania', 'Rwanda', 'Ethiopia', 'Ghana', 'Nigeria', 'South Africa',
+    'Zambia', 'Malawi', 'Botswana', 'Namibia', 'Zimbabwe', 'Algeria', 'Angola', 'Benin',
+    'Burkina Faso', 'Burundi', 'Cameroon', 'Cape Verde', 'Central African Republic', 'Chad',
+    'Comoros', 'Congo', 'Cote d\'Ivoire', 'Democratic Republic of the Congo', 'Djibouti',
+    'Egypt', 'Equatorial Guinea', 'Eritrea', 'Eswatini', 'Gabon', 'Gambia', 'Guinea',
+    'Guinea-Bissau', 'Lesotho', 'Liberia', 'Libya', 'Madagascar', 'Mali', 'Mauritania',
+    'Mauritius', 'Morocco', 'Mozambique', 'Niger', 'Sao Tome and Principe', 'Senegal',
+    'Seychelles', 'Sierra Leone', 'Somalia', 'South Sudan', 'Sudan', 'Togo', 'Tunisia',
+    'Other',
+];
+
 // Both addresses render the same form; the old ?id= link is not deprecated,
 // only joined by a nicer one. See event.php for why this is not a redirect.
 $pmSlugParam = trim((string) ($_GET['slug'] ?? ''));
 $pmEventId   = isset($_GET['id']) ? (int) $_GET['id'] : 0;
-$pmEvent     = $pmSlugParam !== '' ? pmEventBySlug($pdo, $pmSlugParam) : pmEventById($pdo, $pmEventId);
+$pmWantsOne  = $pmSlugParam !== '' || $pmEventId > 0;
+$pmEvent     = $pmSlugParam !== '' ? pmEventBySlug($pdo, $pmSlugParam) : ($pmEventId > 0 ? pmEventById($pdo, $pmEventId) : null);
 
-if ($pmEvent !== null) {
-    $pmEventId = (int) $pmEvent['id'];
-}
-
-// is_active mirrors the handler's own WHERE clause. A form the handler will
-// refuse is a form that fails after everything has been typed in.
-if ($pmEvent === null || (int) ($pmEvent['is_active'] ?? 0) !== 1) {
-    header('Location: /events.php');
+// A link to a school that is gone or closed goes to the schools, rather than
+// showing a form the handler would refuse after everything has been typed in.
+if ($pmWantsOne && ($pmEvent === null || (int) ($pmEvent['is_active'] ?? 0) !== 1)) {
+    header('Location: /#schools');
     exit;
 }
+
+// /register on its own: choose a school, or skip the choice when only one is
+// open.
+if ($pmEvent === null) {
+    $pmOpen = array_values(array_filter(pmActiveEvents($pdo), static function (array $event): bool {
+        return !pmEventIsPast($event);
+    }));
+
+    if (count($pmOpen) === 1) {
+        header('Location: ' . pmEventRegisterUrl($pmOpen[0]));
+        exit;
+    }
+
+    if ($pmOpen === []) {
+        header('Location: /#schools');
+        exit;
+    }
+
+    pmPageBegin([
+        'slug'        => 'register',
+        'nav'         => 'schools',
+        'title'       => 'Choose a school',
+        'description' => 'Choose the school you are registering delegates for.',
+        'canonical'   => '/register',
+        'hide_cta'    => true,
+    ]);
+    ?>
+<div class="pm-container pm-container--narrow pm-reg pm-reg--single">
+  <div class="pm-reg__main">
+    <h1 class="pm-h1 pm-h1--step">Choose a school</h1>
+    <div class="pm-choices">
+<?php foreach ($pmOpen as $pmOption): ?>
+      <a class="pm-pick" href="<?php echo pmEsc(pmEventRegisterUrl($pmOption)); ?>">
+        <span class="pm-pick__title"><?php echo pmEsc(pmEventProse((string) $pmOption['title'])); ?></span>
+        <span class="pm-pick__when"><?php echo pmEsc(trim(pmEventDatesLong($pmOption) . ', ' . pmEventPlace($pmOption), ', ')); ?></span>
+      </a>
+<?php endforeach; ?>
+    </div>
+  </div>
+</div>
+    <?php
+    pmPageEnd();
+    exit;
+}
+
+$pmEventId = (int) $pmEvent['id'];
 
 // Before any output: funnelSessionId() may need to send the pm_funnel_sid
 // cookie. Tracking must never be able to stop the form rendering.
@@ -92,19 +119,19 @@ try {
 $pmResume = pmResumeByToken($pdo, $_GET['resume'] ?? null);
 $pmResume = is_array($pmResume) && (int) $pmResume['event_id'] === (int) $pmEvent['id'] ? $pmResume : null;
 
-/** A step two value to put back in the form, escaped, or ''. */
+/** A step one value to put back in the form, escaped, or ''. */
 $pmPrefill = static function (string $field) use ($pmResume): string {
     return $pmResume === null ? '' : pmEsc((string) ($pmResume[$field] ?? ''));
 };
 
 $pmTitle    = pmEventProse((string) ($pmEvent['title'] ?? ''));
-$pmLocation = pmEventProse((string) ($pmEvent['location'] ?? ''));
 $pmDates    = pmEventDatesLong($pmEvent);
+$pmWhen     = trim($pmDates . ', ' . pmEventPlace($pmEvent), ', ');
+$pmContact  = pmContact($pdo);
 
 // Every tier the event actually prices. An event with no vip_price/vvip_price
-// set (every school created before tiers existed) offers only Regular, same
-// as today. The handler applies this exact rule independently, so a tampered
-// tier can only ever fall back to Regular, never invent a price of its own.
+// set offers only Regular. The handler applies this exact rule independently,
+// so a tampered tier can only ever fall back to Regular, never invent a price.
 $pmTierOptions = [];
 foreach ([
     ['key' => 'regular', 'name' => 'Regular', 'price_text' => (string) ($pmEvent['price'] ?? '')],
@@ -114,17 +141,16 @@ foreach ([
     if (trim($pmTierSpec['price_text']) === '') {
         continue;
     }
-    [$pmTierCurrency, $pmTierAmount] = pmRegisterUnitPrice($pmTierSpec['price_text']);
+    [$pmTierCurrency, $pmTierAmount] = pmEventParsePrice($pmTierSpec['price_text']);
     $pmTierOptions[] = $pmTierSpec + [
         'currency' => $pmTierCurrency,
         'amount'   => $pmTierAmount,
-        'label'    => pmRegisterMoney($pmTierCurrency, $pmTierAmount),
+        'label'    => pmEventMoney($pmTierCurrency, $pmTierAmount),
     ];
 }
 
-// A "Select VIP and register" link from the event page pre-selects that tier;
-// anything else, including a request for a tier this event does not offer,
-// lands on Regular.
+// "Register as VIP" on the school page pre-selects that tier; anything else,
+// including a tier this event does not offer, lands on Regular.
 $pmRequestedTier = trim((string) ($_GET['tier'] ?? ''));
 $pmSelectedTier  = in_array($pmRequestedTier, array_column($pmTierOptions, 'key'), true)
     ? $pmRequestedTier
@@ -140,478 +166,304 @@ foreach ($pmTierOptions as $pmTierOption) {
 
 $pmCurrency   = $pmSelectedTierData['currency'] ?? 'USD';
 $pmUnitAmount = $pmSelectedTierData['amount'] ?? 0.0;
-$pmUnitLabel  = pmRegisterMoney($pmCurrency, $pmUnitAmount);
-$pmTotalLabel = pmRegisterMoney($pmCurrency, $pmUnitAmount);
-
-$pmSteps = pmContentJson($pdo, 'register', 'steps', [
-    ['num' => '01', 'label' => 'Event and tickets'],
-    ['num' => '02', 'label' => 'Contact and billing'],
-    ['num' => '03', 'label' => 'Delegates'],
-    ['num' => '04', 'label' => 'Review and consent'],
-    ['num' => '05', 'label' => 'Confirmation'],
-]);
+$pmUnitLabel  = pmEventMoney($pmCurrency, $pmUnitAmount);
+$pmTierName   = $pmSelectedTierData['name'] ?? 'Regular';
+$pmWhatsApp   = pmWhatsAppUrl('Question about my registration for ' . $pmTitle);
 
 pmPageBegin([
     'slug'        => 'register',
-    'nav'         => 'events',
-    'title'       => 'Register a delegate: ' . $pmTitle,
-    'description' => 'Register delegates for ' . $pmTitle . ', ' . $pmDates . ', ' . $pmLocation
+    'nav'         => 'schools',
+    'title'       => 'Register: ' . $pmTitle,
+    'description' => 'Register delegates for ' . $pmTitle . ', ' . $pmWhen
                      . '. Invoiced to your institution, payable by bank transfer or purchase order.',
     'canonical'   => pmEventRegisterUrl($pmEvent),
+    'hide_cta'    => true,
     'scripts'     => ['/assets/js/pm-register.js'],
 ]);
 ?>
 
-<section class="pm-section pm-section--tight">
-  <div class="pm-container">
+<div class="pm-container pm-container--narrow pm-reg">
 
-    <div class="pm-reg__head">
-      <span class="pm-eyebrow"><?php echo pmContentSafe($pdo, 'register', 'eyebrow',
-        'Delegate registration'); ?></span>
-      <span class="pm-reg__stepcount" data-pm-stepcount role="status">Step 1 of <?php
-        echo count($pmSteps); ?></span>
-    </div>
+  <div class="pm-reg__main">
 
-    <h1 class="pm-h1"><?php echo pmEsc($pmTitle); ?></h1>
+    <?php // One form, one POST. action and method are real so the browser can
+          // post it with no script at all. ?>
+    <form id="standaloneRegForm"
+          action="/process-registration.php"
+          method="post"
+          data-pm-register
+          data-pm-currency="<?php echo pmEsc($pmCurrency); ?>"
+          data-pm-unit-amount="<?php echo pmEsc(number_format($pmUnitAmount, 2, '.', '')); ?>"
+          data-pm-rows="<?php echo PM_REG_ROWS; ?>"
+          data-pm-max="<?php echo PM_REG_MAX; ?>">
 
-    <?php // Real anchors, so undriven they are a table of contents into a form
-          // whose sections are all on screen. ?>
-    <ol class="pm-reg__progress pm-mt-lg">
-<?php foreach ($pmSteps as $pmIndex => $pmStep): ?>
-      <li>
-        <a class="pm-reg__progress-item"
-           href="#pm-reg-step-<?php echo (int) $pmIndex + 1; ?>"
-           data-pm-progress="<?php echo (int) $pmIndex + 1; ?>"
-           <?php echo $pmIndex === 0 ? 'data-pm-state="current"' : ''; ?>>
-          <span class="pm-reg__progress-num"><?php echo pmEsc((string) ($pmStep['num'] ?? '')); ?></span>
-          <span class="pm-reg__progress-name"><?php echo pmEsc((string) ($pmStep['label'] ?? '')); ?></span>
-        </a>
-      </li>
-<?php endforeach; ?>
-    </ol>
+      <?php echo formCsrfField(); ?>
+      <input type="hidden" name="event_id" value="<?php echo (int) $pmEvent['id']; ?>">
+      <?php // The raw title, not the display copy, so the handler's fallback
+            // lookup by event_name still matches the row. ?>
+      <input type="hidden" name="event_name" value="<?php echo pmEsc((string) $pmEvent['title']); ?>">
 
-  </div>
-</section>
+      <div class="pm-notice pm-notice--error" id="pm-reg-status" data-pm-status role="alert" hidden></div>
 
 
-<section class="pm-section pm-section--tight">
-  <div class="pm-container pm-row">
+      <section class="pm-reg__panel" id="pm-reg-step-1" data-pm-step="1" data-pm-current
+               aria-labelledby="pm-reg-step-1-title">
+        <span class="pm-reg__stepcount" data-pm-stepcount role="status">Step 1 of 2</span>
+        <h1 class="pm-h1 pm-h1--step pm-mt-sm" id="pm-reg-step-1-title">The school and you</h1>
 
-    <div class="pm-row__main">
-
-      <?php // Hidden by attribute, not by class, so it stays hidden with the
-            // stylesheet absent. pm-register.js reveals it only from the branch
-            // where the server answered success:true. ?>
-      <div class="pm-card pm-card--dark" id="pm-reg-step-5" data-pm-done hidden>
-        <div class="pm-reg__done-head">
-          <span class="pm-reg__done-mark" aria-hidden="true">&#10003;</span>
-          <span class="pm-label"><?php echo pmContentSafe($pdo, 'register', 'done_eyebrow',
-            'Registration received'); ?></span>
+        <div class="pm-reg__school">
+          <div class="pm-reg__school-main">
+            <div class="pm-reg__school-title"><?php echo pmEsc($pmTitle); ?></div>
+            <div class="pm-reg__school-when"><?php echo pmEsc($pmWhen); ?></div>
+          </div>
+          <a class="pm-link" href="/register">Change</a>
         </div>
 
-        <h2 class="pm-h2" data-pm-done-title><?php echo pmContentSafe($pdo, 'register', 'done_title',
-          'Your place is confirmed'); ?></h2>
-
-        <p class="pm-body" data-pm-done-message><?php echo pmContentSafe($pdo, 'register', 'done_body',
-          'Your invoice has been generated and emailed to the billing contact, together with the joining instructions.'); ?></p>
-
-        <div class="pm-reg__done-grid">
-          <div class="pm-reg__done-cell">
-            <span class="pm-reg__done-label"><?php echo pmContentSafe($pdo, 'register', 'done_label_invoice',
-              'Invoice number'); ?></span>
-            <span class="pm-reg__done-value pm-reg__done-value--green" data-pm-done-invoice></span>
-          </div>
-          <div class="pm-reg__done-cell">
-            <span class="pm-reg__done-label"><?php echo pmContentSafe($pdo, 'register', 'done_label_amount',
-              'Amount due'); ?></span>
-            <span class="pm-reg__done-value" data-pm-done-total></span>
-          </div>
-          <div class="pm-reg__done-cell">
-            <span class="pm-reg__done-label"><?php echo pmContentSafe($pdo, 'register', 'done_label_count',
-              'Delegates'); ?></span>
-            <span class="pm-reg__done-value" data-pm-done-count></span>
-          </div>
-        </div>
-
-        <?php // No "Download invoice" button, unlike the prototype:
-              // assets/invoices/ is served publicly and invoice numbers are
-              // guessable, so a link here would advertise a path to every other
-              // delegate's invoice. The PDF is emailed instead. ?>
-        <p class="pm-caption"><?php echo pmContentSafe($pdo, 'register', 'done_help',
-          'Need help right away? Call +254 740 582302 or +254 722 998105, or email info@prosper-minds.com.'); ?></p>
-
-        <div class="pm-btn-row">
-          <a class="pm-btn" href="/events.php"><?php echo pmContentSafe($pdo, 'register', 'done_cta',
-            'Back to the calendar'); ?></a>
-        </div>
-      </div>
-
-      <?php // One form, one POST. action and method are real so the browser can
-            // post it with no script at all. ?>
-      <form id="standaloneRegForm"
-            class="pm-stack pm-stack--lg"
-            action="/process-registration.php"
-            method="post"
-            data-pm-register
-            data-pm-currency="<?php echo pmEsc($pmCurrency); ?>"
-            data-pm-unit-amount="<?php echo pmEsc(number_format($pmUnitAmount, 2, '.', '')); ?>"
-            data-pm-rows="<?php echo PM_REG_ROWS; ?>"
-            data-pm-max="<?php echo PM_REG_MAX; ?>">
-
-        <?php echo formCsrfField(); ?>
-        <input type="hidden" name="event_id" value="<?php echo (int) $pmEvent['id']; ?>">
-        <?php // The raw title, not the display copy, so the handler's fallback
-              // lookup by event_name still matches the row. ?>
-        <input type="hidden" name="event_name" value="<?php echo pmEsc((string) $pmEvent['title']); ?>">
-
-        <div class="pm-notice" id="pm-reg-status" data-pm-status role="status" hidden></div>
-
-        <p class="pm-caption pm-reg__undriven"><?php echo pmContentSafe($pdo, 'register', 'undriven_note',
-          'All four sections are on this page. Fill them in and submit once at the bottom.'); ?></p>
-
-
-        <section class="pm-reg__panel" id="pm-reg-step-1" data-pm-step="1" data-pm-current
-                 aria-labelledby="pm-reg-step-1-title">
-          <h2 class="pm-h3 pm-h3--caps" id="pm-reg-step-1-title"><?php
-            echo pmContentSafe($pdo, 'register', 'step1_title', 'Confirm event and tickets'); ?></h2>
-          <p class="pm-body pm-measure pm-mt-sm"><?php echo pmContentSafe($pdo, 'register', 'step1_body',
-            'Check the school and the dates, then set the number of delegates. The invoice summary updates as you go.'); ?></p>
-
-          <div class="pm-card pm-mt-md">
-            <span class="pm-label"><?php echo pmContentSafe($pdo, 'register', 'school_label',
-              'Selected school'); ?></span>
-            <h3 class="pm-h4"><?php echo pmEsc($pmTitle); ?></h3>
-            <p class="pm-body">
-              <?php echo pmEsc($pmLocation); ?><br>
-              <?php echo pmEsc($pmDates); ?>
-            </p>
-            <p class="pm-body"><span data-pm-unit-label><?php echo pmEsc($pmUnitLabel); ?></span> <?php
-              echo pmContentSafe($pdo, 'register', 'per_delegate', 'per delegate'); ?></p>
-            <p>
-              <a class="pm-btn--link" href="/events.php"><?php echo pmContentSafe($pdo, 'register', 'change_school',
-                'Change school'); ?></a>
-            </p>
-          </div>
-
-          <?php if (count($pmTierOptions) > 1): ?>
-          <p class="pm-label pm-mt-md" id="pm-reg-tier-label"><?php echo pmContentSafe($pdo, 'register', 'tier_label',
-            'Delegate tier'); ?></p>
-          <div class="pm-reg__tiers" data-pm-tiers role="radiogroup" aria-labelledby="pm-reg-tier-label">
+<?php if (count($pmTierOptions) > 1): ?>
+        <div class="pm-group">
+          <div class="pm-group__title" id="pm-reg-tier-label">Tier</div>
+          <div class="pm-choices" data-pm-tiers role="radiogroup" aria-labelledby="pm-reg-tier-label">
 <?php foreach ($pmTierOptions as $pmTierOption): ?>
-            <label class="pm-reg__tier">
+            <label class="pm-choice">
               <input type="radio" name="tier" value="<?php echo pmEsc($pmTierOption['key']); ?>"
-                     data-pm-tier-radio data-pm-tier-amount="<?php echo pmEsc((string) $pmTierOption['amount']); ?>"
-                     data-pm-tier-label="<?php echo pmEsc(pmRegisterMoney($pmTierOption['currency'], $pmTierOption['amount'])); ?>"
+                     data-pm-tier-radio
+                     data-pm-tier-amount="<?php echo pmEsc((string) $pmTierOption['amount']); ?>"
+                     data-pm-tier-label="<?php echo pmEsc($pmTierOption['label']); ?>"
+                     data-pm-tier-name="<?php echo pmEsc($pmTierOption['name']); ?>"
                      <?php echo $pmTierOption['key'] === $pmSelectedTier ? 'checked' : ''; ?>>
-              <span class="pm-reg__tier-name"><?php echo pmEsc($pmTierOption['name']); ?></span>
-              <span class="pm-reg__tier-price"><?php echo pmEsc($pmTierOption['label']); ?></span>
+              <span class="pm-choice__face">
+                <span class="pm-choice__dot" aria-hidden="true"></span>
+                <span class="pm-choice__name"><?php echo pmEsc($pmTierOption['name']); ?></span>
+                <span class="pm-choice__price"><?php echo pmEsc($pmTierOption['label']); ?></span>
+              </span>
             </label>
 <?php endforeach; ?>
           </div>
-          <p class="pm-caption pm-mt-sm"><?php echo pmContentSafe($pdo, 'register', 'tier_note',
-            'Every attendee added below joins at the tier selected here. VIP and VVIP perks are listed on the event page.'); ?></p>
-          <?php else: ?>
-          <input type="hidden" name="tier" value="regular">
-          <?php endif; ?>
+        </div>
+<?php else: ?>
+        <input type="hidden" name="tier" value="regular">
+<?php endif; ?>
 
-          <p class="pm-label pm-mt-lg" id="pm-reg-count-label"><?php
-            echo pmContentSafe($pdo, 'register', 'count_label', 'Number of delegates'); ?></p>
-
-          <div class="pm-reg__stepper pm-mt-sm" data-pm-stepper
-               role="group" aria-labelledby="pm-reg-count-label">
-            <button type="button" class="pm-reg__stepper-btn" data-pm-step-down
-                    aria-label="One delegate fewer">&minus;</button>
-            <span class="pm-reg__stepper-value" data-pm-count-value aria-live="polite">1</span>
-            <button type="button" class="pm-reg__stepper-btn" data-pm-step-up
-                    aria-label="One delegate more">+</button>
+        <div class="pm-group">
+          <div class="pm-group__title" id="pm-reg-count-label">Number of delegates</div>
+          <div class="pm-stepper" data-pm-stepper role="group" aria-labelledby="pm-reg-count-label">
+            <button type="button" class="pm-stepper__btn" data-pm-step-down
+                    aria-label="One fewer delegate">&minus;</button>
+            <output class="pm-stepper__value" data-pm-count-value aria-live="polite">1</output>
+            <button type="button" class="pm-stepper__btn" data-pm-step-up
+                    aria-label="One more delegate">+</button>
           </div>
+          <p class="pm-group__hint">1 to <?php echo PM_REG_MAX; ?> delegates on one invoice</p>
+          <p class="pm-group__hint pm-reg__undriven">Name each delegate in the next section. Leave unused delegate rows blank.</p>
+        </div>
 
-          <p class="pm-caption pm-mt-sm pm-reg__undriven"><?php echo pmContentSafe($pdo, 'register', 'count_undriven',
-            'The number of delegates is however many you name in section 03 below. Leave the rest blank.'); ?></p>
-        </section>
+        <div class="pm-group">
+          <div class="pm-group__title">Billing contact</div>
+          <p class="pm-group__hint">The invoice is addressed to this person.</p>
 
-
-        <section class="pm-reg__panel" id="pm-reg-step-2" data-pm-step="2"
-                 aria-labelledby="pm-reg-step-2-title">
-          <h2 class="pm-h3 pm-h3--caps" id="pm-reg-step-2-title"><?php
-            echo pmContentSafe($pdo, 'register', 'step2_title', 'Contact and billing'); ?></h2>
-          <p class="pm-body pm-measure pm-mt-sm"><?php echo pmContentSafe($pdo, 'register', 'step2_body',
-            'The invoice is issued to the institution named here. This is also the address the confirmation and joining instructions are sent to.'); ?></p>
-
-          <?php // Only fields the handler stores. The prototype also shows
-                // Department, Job title and a PO reference; nothing reads them,
-                // and a field whose contents are discarded is worse than none. ?>
-          <div class="pm-grid pm-grid--2 pm-mt-md">
+          <div class="pm-form-grid pm-mt-md">
             <div class="pm-field">
-              <label class="pm-field__label" for="pm-reg-first"><?php
-                echo pmContentSafe($pdo, 'register', 'label_first', 'Billing contact first name'); ?></label>
+              <label class="pm-field__label" for="pm-reg-first">First name</label>
               <input class="pm-input" type="text" id="pm-reg-first" name="first_name"
                      autocomplete="given-name" value="<?php echo $pmPrefill('first_name'); ?>" required>
             </div>
 
             <div class="pm-field">
-              <label class="pm-field__label" for="pm-reg-last"><?php
-                echo pmContentSafe($pdo, 'register', 'label_last', 'Billing contact last name'); ?></label>
+              <label class="pm-field__label" for="pm-reg-last">Last name</label>
               <input class="pm-input" type="text" id="pm-reg-last" name="last_name"
                      autocomplete="family-name" value="<?php echo $pmPrefill('last_name'); ?>" required>
             </div>
 
             <div class="pm-field">
-              <label class="pm-field__label" for="pm-reg-org"><?php
-                echo pmContentSafe($pdo, 'register', 'label_org', 'Institution'); ?></label>
-              <input class="pm-input" type="text" id="pm-reg-org" name="organization"
-                     autocomplete="organization"
-                     placeholder="Ministry, county or authority"
-                     value="<?php echo $pmPrefill('organization'); ?>" required>
-            </div>
-
-            <div class="pm-field">
-              <label class="pm-field__label" for="pm-reg-email"><?php
-                echo pmContentSafe($pdo, 'register', 'label_email', 'Email'); ?></label>
+              <label class="pm-field__label" for="pm-reg-email">Work email</label>
               <input class="pm-input" type="email" id="pm-reg-email" name="email"
-                     autocomplete="email" placeholder="name@institution.go.ke"
+                     inputmode="email" autocomplete="email"
                      value="<?php echo $pmPrefill('email'); ?>" required>
             </div>
 
             <div class="pm-field">
-              <label class="pm-field__label" for="pm-reg-phone"><?php
-                echo pmContentSafe($pdo, 'register', 'label_phone', 'Phone'); ?></label>
+              <label class="pm-field__label" for="pm-reg-phone">Phone</label>
               <?php // pattern restates the handler's own check so the browser
                     // refuses what the server would. ?>
               <input class="pm-input" type="tel" id="pm-reg-phone" name="phone"
-                     autocomplete="tel" placeholder="+254 700 000000"
+                     inputmode="tel" autocomplete="tel"
                      pattern="[\d\+\-\s\(\)]{8,20}"
                      title="8 to 20 characters, digits and + - ( ) only"
                      value="<?php echo $pmPrefill('phone'); ?>" required>
             </div>
 
             <div class="pm-field">
-              <label class="pm-field__label" for="pm-reg-country"><?php
-                echo pmContentSafe($pdo, 'register', 'label_country', 'Country'); ?></label>
-              <input class="pm-input" type="text" id="pm-reg-country" name="country"
-                     autocomplete="country-name" placeholder="Kenya"
-                     value="<?php echo $pmPrefill('country'); ?>" required>
+              <label class="pm-field__label" for="pm-reg-org">Institution</label>
+              <input class="pm-input" type="text" id="pm-reg-org" name="organization"
+                     autocomplete="organization"
+                     value="<?php echo $pmPrefill('organization'); ?>" required>
+            </div>
+
+            <div class="pm-field">
+              <label class="pm-field__label" for="pm-reg-country">Country</label>
+<?php $pmPickedCountry = $pmResume === null ? '' : (string) ($pmResume['country'] ?? ''); ?>
+              <select class="pm-select" id="pm-reg-country" name="country" autocomplete="country-name" required>
+                <option value="">Select a country</option>
+<?php foreach (PM_REG_COUNTRIES as $pmCountry): ?>
+                <option value="<?php echo pmEsc($pmCountry); ?>"<?php
+                  echo $pmCountry === $pmPickedCountry ? ' selected' : ''; ?>><?php echo pmEsc($pmCountry); ?></option>
+<?php endforeach; ?>
+              </select>
+            </div>
+
+            <div class="pm-field pm-form-grid--wide">
+              <label class="pm-field__label" for="pm-reg-address">Address <span class="pm-field__opt">(optional)</span></label>
+              <input class="pm-input" type="text" id="pm-reg-address" name="address" autocomplete="street-address">
             </div>
           </div>
+        </div>
 
-          <div class="pm-field pm-mt-md">
-            <label class="pm-field__label" for="pm-reg-address"><?php
-              echo pmContentSafe($pdo, 'register', 'label_address', 'Billing address'); ?></label>
-            <span class="pm-field__hint" id="pm-reg-address-hint"><?php
-              echo pmContentSafe($pdo, 'register', 'hint_address',
-                'The address that should appear on the invoice.'); ?></span>
-            <textarea class="pm-textarea" id="pm-reg-address" name="address" rows="3"
-                      aria-describedby="pm-reg-address-hint" required></textarea>
-          </div>
-
-          <div class="pm-field pm-mt-md">
-            <label class="pm-field__label" for="pm-reg-gender"><?php
-              echo pmContentSafe($pdo, 'register', 'label_gender', 'Gender (optional)'); ?></label>
-            <select class="pm-select" id="pm-reg-gender" name="gender">
-              <option value="">Prefer not to say</option>
-              <option value="Female">Female</option>
-              <option value="Male">Male</option>
-              <option value="Other">Other</option>
-            </select>
-          </div>
-        </section>
+        <div class="pm-btn-row pm-btn-row--primary-wide pm-mt-lg pm-reg__inline-cta">
+          <button class="pm-btn pm-reg__only-steps" type="button" data-pm-next>Continue</button>
+        </div>
+      </section>
 
 
-        <section class="pm-reg__panel" id="pm-reg-step-3" data-pm-step="3"
-                 aria-labelledby="pm-reg-step-3-title">
-          <h2 class="pm-h3 pm-h3--caps" id="pm-reg-step-3-title"><?php
-            echo pmContentSafe($pdo, 'register', 'step3_title', 'Delegate details'); ?></h2>
-          <p class="pm-body pm-measure pm-mt-sm"><?php echo pmContentSafe($pdo, 'register', 'step3_body',
-            'Names are printed on certificates and used for visa support letters, so enter them as they appear on each passport.'); ?></p>
+      <section class="pm-reg__panel" id="pm-reg-step-2" data-pm-step="2"
+               aria-labelledby="pm-reg-step-2-title">
+        <button type="button" class="pm-link pm-reg__only-steps" data-pm-back>Back to step 1</button>
+        <span class="pm-reg__stepcount pm-mt-sm">Step 2 of 2</span>
+        <h2 class="pm-h1 pm-h1--step pm-mt-sm" id="pm-reg-step-2-title">Delegates and confirm</h2>
 
-          <div class="pm-stack pm-stack--md pm-mt-md" data-pm-delegates>
+        <div class="pm-delegates" data-pm-delegates>
 <?php for ($pmRow = 0; $pmRow < PM_REG_ROWS; $pmRow++): ?>
-            <?php // Rows after the first are optional here so the undriven form
-                  // can be submitted with one delegate. pm-register.js disables
-                  // rows above the chosen count; hiding alone would still post
-                  // them. ?>
-            <div class="pm-card" data-pm-delegate="<?php echo $pmRow; ?>">
-              <div class="pm-reg__delegate-head">
-                <span class="pm-label" data-pm-delegate-heading>Delegate <?php echo $pmRow + 1; ?></span>
-                <span class="pm-reg__delegate-note" data-pm-delegate-note><?php
-                  echo $pmRow === 0 ? 'Required' : 'Optional'; ?></span>
+          <?php // pm-register.js disables rows above the chosen count; hiding
+                // alone would still post them. ?>
+          <div class="pm-delegate" data-pm-delegate="<?php echo $pmRow; ?>">
+            <div class="pm-delegate__head">
+              <strong data-pm-delegate-heading>Delegate <?php echo $pmRow + 1; ?></strong>
+              <span data-pm-delegate-note><?php echo $pmRow === 0 ? 'Filled from the billing contact' : ''; ?></span>
+            </div>
+
+            <div class="pm-form-grid">
+              <div class="pm-field">
+                <label class="pm-field__label" for="pm-reg-d<?php echo $pmRow; ?>-first">First name</label>
+                <input class="pm-input" type="text" autocomplete="given-name"
+                       id="pm-reg-d<?php echo $pmRow; ?>-first"
+                       name="attendees[first_name][]"
+                       <?php echo $pmRow === 0 ? 'required' : ''; ?>>
               </div>
 
-              <div class="pm-grid pm-grid--2">
-                <div class="pm-field">
-                  <label class="pm-field__label" for="pm-reg-d<?php echo $pmRow; ?>-first"><?php
-                    echo pmContentSafe($pdo, 'register', 'label_d_first', 'First name'); ?></label>
-                  <input class="pm-input" type="text"
-                         id="pm-reg-d<?php echo $pmRow; ?>-first"
-                         name="attendees[first_name][]"
-                         <?php echo $pmRow === 0 ? 'required' : ''; ?>>
-                </div>
+              <div class="pm-field">
+                <label class="pm-field__label" for="pm-reg-d<?php echo $pmRow; ?>-last">Last name</label>
+                <input class="pm-input" type="text" autocomplete="family-name"
+                       id="pm-reg-d<?php echo $pmRow; ?>-last"
+                       name="attendees[last_name][]"
+                       <?php echo $pmRow === 0 ? 'required' : ''; ?>>
+              </div>
 
-                <div class="pm-field">
-                  <label class="pm-field__label" for="pm-reg-d<?php echo $pmRow; ?>-last"><?php
-                    echo pmContentSafe($pdo, 'register', 'label_d_last', 'Last name'); ?></label>
-                  <input class="pm-input" type="text"
-                         id="pm-reg-d<?php echo $pmRow; ?>-last"
-                         name="attendees[last_name][]"
-                         <?php echo $pmRow === 0 ? 'required' : ''; ?>>
-                </div>
-
-                <div class="pm-field">
-                  <label class="pm-field__label" for="pm-reg-d<?php echo $pmRow; ?>-email"><?php
-                    echo pmContentSafe($pdo, 'register', 'label_d_email', 'Email'); ?></label>
-                  <input class="pm-input" type="email"
-                         id="pm-reg-d<?php echo $pmRow; ?>-email"
-                         name="attendees[email][]">
-                </div>
-
-                <div class="pm-field">
-                  <label class="pm-field__label" for="pm-reg-d<?php echo $pmRow; ?>-title"><?php
-                    echo pmContentSafe($pdo, 'register', 'label_d_title', 'Job title'); ?></label>
-                  <input class="pm-input" type="text"
-                         id="pm-reg-d<?php echo $pmRow; ?>-title"
-                         name="attendees[title][]"
-                         placeholder="e.g. Budget Controller">
-                </div>
+              <div class="pm-field pm-form-grid--wide">
+                <label class="pm-field__label" for="pm-reg-d<?php echo $pmRow; ?>-email">Email</label>
+                <input class="pm-input" type="email" inputmode="email" autocomplete="email"
+                       id="pm-reg-d<?php echo $pmRow; ?>-email"
+                       name="attendees[email][]"
+                       <?php echo $pmRow === 0 ? 'required' : ''; ?>>
               </div>
             </div>
+          </div>
 <?php endfor; ?>
-          </div>
-
-          <div class="pm-field pm-mt-md">
-            <label class="pm-field__label" for="pm-reg-meal"><?php
-              echo pmContentSafe($pdo, 'register', 'label_meal', 'Meal preference for the group'); ?></label>
-            <span class="pm-field__hint" id="pm-reg-meal-hint"><?php
-              echo pmContentSafe($pdo, 'register', 'hint_meal',
-                'One preference is recorded per registration. Tell us about individual requirements in the box below and we will arrange them.'); ?></span>
-            <select class="pm-select" id="pm-reg-meal" name="meal_preference"
-                    aria-describedby="pm-reg-meal-hint">
-              <option value="">No preference</option>
-              <option value="Standard">Standard</option>
-              <option value="Vegetarian">Vegetarian</option>
-              <option value="Vegan">Vegan</option>
-              <option value="Halal">Halal</option>
-              <option value="Gluten-Free">Gluten free</option>
-            </select>
-          </div>
-        </section>
-
-
-        <section class="pm-reg__panel" id="pm-reg-step-4" data-pm-step="4"
-                 aria-labelledby="pm-reg-step-4-title">
-          <h2 class="pm-h3 pm-h3--caps" id="pm-reg-step-4-title"><?php
-            echo pmContentSafe($pdo, 'register', 'step4_title', 'Review and consent'); ?></h2>
-          <p class="pm-body pm-measure pm-mt-sm"><?php echo pmContentSafe($pdo, 'register', 'step4_body',
-            'Submitting generates a numbered invoice and emails it to the billing contact with the joining instructions.'); ?></p>
-
-          <div class="pm-reg__review pm-mt-md">
-            <div class="pm-reg__review-row">
-              <span class="pm-reg__review-label"><?php echo pmContentSafe($pdo, 'register', 'review_school',
-                'School'); ?></span>
-              <span class="pm-reg__review-value"><?php echo pmEsc($pmTitle); ?></span>
-            </div>
-            <div class="pm-reg__review-row">
-              <span class="pm-reg__review-label"><?php echo pmContentSafe($pdo, 'register', 'review_dates',
-                'Dates'); ?></span>
-              <span class="pm-reg__review-value"><?php echo pmEsc($pmDates); ?>, <?php
-                echo pmEsc($pmLocation); ?></span>
-            </div>
-            <div class="pm-reg__review-row">
-              <span class="pm-reg__review-label"><?php echo pmContentSafe($pdo, 'register', 'review_delegates',
-                'Delegates'); ?></span>
-              <span class="pm-reg__review-value" data-pm-review-count>1</span>
-            </div>
-            <div class="pm-reg__review-row">
-              <span class="pm-reg__review-label"><?php echo pmContentSafe($pdo, 'register', 'review_payable',
-                'Payable'); ?></span>
-              <span class="pm-reg__review-value" data-pm-review-total><?php
-                echo pmEsc($pmTotalLabel); ?></span>
-            </div>
-          </div>
-
-          <div class="pm-field pm-mt-md">
-            <label class="pm-field__label" for="pm-reg-topics"><?php
-              echo pmContentSafe($pdo, 'register', 'label_topics', 'Topics you would like to see in future'); ?></label>
-            <textarea class="pm-textarea" id="pm-reg-topics" name="future_topics" rows="3"
-                      placeholder="Optional"></textarea>
-          </div>
-
-          <?php // One checkbox, because `consent` is the one thing the handler
-                // stores. A second box would post a field nothing reads. ?>
-          <div class="pm-mt-md">
-            <label class="pm-check" for="pm-reg-consent">
-              <input type="checkbox" id="pm-reg-consent" name="consent" value="yes" required>
-              <span><?php echo pmContentSafe($pdo, 'register', 'consent_text',
-                'I confirm the institution authorises this registration, and I consent to Prosperminds processing these details for invoicing, certification, visa support letters and course administration.'); ?></span>
-            </label>
-          </div>
-
-          <p class="pm-caption pm-mt-sm"><?php echo pmContentSafe($pdo, 'register', 'consent_note_html',
-            'We use these details only to run this registration and the course. See our <a href="/privacy-policy.php">privacy policy</a>.', true); ?></p>
-
-          <div class="pm-btn-row pm-mt-lg">
-            <button class="pm-btn" type="submit" data-pm-submit
-                    data-pm-sending="<?php echo pmContentSafe($pdo, 'register', 'submit_sending',
-                      'Submitting'); ?>"><?php echo pmContentSafe($pdo, 'register', 'submit',
-              'Complete registration'); ?></button>
-          </div>
-        </section>
-
-
-        <?php // Absent unless pm-register.js is driving, because Back and
-              // Continue do nothing without it. ?>
-        <div class="pm-reg__nav" data-pm-nav>
-          <button type="button" class="pm-btn pm-btn--secondary" data-pm-back><?php
-            echo pmContentSafe($pdo, 'register', 'nav_back', 'Back'); ?></button>
-          <button type="button" class="pm-btn pm-reg__nav-next" data-pm-next><?php
-            echo pmContentSafe($pdo, 'register', 'nav_next', 'Continue'); ?></button>
         </div>
 
-      </form>
-    </div>
-
-    <?php // THE FIGURES HERE MUST EQUAL WHAT THE HANDLER CHARGES: unit price x
-          // delegates, no deduction, matching
-          // $totalAmount = $unitPriceAmount * $attendeeCount. The prototype's
-          // "Early bird, 20 per cent" line is deliberately absent because the
-          // handler applies no discount. data-pm-total-amount is the
-          // machine-readable twin verify.sh compares against the stored total. ?>
-    <aside class="pm-reg__aside" aria-labelledby="pm-reg-summary-head">
-      <div class="pm-reg__sticky">
-        <div class="pm-reg__summary">
-          <span class="pm-reg__summary-head" id="pm-reg-summary-head"><?php
-            echo pmContentSafe($pdo, 'register', 'summary_head', 'Invoice summary'); ?></span>
-
-          <div class="pm-reg__line">
-            <span class="pm-reg__line-label" data-pm-line-label><?php
-              echo pmContentSafe($pdo, 'register', 'summary_line', 'Delegate place'); ?> x <span
-              data-pm-line-count>1</span></span>
-            <span class="pm-reg__line-value" data-pm-line-value><?php echo pmEsc($pmTotalLabel); ?></span>
-          </div>
-
-          <div class="pm-reg__line">
-            <span class="pm-reg__line-label"><?php echo pmContentSafe($pdo, 'register', 'summary_unit',
-              'Unit price, per delegate'); ?></span>
-            <span class="pm-reg__line-value" data-pm-unit-label><?php echo pmEsc($pmUnitLabel); ?></span>
-          </div>
-
-          <div class="pm-reg__total">
-            <span class="pm-reg__total-label"><?php echo pmContentSafe($pdo, 'register', 'summary_total',
-              'Total'); ?></span>
-            <span class="pm-reg__total-value"
-                  data-pm-invoice-total
-                  data-pm-total-amount="<?php echo pmEsc(number_format($pmUnitAmount, 2, '.', '')); ?>"
-                  data-pm-currency="<?php echo pmEsc($pmCurrency); ?>"><?php
-              echo pmEsc($pmTotalLabel); ?></span>
-          </div>
+        <?php // THE FIGURES HERE MUST EQUAL WHAT THE HANDLER CHARGES: unit
+              // price x delegates, matching
+              // $totalAmount = $unitPriceAmount * $attendeeCount. The handler
+              // applies no early-bird deduction, so none is shown here. ?>
+        <div class="pm-summary">
+          <div class="pm-summary__title">Invoice summary</div>
+          <dl>
+            <dt>School</dt>
+            <dd><?php echo pmEsc(trim(pmEventPlace($pmEvent) . ', ' . $pmDates, ', ')); ?></dd>
+            <dt>Tier</dt>
+            <dd data-pm-summary-tier><?php echo pmEsc($pmTierName); ?></dd>
+            <dt>Unit price</dt>
+            <dd data-pm-unit-label><?php echo pmEsc($pmUnitLabel); ?></dd>
+            <dt>Delegates</dt>
+            <dd data-pm-review-count>1</dd>
+            <dt class="pm-summary__total">Total</dt>
+            <dd class="pm-summary__total" data-pm-review-total><?php echo pmEsc($pmUnitLabel); ?></dd>
+          </dl>
         </div>
 
-        <p class="pm-caption pm-mt-md"><?php echo pmContentSafe($pdo, 'register', 'summary_note',
-          'Payment by bank transfer or institutional purchase order. No card details are collected on this site.'); ?></p>
+        <div class="pm-consent">
+          <label class="pm-check" for="pm-reg-consent">
+            <input type="checkbox" id="pm-reg-consent" name="consent" value="yes" required>
+            <span><?php echo pmContentSafe($pdo, 'register', 'v2_consent_text',
+              'I confirm these details are correct and agree that Prosperminds may use them to issue the invoice, joining instructions and certificates.'); ?></span>
+          </label>
+          <p class="pm-caption pm-mt-sm"><?php echo pmContentSafe($pdo, 'register', 'v2_consent_note_html',
+            'See our <a href="/privacy-policy.php">privacy policy</a>.', true); ?></p>
+        </div>
+
+        <div class="pm-btn-row pm-btn-row--primary-wide pm-mt-lg pm-reg__inline-cta">
+          <button class="pm-btn" type="submit" data-pm-submit
+                  data-pm-sending="Submitting">Submit registration</button>
+        </div>
+      </section>
+
+    </form>
+
+    <?php // Hidden by attribute, not by class, so it stays hidden with the
+          // stylesheet absent. pm-register.js reveals it only from the branch
+          // where the server answered success:true. ?>
+    <div class="pm-done" id="pm-reg-done" data-pm-done hidden>
+      <div class="pm-done__mark" aria-hidden="true">
+        <svg width="26" height="20" viewBox="0 0 26 20"><path d="M2 10.5 9 17.5 24 2.5" fill="none" stroke="#000" stroke-width="3"></path></svg>
       </div>
-    </aside>
+      <h1 class="pm-h1 pm-h1--step pm-mt-md" tabindex="-1">Registration received</h1>
 
+      <div class="pm-done__invoice">
+        <div class="pm-caption">Invoice number</div>
+        <div class="pm-done__number" data-pm-done-invoice></div>
+        <p class="pm-body pm-mt-sm" data-pm-done-message>Your invoice has been emailed to the billing contact.</p>
+      </div>
+
+      <h2>What happens next</h2>
+      <ol>
+        <li><strong>1</strong><span>Pay by bank transfer or purchase order. The payment details are on the invoice.</span></li>
+        <li><strong>2</strong><span>Joining instructions follow by email before the school.</span></li>
+      </ol>
+
+      <p class="pm-strong pm-mt-lg">Questions about this registration?</p>
+      <div class="pm-btn-row">
+<?php if ($pmWhatsApp !== ''): ?>
+        <a class="pm-btn" href="<?php echo pmEsc($pmWhatsApp); ?>" rel="noopener">WhatsApp us</a>
+<?php endif; ?>
+<?php if ($pmContact['phones'] !== []): ?>
+        <a class="pm-btn <?php echo $pmWhatsApp !== '' ? 'pm-btn--secondary' : ''; ?>"
+           href="tel:<?php echo pmEsc($pmContact['phones'][0]['tel']); ?>">Call <?php
+          echo pmEsc($pmContact['phones'][0]['label']); ?></a>
+<?php endif; ?>
+      </div>
+      <p class="pm-mt-md"><a class="pm-link" href="/#schools">Back to the schools</a></p>
+    </div>
   </div>
-</section>
+
+  <aside class="pm-reg__aside" aria-labelledby="pm-reg-summary-head">
+    <div class="pm-reg__aside-label" id="pm-reg-summary-head">Invoice total</div>
+    <div class="pm-reg__aside-total"
+         data-pm-invoice-total
+         data-pm-total-amount="<?php echo pmEsc(number_format($pmUnitAmount, 2, '.', '')); ?>"
+         data-pm-currency="<?php echo pmEsc($pmCurrency); ?>"><?php echo pmEsc($pmUnitLabel); ?></div>
+    <div class="pm-reg__aside-line" data-pm-total-line><?php echo pmEsc($pmTierName); ?>, 1 delegate</div>
+    <button class="pm-btn pm-reg__cta" type="button" data-pm-primary>Continue</button>
+<?php if ($pmContact['phones'] !== []): ?>
+    <div class="pm-reg__aside-help">Questions? <a href="tel:<?php echo pmEsc($pmContact['phones'][0]['tel']); ?>"><?php
+      echo pmEsc($pmContact['phones'][0]['label']); ?></a></div>
+<?php endif; ?>
+  </aside>
+
+</div>
+
+<div class="pm-stickybar pm-stickybar--mobile pm-reg__bar" data-pm-bar>
+  <div class="pm-stickybar__fig"><span data-pm-total-line><?php echo pmEsc($pmTierName); ?>, 1 delegate</span><strong data-pm-bar-total><?php
+    echo pmEsc($pmUnitLabel); ?></strong></div>
+  <button class="pm-btn" type="button" data-pm-primary>Continue</button>
+</div>
 
 <script>
     // ── Funnel analytics: "form_started" ────────────────────────────────

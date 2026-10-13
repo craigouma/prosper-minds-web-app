@@ -22,11 +22,8 @@
     if (!isFinite(unitAmount)) { unitAmount = 0; }
     if (!isFinite(maxDelegates) || maxDelegates < 1) { maxDelegates = 20; }
 
-    var STEP_COUNT = 4;              // 5 is the confirmation, reached by submitting
+    var STEP_COUNT = 2;
     var panels = form.querySelectorAll('[data-pm-step]');
-    var progressItems = document.querySelectorAll('[data-pm-progress]');
-    var stepCount = document.querySelector('[data-pm-stepcount]');
-    var nav = form.querySelector('[data-pm-nav]');
     var backBtn = form.querySelector('[data-pm-back]');
     var nextBtn = form.querySelector('[data-pm-next]');
     var submitBtn = form.querySelector('[data-pm-submit]');
@@ -35,34 +32,41 @@
     var upBtn = form.querySelector('[data-pm-step-up]');
     var downBtn = form.querySelector('[data-pm-step-down]');
     var countValue = form.querySelector('[data-pm-count-value]');
-    var lineCount = document.querySelector('[data-pm-line-count]');
-    var lineValue = document.querySelector('[data-pm-line-value]');
-    var invoiceTotal = document.querySelector('[data-pm-invoice-total]');
     var reviewCount = form.querySelector('[data-pm-review-count]');
     var reviewTotal = form.querySelector('[data-pm-review-total]');
+    var summaryTier = form.querySelector('[data-pm-summary-tier]');
+    var invoiceTotal = document.querySelector('[data-pm-invoice-total]');
+    var barTotal = document.querySelector('[data-pm-bar-total]');
+    var totalLines = document.querySelectorAll('[data-pm-total-line]');
+    var primaryBtns = document.querySelectorAll('[data-pm-primary]');
     var done = document.querySelector('[data-pm-done]');
     var tierRadios = form.querySelectorAll('[data-pm-tier-radio]');
     var unitLabels = document.querySelectorAll('[data-pm-unit-label]');
 
-    if (!panels.length || !nav || !nextBtn || !delegateHolder) {
+    if (!panels.length || !nextBtn || !delegateHolder) {
       return;
     }
 
     var currentStep = 1;
     var delegateCount = 1;
+    var checkedTier = form.querySelector('[data-pm-tier-radio]:checked');
+    var tierName = checkedTier ? checkedTier.getAttribute('data-pm-tier-name') || 'Regular' : 'Regular';
 
     function reducedMotion() {
       return !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
     }
 
+    // Same shape as pmEventMoney() in PHP: cents only when there are cents.
     function money(amount, code) {
       var value = parseFloat(amount);
       if (!isFinite(value)) { value = 0; }
 
-      var parts = (Math.round(value * 100) / 100).toFixed(2).split('.');
+      value = Math.round(value * 100) / 100;
+      var whole = Math.abs(value - Math.round(value)) < 0.005;
+      var parts = value.toFixed(whole ? 0 : 2).split('.');
       parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ',');
 
-      return (code || currency) + ' ' + parts[0] + '.' + parts[1];
+      return (code || currency) + ' ' + parts.join('.');
     }
 
     function delegateRows() {
@@ -73,19 +77,24 @@
       return row.querySelectorAll('input, select, textarea');
     }
 
+    function setText(nodes, text) {
+      for (var i = 0; i < nodes.length; i++) { nodes[i].textContent = text; }
+    }
+
     // MUST equal what the handler charges: unit x count, no discount. unitAmount
-    // already reflects the selected tier (set on load from the checked radio,
-    // updated live if the visitor changes it) and delegateCount is the number
-    // of enabled rows, which is exactly what the POST carries.
+    // already reflects the selected tier and delegateCount is the number of
+    // enabled rows, which is exactly what the POST carries.
     function renderTotal() {
       var total = unitAmount * delegateCount;
       var formatted = money(total);
+      var line = tierName + ', ' + delegateCount + (delegateCount === 1 ? ' delegate' : ' delegates');
 
       if (countValue) { countValue.textContent = String(delegateCount); }
-      if (lineCount) { lineCount.textContent = String(delegateCount); }
-      if (lineValue) { lineValue.textContent = formatted; }
       if (reviewCount) { reviewCount.textContent = String(delegateCount); }
       if (reviewTotal) { reviewTotal.textContent = formatted; }
+      if (summaryTier) { summaryTier.textContent = tierName; }
+      if (barTotal) { barTotal.textContent = formatted; }
+      setText(totalLines, line);
 
       if (invoiceTotal) {
         invoiceTotal.textContent = formatted;
@@ -112,16 +121,12 @@
 
         for (var f = 0; f < fields.length; f++) {
           var field = fields[f];
-          // Whole rows toggle together: the handler zips the four attendees
-          // arrays by index, so a row contributes all four values or none.
           field.disabled = !active;
 
-          if (field.name === 'attendees[first_name][]' || field.name === 'attendees[last_name][]') {
-            if (active) {
-              field.setAttribute('required', 'required');
-            } else {
-              field.removeAttribute('required');
-            }
+          if (active) {
+            field.setAttribute('required', 'required');
+          } else {
+            field.removeAttribute('required');
           }
         }
 
@@ -129,7 +134,7 @@
         if (heading) { heading.textContent = 'Delegate ' + (i + 1); }
 
         var note = row.querySelector('[data-pm-delegate-note]');
-        if (note) { note.textContent = 'Required'; }
+        if (note) { note.textContent = i === 0 ? 'Filled from the billing contact' : ''; }
       }
     }
 
@@ -174,15 +179,10 @@
       renderTotal();
     }
 
-    function showStatus(message, ok) {
+    function showStatus(message) {
       if (!status) { return; }
 
       status.textContent = message;
-      if (ok) {
-        status.classList.remove('pm-notice--error');
-      } else {
-        status.classList.add('pm-notice--error');
-      }
       status.hidden = false;
     }
 
@@ -217,33 +217,19 @@
         }
       }
 
-      for (var p = 0; p < progressItems.length; p++) {
-        var itemStep = parseInt(progressItems[p].getAttribute('data-pm-progress'), 10);
-        progressItems[p].removeAttribute('data-pm-state');
-
-        if (itemStep === step) {
-          progressItems[p].setAttribute('data-pm-state', 'current');
-        } else if (itemStep < step) {
-          progressItems[p].setAttribute('data-pm-state', 'done');
-        }
+      var label = step === STEP_COUNT ? 'Submit registration' : 'Continue';
+      for (var b = 0; b < primaryBtns.length; b++) {
+        primaryBtns[b].textContent = label;
       }
-
-      if (stepCount) {
-        stepCount.textContent = 'Step ' + step + ' of ' + (STEP_COUNT + 1);
-      }
-
-      if (backBtn) { backBtn.hidden = step === 1; }
-      // Step 4 carries the real submit button.
-      nextBtn.hidden = step === STEP_COUNT;
 
       var panel = panelFor(step);
       if (panel && focus) {
-        var heading = panel.querySelector('h2');
+        var heading = panel.querySelector('h1, h2');
         if (heading) {
           heading.setAttribute('tabindex', '-1');
-          heading.focus();
+          heading.focus({ preventScroll: true });
         }
-        panel.scrollIntoView({ block: 'start', behavior: reducedMotion() ? 'auto' : 'smooth' });
+        window.scrollTo({ top: 0, behavior: reducedMotion() ? 'auto' : 'smooth' });
       }
     }
 
@@ -270,10 +256,7 @@
       }
 
       if (!ok && firstBad) {
-        showStatus(
-          firstBad.validationMessage || 'Please check the highlighted fields.',
-          false
-        );
+        showStatus(firstBad.validationMessage || 'Please check the highlighted fields.');
         // A field in a collapsed step is not focusable, so show the step first.
         if (step !== currentStep) { showStep(step, false); }
         try { firstBad.focus(); } catch (focusError) { /* not focusable, no matter */ }
@@ -295,16 +278,17 @@
       });
     }
 
-    for (var p = 0; p < progressItems.length; p++) {
-      progressItems[p].addEventListener('click', function (event) {
-        var target = parseInt(this.getAttribute('data-pm-progress'), 10);
-
-        // Step 5 is reachable by registering and by nothing else.
-        if (!isFinite(target) || target > STEP_COUNT) { return; }
-
-        event.preventDefault();
-        clearStatus();
-        showStep(target, true);
+    // The sticky bar and the desktop panel carry the one primary button. It
+    // acts as whichever in-form button belongs to the current step.
+    for (var pb = 0; pb < primaryBtns.length; pb++) {
+      primaryBtns[pb].addEventListener('click', function () {
+        if (currentStep < STEP_COUNT) {
+          nextBtn.click();
+        } else if (typeof form.requestSubmit === 'function') {
+          form.requestSubmit(submitBtn || undefined);
+        } else {
+          form.dispatchEvent(new Event('submit', { cancelable: true }));
+        }
       });
     }
 
@@ -321,10 +305,8 @@
     }
 
     // The radio's own data carries the amount and its formatted label, both
-    // rendered server-side from the event's real price columns -- nothing here
+    // rendered server-side from the event's real price columns: nothing here
     // computes or guesses a price, it only reflects the one already chosen.
-    // Changing tier never touches delegateCount, so renderTotal() alone is
-    // enough to bring every total in step.
     for (var t = 0; t < tierRadios.length; t++) {
       tierRadios[t].addEventListener('change', function (event) {
         var picked = event.target;
@@ -332,10 +314,8 @@
         if (!isFinite(amount)) { return; }
 
         unitAmount = amount;
-        var label = picked.getAttribute('data-pm-tier-label') || '';
-        for (var u = 0; u < unitLabels.length; u++) {
-          unitLabels[u].textContent = label;
-        }
+        tierName = picked.getAttribute('data-pm-tier-name') || tierName;
+        setText(unitLabels, picked.getAttribute('data-pm-tier-label') || '');
         renderTotal();
       });
     }
@@ -363,10 +343,15 @@
             target.setAttribute('data-pm-dirty', 'true');
           });
 
-          source.addEventListener('input', function () {
+          function copy() {
             if (target.getAttribute('data-pm-dirty') === 'true') { return; }
             target.value = source.value;
-          });
+          }
+
+          source.addEventListener('input', copy);
+          // Browser autofill can fill without an input event on some phones.
+          source.addEventListener('change', copy);
+          copy();
         })(pairs[i][0], pairs[i][1]);
       }
     })();
@@ -388,6 +373,8 @@
         submitBtn.textContent = submitBtn.getAttribute('data-pm-sending') || 'Submitting';
       }
 
+      for (var d = 0; d < primaryBtns.length; d++) { primaryBtns[d].disabled = true; }
+
       fetch(form.getAttribute('action'), { method: 'POST', body: body })
         .then(function (response) {
           // A non-2xx answer is a failure even if the body happens to parse.
@@ -401,8 +388,7 @@
           if (!data || data.success !== true) {
             showStatus(
               (data && data.message) ||
-                'We could not complete the registration. Please try again, or email info@prosper-minds.com.',
-              false
+                'We could not complete the registration. Please try again, or email info@prosper-minds.com.'
             );
 
             return;
@@ -412,8 +398,7 @@
         })
         .catch(function () {
           showStatus(
-            'We could not reach the server. Nothing has been submitted. Please try again, or email info@prosper-minds.com.',
-            false
+            'We could not reach the server. Nothing has been submitted. Please try again, or email info@prosper-minds.com.'
           );
         })
         .then(function () {
@@ -421,6 +406,8 @@
             submitBtn.disabled = false;
             submitBtn.textContent = original;
           }
+
+          for (var e = 0; e < primaryBtns.length; e++) { primaryBtns[e].disabled = false; }
         });
     });
 
@@ -445,11 +432,8 @@
           });
 
           // The Google Ads conversion action, sent as its own hit rather than
-          // left to the GA4 import. The import is not a live Ads conversion, so
-          // it cannot be verified with Tag Assistant and arrives hours later.
-          //
-          // Fires ONLY when includes/google-tag.php defines the label. Removing
-          // that one line turns this off without touching this file, which is
+          // left to the GA4 import. Fires ONLY when includes/google-tag.php
+          // defines the label; removing that one line turns this off, which is
           // what stops it double counting against the GA4-imported action.
           if (window.pmAdsPurchaseConversion) {
             window.gtag('event', 'conversion', {
@@ -470,34 +454,30 @@
 
       if (done) {
         var invoiceEl = done.querySelector('[data-pm-done-invoice]');
-        var totalEl = done.querySelector('[data-pm-done-total]');
-        var countEl = done.querySelector('[data-pm-done-count]');
         var messageEl = done.querySelector('[data-pm-done-message]');
+        var emailField = form.querySelector('[name="email"]');
 
         if (invoiceEl) { invoiceEl.textContent = data.invoice_number || ''; }
-        if (totalEl) { totalEl.textContent = money(data.total_amount, data.currency_code); }
-        if (countEl) { countEl.textContent = String(submittedCount); }
         // The handler's wording: only it knows whether the emails went out.
-        if (messageEl && data.message) { messageEl.textContent = data.message; }
+        if (messageEl) {
+          messageEl.textContent = data.message ||
+            ('Your invoice has been emailed to ' + (emailField ? emailField.value : 'the billing contact') + '.');
+        }
 
         done.hidden = false;
       }
 
       form.hidden = true;
 
-      for (var p = 0; p < progressItems.length; p++) {
-        var itemStep = parseInt(progressItems[p].getAttribute('data-pm-progress'), 10);
-        progressItems[p].removeAttribute('data-pm-state');
-        progressItems[p].setAttribute('data-pm-state', itemStep === STEP_COUNT + 1 ? 'current' : 'done');
-      }
+      var aside = document.querySelector('.pm-reg__aside');
+      var bar = document.querySelector('[data-pm-bar]');
+      if (aside) { aside.hidden = true; }
+      if (bar) { bar.hidden = true; }
 
-      if (stepCount) {
-        stepCount.textContent = 'Step ' + (STEP_COUNT + 1) + ' of ' + (STEP_COUNT + 1);
-      }
+      window.scrollTo({ top: 0, behavior: reducedMotion() ? 'auto' : 'smooth' });
 
-      if (done && typeof done.scrollIntoView === 'function') {
-        done.scrollIntoView({ block: 'start', behavior: reducedMotion() ? 'auto' : 'smooth' });
-      }
+      var doneHeading = done ? done.querySelector('h1') : null;
+      if (doneHeading) { doneHeading.focus({ preventScroll: true }); }
     }
 
     // Only now: a browser refusing to submit over a required field inside a

@@ -12,10 +12,10 @@ pmPageBegin([
 ?>
 
 <section class="pm-section pm-section--tight">
-  <div class="pm-container pm-measure">
+  <div class="pm-container pm-measure pm-prose">
 
     <span class="pm-eyebrow">Legal</span>
-    <h1 class="pm-h1">Privacy Policy</h1>
+    <h1 class="pm-h1 pm-h1--step">Privacy Policy</h1>
     <p class="pm-lede pm-mt-lg">
       This policy explains what personal data Prosperminds collects through this
       website, why we collect it, how long we keep it, and what rights you have

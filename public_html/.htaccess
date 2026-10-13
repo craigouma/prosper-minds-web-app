@@ -24,11 +24,12 @@ RewriteRule ^sitemap\.xml$ sitemap.php [L]
 RewriteRule ^mombasa2026/?$ event-registration.php?slug=christmas-pfm-mastery-school-mombasa-2026 [L,QSA]
 RewriteRule ^capetown2026/?$ event-registration.php?slug=future-ready-pfm-leaders-cape-town-2026 [L,QSA]
 
+# /register asks which school (or goes straight to the only open one).
+RewriteRule ^register/?$ event-registration.php [L,QSA]
+
 # Clean event URLs: /school/{slug} is the course page and /school/{slug}/register
 # is the registration form. Kept above the CMS-slug rule so a "school" segment
-# never falls into it. event.php and event-registration.php redirect the old
-# ?id= link to the slug one whenever the event has a slug, so old links, and
-# QR codes, keep working.
+# never falls into it. The old ?id= links still render the same pages.
 RewriteRule ^school/([a-z0-9-]+)/register/?$ event-registration.php?slug=$1 [L,QSA]
 RewriteRule ^school/([a-z0-9-]+)/?$ event.php?slug=$1 [L,QSA]
 

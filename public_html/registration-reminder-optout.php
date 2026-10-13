@@ -42,8 +42,8 @@ pmPageBegin([
       open and you are welcome to register whenever suits you.</p>
 
     <div class="pm-btn-row pm-mt-lg">
-      <a class="pm-btn" href="/events.php">See the calendar</a>
-      <a class="pm-btn--link" href="/contact.php">Talk to somebody</a>
+      <a class="pm-btn" href="/#schools">See the schools</a>
+      <a class="pm-btn--link" href="/about.php#contact">Talk to somebody</a>
     </div>
 
   </div>
