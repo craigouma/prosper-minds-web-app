@@ -170,8 +170,9 @@ $pmTimeNext = $pmNext !== null ? trim((string) ($pmNext['time_label'] ?: '12:00 
 <?php   foreach ($pmSessions as $pmSession): ?>
       <li>
         <span class="pm-sessions__date"><?php echo pmEsc(pmWebinarDateLong($pmSession)); ?></span>
-        <span class="pm-sessions__title"><?php echo pmEsc((string) $pmSession['title']); ?></span>
-        <a class="pm-link" href="/webinars.php?session=<?php echo (int) $pmSession['id']; ?>#register">Register<span class="pm-sr-only"> for <?php
+        <span class="pm-sessions__title"><a href="<?php echo pmEsc(pmWebinarUrl($pmSession)); ?>"><?php
+          echo pmEsc((string) $pmSession['title']); ?></a></span>
+        <a class="pm-link" href="<?php echo pmEsc(pmWebinarUrl($pmSession)); ?>#register">Register<span class="pm-sr-only"> for <?php
           echo pmEsc((string) $pmSession['title']); ?></span></a>
       </li>
 <?php   endforeach; ?>

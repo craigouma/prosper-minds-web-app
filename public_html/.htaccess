@@ -33,6 +33,11 @@ RewriteRule ^register/?$ event-registration.php [L,QSA]
 RewriteRule ^school/([a-z0-9-]+)/register/?$ event-registration.php?slug=$1 [L,QSA]
 RewriteRule ^school/([a-z0-9-]+)/?$ event.php?slug=$1 [L,QSA]
 
+# Each PFM Insight Live session has its own page: /webinars/{slug}. The series
+# page itself stays at /webinars.php. A single segment only, so the CMS-slug
+# rule below, which matches one segment, never sees these.
+RewriteRule ^webinars/([a-z0-9-]+)/?$ webinar.php?slug=$1 [L,QSA]
+
 # CMS pages are served by slug, but only as a last resort: a request that
 # matches a real file or directory is left alone, so nothing here can shadow an
 # existing page, an asset or the admin panel.

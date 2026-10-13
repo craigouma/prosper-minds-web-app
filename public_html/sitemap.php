@@ -35,6 +35,16 @@ try {
     error_log('sitemap.php: could not load events (ignored, static pages still listed): ' . $e->getMessage());
 }
 
+// Each PFM Insight Live session has its own page. Read from the table, so a
+// session added or unpublished in the admin is reflected without editing this.
+$webinars = [];
+try {
+    require_once __DIR__ . '/includes/webinars.php';
+    $webinars = pmWebinarSessions($pdo);
+} catch (Throwable $e) {
+    error_log('sitemap.php: could not load webinar sessions (ignored): ' . $e->getMessage());
+}
+
 echo '<?xml version="1.0" encoding="UTF-8"?>' . "\n";
 ?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
@@ -52,6 +62,14 @@ echo '<?xml version="1.0" encoding="UTF-8"?>' . "\n";
         <lastmod><?php echo date('Y-m-d', strtotime($ev['created_at'] ?? 'now')); ?></lastmod>
         <changefreq>weekly</changefreq>
         <priority>0.9</priority>
+    </url>
+<?php endforeach; ?>
+<?php foreach ($webinars as $wb): ?>
+    <url>
+        <loc><?php echo htmlspecialchars($baseUrl . pmWebinarUrl($wb)); ?></loc>
+        <lastmod><?php echo $today; ?></lastmod>
+        <changefreq>weekly</changefreq>
+        <priority>0.6</priority>
     </url>
 <?php endforeach; ?>
 </urlset>
