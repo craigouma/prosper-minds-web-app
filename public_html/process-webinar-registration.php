@@ -13,6 +13,7 @@ require_once __DIR__ . '/includes/csrf.php';
 require_once __DIR__ . '/includes/webinars.php';
 require_once __DIR__ . '/includes/mail-template-webinar.php';
 require_once __DIR__ . '/includes/formguard-safe.php';
+require_once __DIR__ . '/includes/notify.php';
 
 formCsrfEnsureSession();
 
@@ -144,6 +145,21 @@ try {
 } catch (Throwable $e) {
     recordFailedNotification($pdo, null, $email, $subject, $e->getMessage());
 }
+
+// Tell the team. Never allowed to change the answer: it records its own
+// failures, and a saved registration is a successful registration.
+pmNotifyAdmins(
+    $pdo,
+    'webinar',
+    'New PFM Insight Live registration: ' . $name . ($isSeries ? ' (whole series)' : ' (session ' . ($session['session_number'] ?? '') . ')'),
+    getWebinarAdminAlertTemplate(
+        ['name' => $name, 'email' => $email, 'organization' => $organization, 'country' => $country],
+        $session,
+        $isSeries ? 0 : pmWebinarRegistrationCount($pdo, $sessionId),
+        $pmOrigin . '/admin/registrations.php?tab=webinars' . ($isSeries ? '&session=series' : '&session=' . $sessionId)
+    ),
+    (int) $saved['id']
+);
 
 webinarRespond(
     'ok',
