@@ -3532,7 +3532,7 @@ echo "=== 37. Bot protection, registration alerts and the Registrations tabs ===
 GEV=5
 GEV_TITLE="$(fq "SELECT title FROM events WHERE id=$GEV")"
 GSLUG="pfm-insight-live-session-03-ai-made-simple-for-finance-teams"
-mail_count_to() { curl -s "$MAILPIT/api/v1/messages?limit=200" | php -r '$d=json_decode(stream_get_contents(STDIN),true); $n=0; foreach(($d["messages"]??[]) as $m) foreach($m["To"] as $t) if (strcasecmp($t["Address"], $argv[1]) === 0) $n++; echo $n;' "$1"; }
+mail_count_to() { curl -s "$MAILPIT/api/v1/messages?limit=200" | php -r '$d=json_decode(stream_get_contents(STDIN),true); $n=0; foreach(($d["messages"]??[]) as $m) foreach($m["To"] as $t) if (strcasecmp($t["Address"], $argv[1]) === 0) $n++; echo $n, "\n";' "$1"; }
 mail_subjects_to() { curl -s "$MAILPIT/api/v1/messages?limit=200" | php -r '$d=json_decode(stream_get_contents(STDIN),true); $o=[]; foreach(($d["messages"]??[]) as $m) foreach($m["To"] as $t) if (strcasecmp($t["Address"], $argv[1]) === 0) $o[]=$m["Subject"]; sort($o); echo implode(" | ", $o);' "$1"; }
 guard_reset() { fq "DELETE FROM form_throttle" >/dev/null; fq "DELETE FROM form_quarantine" >/dev/null; }
 # One rendered form: a cookie jar, its CSRF token and its stamp. Kept per slot so
@@ -3569,6 +3569,11 @@ check "the honeypot is hidden by inline style, not by the stylesheet" "yes" \
   "$(has_text "$(curl -s "$MAIN/webinars.php")" 'position:absolute;left:-9999px')"
 check "and is out of the tab order and unannounced" "yes" \
   "$(B="$(curl -s "$MAIN/webinars.php")"; [ "$(has_text "$B" 'name="pm_hp" value="" tabindex="-1" autocomplete="off"')" = yes ] && [ "$(has_text "$B" 'aria-hidden="true"><label for="pm-hp-webinar"')" = yes ] && echo yes || echo no)"
+
+check "stamps are unique even when drawn in the same second" "6" \
+  "$(for i in 1 2 3 4 5 6; do curl -s "$MAIN/webinars.php" | sed -n 's/.*name="pm_t" value="\([^"]*\)".*/\1/p' | head -1; done | sort -u | wc -l | tr -d ' ')"
+check "and the signature covers the random part" "yes" \
+  "$(S="$(curl -s "$MAIN/webinars.php" | sed -n 's/.*name="pm_t" value="\([^"]*\)".*/\1/p' | head -1)"; [ "$(printf '%s' "$S" | tr -cd '.' | wc -c | tr -d ' ')" = 2 ] && echo yes || echo no)"
 
 echo "  ---- the gibberish test: no real name flagged, every bot string caught ----"
 check "none of 36 real names is flagged" "0" "$(php -r '
@@ -3608,11 +3613,10 @@ check "a post with no stamp is told the form expired" "yes" \
   "$(GS[5]=; has_text "$(g_event 5 nostamp@guard.example Esther Wambui)" 'form has expired')"
 guard_reset
 check "a forged stamp is refused too" "false" \
-  "$(GS[6]='1700000000.aaaaaaaaaaaaaaaaaaaaaaaa'; json_success "$(g_event 6 forged@guard.example Felix Ouma)")"
+  "$(GS[6]='1700000000.aaaaaaaa.aaaaaaaaaaaaaaaaaaaaaaaa'; json_success "$(g_event 6 forged@guard.example Felix Ouma)")"
 guard_reset
 check "one odd field on its own does not stop a real person" "true" \
   "$(json_success "$(g_event 7 odd@guard.example Grace Mwende -F 'address=riIHudMjNoluVWTQdE')")"
-guard_reset
 check "a stamp cannot be replayed for someone else" "false" "$(json_success "$(g_event 7 replay@guard.example Henry Kariuki)")"
 guard_reset
 for n in 1 2 3 4 5 6; do fq "INSERT INTO form_throttle (form, ip_hash) VALUES ('event', '$(php -r 'chdir("public_html"); require "includes/config.php"; require "includes/formguard.php"; $_SERVER["REMOTE_ADDR"]="127.0.0.1"; echo pmGuardIpHash($pdo);')')" >/dev/null; done
@@ -3699,6 +3703,7 @@ echo "  ---- CRITICAL: a broken guard must never cost a registration ----"
 GF=public_html/includes/formguard.php
 cp "$GF" /tmp/verify-formguard.bak
 printf '\n<?php this is not valid php {{{\n' >> "$GF"
+sleep 3   # the built-in server revalidates cached files every two seconds
 guard_reset
 check "with the guard file broken the home page still loads" "200" "$(page_code index.php)"
 check "and the webinars page" "200" "$(page_code webinars.php)"
@@ -3707,6 +3712,7 @@ g_open 0 "$MAIN/webinar.php?slug=$GSLUG"; GS[0]=
 check "and a sign-up with no stamp still goes through" "ok" "$(g_webinar 0 broken@guard.example 'Amina Otieno')"
 check "and is stored" "1" "$(fq "SELECT COUNT(*) FROM webinar_registrations WHERE email='broken@guard.example'")"
 cp /tmp/verify-formguard.bak "$GF"
+sleep 3
 check "the guard file is restored and lints" "0" "$(php -l "$GF" >/dev/null 2>&1; echo $?)"
 rm -f /tmp/verify-formguard.bak
 fq "DELETE FROM webinar_registrations WHERE email LIKE '%@guard.example'" >/dev/null
@@ -3714,7 +3720,7 @@ fq "DELETE FROM webinar_registrations WHERE email LIKE '%@guard.example'" >/dev/
 echo "  ---- and it can be switched off without a deploy ----"
 fq "REPLACE INTO site_settings (setting_key, setting_value) VALUES ('form_guard_mode','off')" >/dev/null
 guard_reset
-g_open 0 "$MAIN/webinar.php?slug=$GSLUG"; GS[0]='1700000000.aaaaaaaaaaaaaaaaaaaaaaaa'
+g_open 0 "$MAIN/webinar.php?slug=$GSLUG"; GS[0]='1700000000.aaaaaaaa.aaaaaaaaaaaaaaaaaaaaaaaa'
 check "with the switch off a forged stamp is accepted" "ok" "$(g_webinar 0 off@guard.example 'Amina Otieno')"
 check "and counts nothing" "0" "$(fq "SELECT COUNT(*) FROM form_throttle")"
 fq "DELETE FROM webinar_registrations WHERE email LIKE '%@guard.example'" >/dev/null
@@ -3812,7 +3818,7 @@ check "it carries exactly the filtered rows" "3" "$(printf '%s' "$WCSV" | tail -
 check "and names the session and its date" "yes" "$(has_text "$WCSV" 'Session 03: AI Made Simple for Finance Teams",2027-01-28')"
 check "a name that starts with = cannot run as a formula" "yes" "$(has_text "$WCSV" "\"'=HYPERLINK(")"
 check "no cell in the file starts with a formula character" "0" \
-  "$(printf '%s' "$WCSV" | php -r '$n=0; $h=fopen("php://stdin","r"); fgetcsv($h); while (($r=fgetcsv($h))!==false) foreach ($r as $c) if ($c!=="" && strpbrk($c[0], "=+-@")!==false) $n++; echo $n;')"
+  "$(printf '%s' "$WCSV" | php -r '$n=0; $h=fopen("php://stdin","r"); fgetcsv($h,0,",","\"",""); while (($r=fgetcsv($h,0,",","\"",""))!==false) foreach ($r as $c) if ($c!=="" && strpbrk($c[0], "=+-@")!==false) $n++; echo $n;')"
 check "the event export keeps its filter too" "1" "$(curl -s -b "$SJ" "$RB?export=csv&search=zzzznomatch" | wc -l | tr -d ' ')"
 check "and adds the delegate tier" "yes" "$(has_text "$(curl -s -b "$SJ" "$RB?export=csv" | head -1)" 'Tier')"
 
