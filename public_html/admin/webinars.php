@@ -150,10 +150,6 @@ if (isset($_GET['msg'])) {
 
 $sessions = pmWebinarSessions($pdo, false);
 $registrations = pmWebinarRegistrations($pdo);
-$sessionsById = [];
-foreach ($sessions as $s) {
-    $sessionsById[(int) $s['id']] = $s['title'];
-}
 
 $csrfToken = generateCsrfToken();
 
@@ -197,7 +193,8 @@ include 'header.php';
                             <span style="font-size:12px;color:#6b6b6b;"><?php echo htmlspecialchars($s['topic']); ?></span>
                         </td>
                         <td style="white-space:nowrap;"><?php echo htmlspecialchars(date('j M Y', strtotime($s['session_date']))); ?></td>
-                        <td><?php echo pmWebinarRegistrationCount($pdo, (int) $s['id']); ?></td>
+                        <td><a href="registrations.php?tab=webinars&amp;session=<?php echo (int) $s['id']; ?>"
+                               title="See who is registered for this session"><?php echo pmWebinarRegistrationCount($pdo, (int) $s['id']); ?></a></td>
                         <td>
                             <form method="POST" style="display:inline;">
                                 <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrfToken); ?>">
@@ -300,44 +297,13 @@ include 'header.php';
 
 </div>
 
-<div class="table-card" style="margin-top:24px;">
-    <div class="table-card-header">
-        <div>
-            <h2 class="card-title">Registrations</h2>
-            <div class="card-subtitle"><?php echo count($registrations); ?> total</div>
-        </div>
+<div class="card" style="margin-top:24px;padding:18px 22px;display:flex;flex-wrap:wrap;align-items:center;gap:12px 20px;">
+    <div style="flex:1 1 320px;">
+        <h2 class="card-title" style="margin-bottom:2px;">Registrations</h2>
+        <div class="card-subtitle"><?php echo count($registrations); ?> total. Search, filter by session and export them on the Registrations screen.</div>
     </div>
-    <div class="table-responsive">
-        <table>
-            <thead>
-                <tr>
-                    <th>Name</th>
-                    <th>Email</th>
-                    <th>Institution</th>
-                    <th>Session</th>
-                    <th>Registered</th>
-                </tr>
-            </thead>
-            <tbody>
-            <?php if ($registrations): ?>
-                <?php foreach ($registrations as $r): ?>
-                <tr>
-                    <td><?php echo htmlspecialchars($r['name']); ?></td>
-                    <td><?php echo htmlspecialchars($r['email']); ?></td>
-                    <td><?php echo htmlspecialchars($r['organization'] ?: '—'); ?></td>
-                    <td><?php echo (int) $r['session_id'] === 0 ? '<span class="badge badge-green">Whole series</span>' : htmlspecialchars($sessionsById[(int) $r['session_id']] ?? 'Session ' . $r['session_id']); ?></td>
-                    <td style="white-space:nowrap;font-size:12px;color:#6b6b6b;">
-                        <?php echo htmlspecialchars(date('j M Y', strtotime($r['created_at']))); ?>
-                        <?php if ($r['unsubscribed_at']): ?><br><span class="badge badge-gray">Unsubscribed</span><?php endif; ?>
-                    </td>
-                </tr>
-                <?php endforeach; ?>
-            <?php else: ?>
-                <tr><td colspan="5"><div class="empty-state"><i class="fas fa-user-check"></i>No registrations yet.</div></td></tr>
-            <?php endif; ?>
-            </tbody>
-        </table>
-    </div>
+    <a href="registrations.php?tab=webinars" class="btn btn-primary btn-sm">View registrations</a>
+    <a href="registrations.php?tab=webinars&amp;export=csv" class="btn btn-outline btn-sm">Export all CSV</a>
 </div>
 
 <?php include 'footer.php'; ?>
