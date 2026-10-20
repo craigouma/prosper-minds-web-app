@@ -3514,5 +3514,337 @@ check "the table is restored with its 13 sessions" "13" "$(fq "SELECT COUNT(*) F
 check "and the page is back"                       "200" "$(wb_code "$WB1")"
 
 echo
+echo "=== 37. Bot protection, registration alerts and the Registrations tabs ==="
+
+GEV=5
+GEV_TITLE="$(fq "SELECT title FROM events WHERE id=$GEV")"
+GSLUG="pfm-insight-live-session-03-ai-made-simple-for-finance-teams"
+mail_count_to() { curl -s "$MAILPIT/api/v1/messages?limit=200" | php -r '$d=json_decode(stream_get_contents(STDIN),true); $n=0; foreach(($d["messages"]??[]) as $m) foreach($m["To"] as $t) if (strcasecmp($t["Address"], $argv[1]) === 0) $n++; echo $n;' "$1"; }
+mail_subjects_to() { curl -s "$MAILPIT/api/v1/messages?limit=200" | php -r '$d=json_decode(stream_get_contents(STDIN),true); $o=[]; foreach(($d["messages"]??[]) as $m) foreach($m["To"] as $t) if (strcasecmp($t["Address"], $argv[1]) === 0) $o[]=$m["Subject"]; sort($o); echo implode(" | ", $o);' "$1"; }
+guard_reset() { fq "DELETE FROM form_throttle" >/dev/null; fq "DELETE FROM form_quarantine" >/dev/null; }
+# One rendered form: a cookie jar, its CSRF token and its stamp. Kept per slot so
+# every case below has its own, and they all age together through one sleep.
+g_open() { # g_open <slot> <url>
+  GJ[$1]="$(mktemp)"
+  local pg; pg="$(curl -s -c "${GJ[$1]}" -b "${GJ[$1]}" "$2")"
+  GT[$1]="$(printf '%s' "$pg" | sed -n 's/.*name="csrf_token" value="\([a-f0-9]*\)".*/\1/p' | head -1)"
+  GS[$1]="$(printf '%s' "$pg" | sed -n 's/.*name="pm_t" value="\([^"]*\)".*/\1/p' | head -1)"
+}
+g_event() { # g_event <slot> <email> <first> <last> [extra curl args]
+  local n="$1" e="$2" f="$3" l="$4"; shift 4
+  curl -s -b "${GJ[$n]}" -X POST "$MAIN/process-registration.php" -F "csrf_token=${GT[$n]}" -F "pm_t=${GS[$n]}" \
+    -F "event_id=$GEV" -F "event_name=$GEV_TITLE" -F "first_name=$f" -F "last_name=$l" -F "phone=+254700000777" \
+    -F "email=$e" -F "organization=The National Treasury" -F "country=Kenya" -F "address=Nairobi" -F "consent=yes" \
+    -F "attendees[first_name][]=$f" -F "attendees[last_name][]=$l" -F "attendees[email][]=$e" "$@"
+}
+g_webinar() { # g_webinar <slot> <email> <name> [extra curl args]; prints the status the handler redirects with
+  local n="$1" e="$2" nm="$3"; shift 3
+  curl -s -o /dev/null -w '%{redirect_url}' -b "${GJ[$n]}" -X POST "$MAIN/process-webinar-registration.php" \
+    -F "csrf_token=${GT[$n]}" -F "pm_t=${GS[$n]}" -F session_id=3 -F "return_to=/webinar.php?slug=$GSLUG" \
+    -F "name=$nm" -F "email=$e" -F consent=yes "$@" | sed 's/.*webinar=\([a-z]*\).*/\1/'
+}
+declare -a GJ GT GS
+
+echo "  ---- every public form carries the hidden fields ----"
+for pair in "event registration|event-registration.php?id=$GEV" "webinars page|webinars.php" "webinar page|webinar.php?slug=$GSLUG" \
+            "sponsorship|sponsorship.php" "footer on the home page|index.php" "contact|contact.php"; do
+  label="${pair%%|*}"; url="${pair#*|}"; body="$(curl -s "$MAIN/$url")"
+  check "$label has the stamp and the honeypot" "yes" \
+    "$([ "$(has_text "$body" 'name="pm_t"')" = yes ] && [ "$(has_text "$body" 'name="pm_hp"')" = yes ] && echo yes || echo no)"
+done
+check "the honeypot is hidden by inline style, not by the stylesheet" "yes" \
+  "$(has_text "$(curl -s "$MAIN/webinars.php")" 'position:absolute;left:-9999px')"
+check "and is out of the tab order and unannounced" "yes" \
+  "$(B="$(curl -s "$MAIN/webinars.php")"; [ "$(has_text "$B" 'name="pm_hp" value="" tabindex="-1" autocomplete="off"')" = yes ] && [ "$(has_text "$B" 'aria-hidden="true"><label for="pm-hp-webinar"')" = yes ] && echo yes || echo no)"
+
+echo "  ---- the gibberish test: no real name flagged, every bot string caught ----"
+check "none of 36 real names is flagged" "0" "$(php -r '
+require "public_html/includes/formguard.php";
+$real = ["Amina","Otieno","Wanjiru","Nyamweya","Mwangangi","Ndung'\''u","Kiprotich-Wanjiru","Christopher","Papadopoulos","Haile-Selassie","Tewodros","Przybylski","Schwarzenegger","McDonald","DeShawn","LaToya","Abdulrahman","Chukwuemeka","Nkechinyere","Ministry of Finance and Economic Planning","The National Treasury","Auditor General office","Ouagadougou","Wolde-Giorgis Tadesse","Mutharika","Nana Akufo-Addo","Muhammadu Buhari","Ngozi Okonjo-Iweala","Kgalema Motlanthe","Strengthening public financial management in Africa","Budget Controller, Treasury Department","Ünal Çelik","Niyonkuru Evariste","Mbarushimana","ministry of finance","Dr. Njoroge Wachira"];
+echo count(array_filter($real, "pmGuardLooksRandom"));')"
+check "all 10 bot-shaped strings are caught" "10" "$(php -r '
+require "public_html/includes/formguard.php";
+$bot = ["riIHudMjNoluVWTQdE","nzcQNciGMLCzeKYxbxBaMZkb","ndHOGwBDCkibXUfrbM","hVedIqFogAkKumkYhKWtZ","xURAXXEkvbqTCBSKFC","Wniumnvbdv","Kglhswkzxe","fQQDYfgVKLvCNPmdgYODZJi","aaaaaaaaaaaaaaaaaaaaaaa","QwErTyUiOpAsDfGh"];
+echo count(array_filter($bot, "pmGuardLooksRandom"));')"
+
+fq "REPLACE INTO site_settings (setting_key, setting_value) VALUES ('form_guard_mode','enforce')" >/dev/null
+guard_reset; clearmail
+
+echo "  ---- event registration: a person gets through, the September pattern does not ----"
+GMARK="$(fq "SELECT IFNULL(MAX(id),0) FROM funnel_events")"
+for i in 0 1 2 3 4 5 6 7 8; do g_open $i "$MAIN/event-registration.php?id=$GEV"; done
+check "too fast (a second after the page loaded)" "refused" \
+  "$(g_event 0 fast@guard.example Amina Otieno | php -r '$d=json_decode(stream_get_contents(STDIN),true); echo ($d["success"]??false) ? "accepted" : "refused";')"
+guard_reset
+sleep 9
+check "a person at human pace is registered" "true" "$(json_success "$(g_event 1 person@guard.example Amina Otieno)")"
+check "and the registration is stored" "1" "$(fq "SELECT COUNT(*) FROM event_registrations WHERE email='person@guard.example'")"
+check "the same person again, seconds later, is told we have it" "yes" \
+  "$(has_text "$(g_event 1 person@guard.example Amina Otieno)" 'We already have this')"
+check "and it is not stored twice" "1" "$(fq "SELECT COUNT(*) FROM event_registrations WHERE email='person@guard.example'")"
+guard_reset
+check "random letters in the names are refused" "false" \
+  "$(json_success "$(g_event 2 lead@guard.example riIHudMjNoluVWTQdE nzcQNciGMLCzeKYxbxBaMZkb)")"
+guard_reset
+check "a filled honeypot is refused" "false" "$(json_success "$(g_event 3 hp@guard.example Cynthia Mutua -F pm_hp=spam)")"
+guard_reset
+check "a web address in the institution is refused" "false" \
+  "$(json_success "$(g_event 4 link@guard.example Daniel Njoroge -F 'organization=visit www.cheap-seo.example')")"
+guard_reset
+check "a post with no stamp is told the form expired" "yes" \
+  "$(GS[5]=; has_text "$(g_event 5 nostamp@guard.example Esther Wambui)" 'form has expired')"
+guard_reset
+check "a forged stamp is refused too" "false" \
+  "$(GS[6]='1700000000.aaaaaaaaaaaaaaaaaaaaaaaa'; json_success "$(g_event 6 forged@guard.example Felix Ouma)")"
+guard_reset
+check "one odd field on its own does not stop a real person" "true" \
+  "$(json_success "$(g_event 7 odd@guard.example Grace Mwende -F 'address=riIHudMjNoluVWTQdE')")"
+guard_reset
+check "a stamp cannot be replayed for someone else" "false" "$(json_success "$(g_event 7 replay@guard.example Henry Kariuki)")"
+guard_reset
+for n in 1 2 3 4 5 6; do fq "INSERT INTO form_throttle (form, ip_hash) VALUES ('event', '$(php -r 'chdir("public_html"); require "includes/config.php"; require "includes/formguard.php"; $_SERVER["REMOTE_ADDR"]="127.0.0.1"; echo pmGuardIpHash($pdo);')')" >/dev/null; done
+check "a seventh attempt from one connection in an hour is stopped" "yes" \
+  "$(has_text "$(g_event 8 rate@guard.example Irene Chebet)" 'lot of submissions')"
+guard_reset
+check "nothing was stored for any of the blocked ones" "0" \
+  "$(fq "SELECT COUNT(*) FROM event_registrations WHERE email IN ('fast@guard.example','lead@guard.example','hp@guard.example','link@guard.example','nostamp@guard.example','forged@guard.example','replay@guard.example','rate@guard.example')")"
+check "and nobody was emailed" "0" \
+  "$(for a in fast lead hp link nostamp forged replay rate; do mail_count_to "$a@guard.example"; done | paste -sd+ - | bc)"
+check "the real registrant had their invoice and invitation" "2" "$(mail_count_to person@guard.example)"
+check "only the two accepted posts were counted as funnel attempts" "2" \
+  "$(fq "SELECT COUNT(*) FROM funnel_events WHERE event_type='submit_attempt' AND id > $GMARK")"
+fq "DELETE FROM event_registrations WHERE email LIKE '%@guard.example'" >/dev/null
+
+echo "  ---- webinar sign-up ----"
+guard_reset
+for i in 0 1 2 3 4 5; do g_open $i "$MAIN/webinar.php?slug=$GSLUG"; done
+check "a second after the page loads is asked to slow down" "fast" "$(g_webinar 0 wfast@guard.example 'Brian Kamau')"
+guard_reset
+sleep 4
+check "a person is registered" "ok" "$(g_webinar 1 wperson@guard.example 'Amina Otieno')"
+check "and stored" "1" "$(fq "SELECT COUNT(*) FROM webinar_registrations WHERE email='wperson@guard.example'")"
+check "registering twice is answered ok but stored once" "ok" "$(g_webinar 1 wperson@guard.example 'Amina Otieno')"
+check "still one row" "1" "$(fq "SELECT COUNT(*) FROM webinar_registrations WHERE email='wperson@guard.example'")"
+guard_reset
+check "gibberish is answered ok, as if it worked" "ok" "$(g_webinar 2 wlead@guard.example riIHudMjNoluVWTQdE -F 'organization=nzcQNciGMLCzeKYxbxBaMZkb')"
+guard_reset
+check "a filled honeypot is answered ok too" "ok" "$(g_webinar 3 whp@guard.example 'Cynthia Mutua' -F pm_hp=spam)"
+guard_reset
+check "no stamp is told the form expired" "stale" "$(GS[4]=; g_webinar 4 wnostamp@guard.example 'Daniel Njoroge')"
+check "none of the bots was stored" "0" \
+  "$(fq "SELECT COUNT(*) FROM webinar_registrations WHERE email IN ('wfast@guard.example','wlead@guard.example','whp@guard.example','wnostamp@guard.example')")"
+check "and none of them was emailed" "0" \
+  "$(for a in wfast wlead whp wnostamp; do mail_count_to "$a@guard.example"; done | paste -sd+ - | bc)"
+check "the person had one confirmation, not two" "1" "$(mail_count_to wperson@guard.example)"
+
+echo "  ---- sponsorship and newsletter ----"
+guard_reset
+for i in 0 1 2 3; do g_open $i "$MAIN/sponsorship.php"; done
+sleep 7
+sp() { curl -s -b "${GJ[$1]}" -X POST "$MAIN/process-sponsorship.php" -F "pm_t=${GS[$1]}" -F "first_name=$3" -F "last_name=$4" \
+  -F "organisation=Ministry of Finance" -F "email=$2" -F "phone=+254700000001" -F "country=Kenya" -F "tier=Platinum, \$15,000" \
+  -F "message=${5:-We would like to sponsor.}" -F "events[]=Cape Town, Oct 2026" "${@:6}"; }
+check "a real enquiry is accepted" "true" "$(json_success "$(sp 0 sreal@guard.example Amina Otieno)")"
+check "and stored" "1" "$(fq "SELECT COUNT(*) FROM sponsorship_enquiries WHERE email='sreal@guard.example'")"
+BOT_OK="$(sp 1 slead@guard.example riIHudMjNoluVWTQdE nzcQNciGMLCzeKYxbxBaMZkb hVedIqFogAkKumkYhKWtZ)"
+check "random text is told it worked" "true" "$(json_success "$BOT_OK")"
+check "with the same wording a real success uses" "yes" \
+  "$([ "$(printf '%s' "$BOT_OK" | php -r '$d=json_decode(stream_get_contents(STDIN),true); echo $d["message"];')" = "$(printf '%s' "$(sp 2 sreal2@guard.example Brian Kamau)" | php -r '$d=json_decode(stream_get_contents(STDIN),true); echo $d["message"];')" ] && echo yes || echo no)"
+check "but is not stored" "0" "$(fq "SELECT COUNT(*) FROM sponsorship_enquiries WHERE email='slead@guard.example'")"
+check "and not emailed" "0" "$(mail_count_to slead@guard.example)"
+check "the honeypot is answered the same way and stores nothing" "0" \
+  "$(sp 3 shp@guard.example Cynthia Mutua '' -F pm_hp=x >/dev/null; fq "SELECT COUNT(*) FROM sponsorship_enquiries WHERE email='shp@guard.example'")"
+fq "DELETE FROM sponsorship_enquiries WHERE email LIKE '%@guard.example'" >/dev/null
+
+guard_reset
+nl_open() { NJ="$(mktemp)"; local pg; pg="$(curl -s -c "$NJ" -b "$NJ" "$MAIN/index.php")"; NT="$(printf '%s' "$pg" | sed -n 's/.*name="csrf_token" value="\([a-f0-9]*\)".*/\1/p' | head -1)"; NS="$(printf '%s' "$pg" | sed -n 's/.*name="pm_t" value="\([^"]*\)".*/\1/p' | head -1)"; }
+nl_post() { curl -s -o /dev/null -w '%{redirect_url}' -b "$NJ" -X POST "$MAIN/newsletter-subscribe.php" -F csrf_token="$NT" -F pm_t="$NS" -F return_to=/ -F source=footer -F email="$1" "${@:2}" | sed 's/.*newsletter=\([a-z]*\).*/\1/'; }
+nl_open; check "the newsletter form: a second after load is asked to slow down" "fast" "$(nl_post nfast@guard.example)"
+nl_open; sleep 3
+check "a person subscribes" "ok" "$(nl_post nperson@guard.example)"
+check "and is stored" "1" "$(fq "SELECT COUNT(*) FROM newsletter_subscribers WHERE email='nperson@guard.example'")"
+nl_open; sleep 3
+check "a filled honeypot is answered ok" "ok" "$(nl_post nhp@guard.example -F pm_hp=x)"
+check "and stores nothing" "0" "$(fq "SELECT COUNT(*) FROM newsletter_subscribers WHERE email='nhp@guard.example'")"
+fq "DELETE FROM newsletter_subscribers WHERE email LIKE '%@guard.example'" >/dev/null
+
+echo "  ---- what was blocked is kept, with the reasons ----"
+check "blocked submissions are in the quarantine table" "yes" "$([ "$(fq "SELECT COUNT(*) FROM form_quarantine")" -ge 1 ] && echo yes || echo no)"
+guard_reset
+sleep 4
+g_open 0 "$MAIN/webinar.php?slug=$GSLUG"; sleep 4
+g_webinar 0 qa@guard.example 'Amina Otieno' -F pm_hp=x >/dev/null
+check "the reason is recorded" "honeypot" "$(fq "SELECT reasons FROM form_quarantine ORDER BY id DESC LIMIT 1")"
+check "as a bot verdict" "bot" "$(fq "SELECT severity FROM form_quarantine ORDER BY id DESC LIMIT 1")"
+check "with the email, so a real person can be found" "qa@guard.example" \
+  "$(fq "SELECT JSON_UNQUOTE(JSON_EXTRACT(summary, '$.email')) FROM form_quarantine ORDER BY id DESC LIMIT 1")"
+check "the visitor's address is stored hashed, never raw" "16" "$(fq "SELECT CHAR_LENGTH(ip_hash) FROM form_quarantine ORDER BY id DESC LIMIT 1")"
+check "an old blocked row is purged on the next block" "0" \
+  "$(fq "INSERT INTO form_quarantine (form, severity, reasons, ip_hash, summary, created_at) VALUES ('webinar','bot','honeypot','0000000000000000','{}', NOW() - INTERVAL 46 DAY)" >/dev/null; g_open 1 "$MAIN/webinar.php?slug=$GSLUG"; sleep 4; g_webinar 1 qb@guard.example 'Brian Kamau' -F pm_hp=x >/dev/null; fq "SELECT COUNT(*) FROM form_quarantine WHERE created_at < NOW() - INTERVAL 45 DAY")"
+
+echo "  ---- CRITICAL: a broken guard must never cost a registration ----"
+GF=public_html/includes/formguard.php
+cp "$GF" /tmp/verify-formguard.bak
+printf '\n<?php this is not valid php {{{\n' >> "$GF"
+guard_reset
+check "with the guard file broken the home page still loads" "200" "$(page_code index.php)"
+check "and the webinars page" "200" "$(page_code webinars.php)"
+check "and the registration page" "200" "$(page_code "event-registration.php?id=$GEV")"
+g_open 0 "$MAIN/webinar.php?slug=$GSLUG"; GS[0]=
+check "and a sign-up with no stamp still goes through" "ok" "$(g_webinar 0 broken@guard.example 'Amina Otieno')"
+check "and is stored" "1" "$(fq "SELECT COUNT(*) FROM webinar_registrations WHERE email='broken@guard.example'")"
+cp /tmp/verify-formguard.bak "$GF"
+check "the guard file is restored and lints" "0" "$(php -l "$GF" >/dev/null 2>&1; echo $?)"
+rm -f /tmp/verify-formguard.bak
+fq "DELETE FROM webinar_registrations WHERE email LIKE '%@guard.example'" >/dev/null
+
+echo "  ---- and it can be switched off without a deploy ----"
+fq "REPLACE INTO site_settings (setting_key, setting_value) VALUES ('form_guard_mode','off')" >/dev/null
+guard_reset
+g_open 0 "$MAIN/webinar.php?slug=$GSLUG"; GS[0]='1700000000.aaaaaaaaaaaaaaaaaaaaaaaa'
+check "with the switch off a forged stamp is accepted" "ok" "$(g_webinar 0 off@guard.example 'Amina Otieno')"
+check "and counts nothing" "0" "$(fq "SELECT COUNT(*) FROM form_throttle")"
+fq "DELETE FROM webinar_registrations WHERE email LIKE '%@guard.example'" >/dev/null
+
+echo "  ---- alerts to the team when somebody registers ----"
+fq "DELETE FROM site_settings WHERE setting_key='notify_registration_emails'" >/dev/null
+guard_reset; clearmail
+g_open 0 "$MAIN/webinar.php?slug=$GSLUG"
+g_webinar 0 anobody@guard.example 'Amina Otieno' >/dev/null
+check "with no recipients set, nobody is alerted" "0" "$(mail_count_to lydia@guard.example)"
+check "and the registrant still gets their confirmation" "1" "$(mail_count_to anobody@guard.example)"
+fq "DELETE FROM webinar_registrations WHERE email LIKE '%@guard.example'" >/dev/null
+clearmail
+
+fq "REPLACE INTO site_settings (setting_key, setting_value) VALUES ('notify_registration_emails','Lydia@guard.example; shillah@guard.example, lydia@guard.example, not-an-email')" >/dev/null
+g_open 0 "$MAIN/webinar.php?slug=$GSLUG"
+g_webinar 0 awebinar@guard.example 'Amina Otieno' -F 'organization=National Treasury' -F country=Kenya >/dev/null
+check "Lydia is alerted to a webinar registration" "1" "$(mail_subjects_to lydia@guard.example | tr '|' '\n' | grep -c 'New PFM Insight Live registration: Amina Otieno')"
+check "and so is Shillah" "1" "$(mail_subjects_to shillah@guard.example | tr '|' '\n' | grep -c 'New PFM Insight Live registration: Amina Otieno')"
+check "a duplicate or invalid address in the list is ignored" "1" "$(mail_count_to lydia@guard.example)"
+check "the alert says who, for which session, and links to the list" "yes" \
+  "$(curl -s "$MAILPIT/api/v1/messages?limit=50" | php -r '
+$d = json_decode(stream_get_contents(STDIN), true);
+foreach (($d["messages"] ?? []) as $m) {
+    if (strcasecmp($m["To"][0]["Address"], "lydia@guard.example") !== 0) { continue; }
+    $j = json_decode((string) @file_get_contents("http://127.0.0.1:8025/api/v1/message/" . $m["ID"]), true);
+    $b = (string) ($j["HTML"] ?? "");
+    echo (strpos($b, "awebinar@guard.example") !== false && strpos($b, "AI Made Simple") !== false && strpos($b, "admin/registrations.php?tab=webinars&amp;session=3") !== false) ? "yes" : "no"; exit;
+}
+echo "no";')"
+check "the registrant is not copied on the alert" "1" "$(mail_count_to awebinar@guard.example)"
+fq "DELETE FROM webinar_registrations WHERE email LIKE '%@guard.example'" >/dev/null
+clearmail
+
+guard_reset
+fq "REPLACE INTO site_settings (setting_key, setting_value) VALUES ('notify_registration_emails','lydia@guard.example, shillah@guard.example, ADMIN_PLACEHOLDER')" >/dev/null
+fq "UPDATE site_settings SET setting_value=REPLACE(setting_value, 'ADMIN_PLACEHOLDER', 'admin@example.test') WHERE setting_key='notify_registration_emails'" >/dev/null
+g_open 0 "$MAIN/event-registration.php?id=$GEV"; sleep 9
+g_event 0 aevent@guard.example Brian Kamau >/dev/null
+check "Lydia is alerted to an event registration" "1" "$(mail_subjects_to lydia@guard.example | tr '|' '\n' | grep -c 'New Event Registration')"
+check "and so is Shillah" "1" "$(mail_subjects_to shillah@guard.example | tr '|' '\n' | grep -c 'New Event Registration')"
+check "the shared inbox gets its alert once, not twice" "1" "$(mail_subjects_to admin@example.test | tr '|' '\n' | grep -c 'New Event Registration')"
+fq "DELETE FROM event_registrations WHERE email LIKE '%@guard.example'" >/dev/null
+clearmail
+
+echo "  ---- a flood cannot bury an inbox ----"
+guard_reset
+fq "REPLACE INTO site_settings (setting_key, setting_value) VALUES ('notify_registration_emails','lydia@guard.example')" >/dev/null
+php -r 'chdir("public_html"); require "includes/config.php"; require "includes/formguard-safe.php"; require "includes/notify.php"; for ($i = 1; $i <= 24; $i++) { pmNotifyAdmins($pdo, "event", "flood alert $i", "<p>body</p>"); }'
+check "twenty alerts are delivered" "20" "$(mail_subjects_to lydia@guard.example | tr '|' '\n' | grep -c 'flood alert')"
+check "then one message says the rest are held back" "1" "$(mail_subjects_to lydia@guard.example | tr '|' '\n' | grep -c 'More event registrations than usual')"
+check "and the others are not sent at all" "21" "$(mail_count_to lydia@guard.example)"
+clearmail; guard_reset
+fq "DELETE FROM site_settings WHERE setting_key='notify_registration_emails'" >/dev/null
+
+echo "  ---- Settings: the alert list and the switch ----"
+SJ=/tmp/verify-v37-settings.txt; rm -f "$SJ"
+STOK="$(curl -s -c "$SJ" "$MAIN/admin/login.php" | sed -n 's/.*name="csrf_token" value="\([^"]*\)".*/\1/p' | head -1)"
+curl -s -b "$SJ" -c "$SJ" -o /dev/null --data-urlencode "csrf_token=$STOK" --data-urlencode "username=Craig" --data-urlencode "password=localtest-analytics-pw" "$MAIN/admin/login.php"
+s_tok() { curl -s -b "$SJ" "$MAIN/admin/settings.php" | sed -n 's/.*name="csrf_token" value="\([^"]*\)".*/\1/p' | head -1; }
+setting() { fq "SELECT IFNULL((SELECT setting_value FROM site_settings WHERE setting_key='$1'), 'UNSET')"; }
+OUT="$(curl -s -b "$SJ" -X POST "$MAIN/admin/settings.php" --data-urlencode "csrf_token=$(s_tok)" -d save_alerts=1 --data-urlencode 'notify_registration_emails=lydia@guard.example, not-an-email' -d form_guard_mode=enforce)"
+check "a bad address is named and nothing is saved" "yes" \
+  "$([ "$(has_text "$OUT" 'not-an-email')" = yes ] && [ "$(setting notify_registration_emails)" = UNSET ] && echo yes || echo no)"
+curl -s -b "$SJ" -o /dev/null -X POST "$MAIN/admin/settings.php" --data-urlencode "csrf_token=$(s_tok)" -d save_alerts=1 \
+  --data-urlencode 'notify_registration_emails=Lydia@guard.example; Shillah@guard.example' -d form_guard_mode=enforce
+check "good addresses are saved, lower-cased and comma separated" "lydia@guard.example, shillah@guard.example" "$(setting notify_registration_emails)"
+check "the switch is saved" "enforce" "$(setting form_guard_mode)"
+check "the save is audited" "1" "$(fq "SELECT COUNT(*) FROM cms_audit_log WHERE action='settings_alerts'")"
+check "a forged token saves nothing" "enforce" \
+  "$(curl -s -b "$SJ" -o /dev/null -X POST "$MAIN/admin/settings.php" -d csrf_token=forged -d save_alerts=1 -d form_guard_mode=off; setting form_guard_mode)"
+fq "REPLACE INTO site_settings (setting_key, setting_value) VALUES ('form_guard_mode','off')" >/dev/null
+fq "DELETE FROM site_settings WHERE setting_key='notify_registration_emails'" >/dev/null
+
+echo "  ---- Registrations: tabs, filters, exports, and the Blocked tab ----"
+RB="$MAIN/admin/registrations.php"
+fq "DELETE FROM webinar_registrations WHERE email LIKE '%@tabs.example'" >/dev/null
+fq "INSERT INTO webinar_registrations (session_id,name,email,organization,country,unsubscribe_token,unsubscribed_at) VALUES
+    (0,'Amina Series','amina@tabs.example','Treasury','Kenya',MD5('t1'),NULL),
+    (3,'Brian Three','brian@tabs.example','Audit Office','Ghana',MD5('t2'),NULL),
+    (3,'=HYPERLINK(\"http://evil.example\",\"x\")','formula@tabs.example','','',MD5('t3'),NULL),
+    (5,'Cynthia Five','cynthia@tabs.example','MoF','Uganda',MD5('t4'),NOW())" >/dev/null
+rows_on() { curl -s -b "$SJ" "$1" | grep -c '<td style="color:#6b6b6b;">'; }
+check "Registrations shows three tabs" "3" "$(curl -s -b "$SJ" "$RB" | grep -c 'class="tab-btn')"
+check "the Webinars tab lists every sign-up" "4" "$(rows_on "$RB?tab=webinars&search=tabs.example")"
+check "a session means its own sign-ups plus the whole series" "3" "$(rows_on "$RB?tab=webinars&session=3&search=tabs.example")"
+check "whole-series only" "1" "$(rows_on "$RB?tab=webinars&session=series&search=tabs.example")"
+check "unsubscribed only" "1" "$(rows_on "$RB?tab=webinars&status=unsubscribed&search=tabs.example")"
+check "a search narrows it" "1" "$(rows_on "$RB?tab=webinars&search=amina%40tabs")"
+check "a session that does not exist falls back to all" "4" "$(rows_on "$RB?tab=webinars&session=99999&search=tabs.example")"
+check "an injection attempt in the session filter is ignored" "4" "$(rows_on "$RB?tab=webinars&session=1%3B%20DROP%20TABLE%20x&search=tabs.example")"
+WCSV="$(curl -s -b "$SJ" "$RB?tab=webinars&session=3&search=tabs.example&export=csv")"
+check "the webinar export is a CSV download" "text/csv" "$(curl -s -b "$SJ" -o /dev/null -w '%{content_type}' "$RB?tab=webinars&export=csv" | cut -d';' -f1)"
+check "it carries exactly the filtered rows" "3" "$(printf '%s' "$WCSV" | tail -n +2 | grep -c 'tabs.example')"
+check "and names the session and its date" "yes" "$(has_text "$WCSV" 'Session 03: AI Made Simple for Finance Teams",2027-01-28')"
+check "a name that starts with = cannot run as a formula" "yes" "$(has_text "$WCSV" "\"'=HYPERLINK(")"
+check "no cell in the file starts with a formula character" "0" \
+  "$(printf '%s' "$WCSV" | php -r '$n=0; $h=fopen("php://stdin","r"); fgetcsv($h); while (($r=fgetcsv($h))!==false) foreach ($r as $c) if ($c!=="" && strpbrk($c[0], "=+-@")!==false) $n++; echo $n;')"
+check "the event export keeps its filter too" "1" "$(curl -s -b "$SJ" "$RB?export=csv&search=zzzznomatch" | wc -l | tr -d ' ')"
+check "and adds the delegate tier" "yes" "$(has_text "$(curl -s -b "$SJ" "$RB?export=csv" | head -1)" 'Tier')"
+
+BID="$(fq "SELECT id FROM webinar_registrations WHERE email='formula@tabs.example'")"
+check "a forged token deletes nothing" "1" \
+  "$(curl -s -b "$SJ" -o /dev/null -X POST "$RB?tab=webinars" -d csrf_token=forged -d delete_webinar_id=$BID; fq "SELECT COUNT(*) FROM webinar_registrations WHERE id=$BID")"
+TOKW="$(curl -s -b "$SJ" "$RB?tab=webinars" | sed -n 's/.*name="csrf_token" value="\([^"]*\)".*/\1/p' | head -1)"
+curl -s -b "$SJ" -o /dev/null -X POST "$RB?tab=webinars" --data-urlencode "csrf_token=$TOKW" -d delete_webinar_id=$BID
+check "a webinar registration can be deleted" "0" "$(fq "SELECT COUNT(*) FROM webinar_registrations WHERE id=$BID")"
+check "and the deletion is audited with who was removed" "1" \
+  "$(fq "SELECT COUNT(*) FROM cms_audit_log WHERE action='webinar_registration_delete' AND summary LIKE '%formula@tabs.example%'")"
+fq "DELETE FROM webinar_registrations WHERE email LIKE '%@tabs.example'" >/dev/null
+
+guard_reset
+fq "INSERT INTO form_quarantine (form, severity, reasons, ip_hash, summary) VALUES
+    ('webinar','bot','honeypot','aaaaaaaaaaaaaaaa','{\"email\":\"blocked1@tabs.example\",\"name\":\"Hidden Field\"}'),
+    ('event','soft','too-fast,rate','bbbbbbbbbbbbbbbb','{\"email\":\"blocked2@tabs.example\",\"first_name\":\"Quick\"}')" >/dev/null
+BLK="$(curl -s -b "$SJ" "$RB?tab=blocked")"
+check "the Blocked tab lists what was stopped" "yes" "$([ "$(has_text "$BLK" 'blocked1@tabs.example')" = yes ] && [ "$(has_text "$BLK" 'blocked2@tabs.example')" = yes ] && echo yes || echo no)"
+check "with the reason in plain English" "yes" "$(has_text "$BLK" 'A hidden field that people cannot see was filled in')"
+check "filtered by form" "1" "$(curl -s -b "$SJ" "$RB?tab=blocked&form=event" | grep -c 'blocked2@tabs.example')"
+check "filtered by verdict" "1" "$(curl -s -b "$SJ" "$RB?tab=blocked&severity=bot" | grep -c 'blocked1@tabs.example')"
+check "and exported" "2" "$(curl -s -b "$SJ" "$RB?tab=blocked&export=csv" | tail -n +2 | grep -c 'tabs.example')"
+curl -s -b "$SJ" -o /dev/null -X POST "$RB?tab=blocked" -d csrf_token=forged -d purge_blocked=1
+check "a forged token clears nothing" "2" "$(fq "SELECT COUNT(*) FROM form_quarantine")"
+TOKB="$(curl -s -b "$SJ" "$RB?tab=blocked" | sed -n 's/.*name="csrf_token" value="\([^"]*\)".*/\1/p' | head -1)"
+curl -s -b "$SJ" -o /dev/null -X POST "$RB?tab=blocked" --data-urlencode "csrf_token=$TOKB" -d purge_blocked=1
+check "Clear all empties it" "0" "$(fq "SELECT COUNT(*) FROM form_quarantine")"
+check "and is audited" "1" "$(fq "SELECT COUNT(*) FROM cms_audit_log WHERE action='blocked_purge'")"
+
+echo "  ---- the Webinars screen hands off to the filtered list ----"
+WA="$(curl -s -b "$SJ" "$MAIN/admin/webinars.php")"
+check "each session's count links to its registrants" "13" "$(printf '%s' "$WA" | grep -c 'registrations.php?tab=webinars&amp;session=[0-9]*"')"
+check "and the flat table is gone" "no" "$(has_text "$WA" 'No registrations yet')"
+rm -f "$SJ"
+guard_reset
+fq "REPLACE INTO site_settings (setting_key, setting_value) VALUES ('form_guard_mode','off')" >/dev/null
+clearmail
+
+echo "  ---- the CSV helper ----"
+check "a formula-looking cell is written as text" "'=1+1" "$(php -r 'require "public_html/includes/csv.php"; echo pmCsvCell("=1+1");')"
+check "so are + - and @" "3" "$(php -r 'require "public_html/includes/csv.php"; echo count(array_filter(["+44","-5","@SUM(A1)"], fn($v) => pmCsvCell($v)[0] === chr(39)));')"
+check "ordinary text is untouched" "Amina Otieno" "$(php -r 'require "public_html/includes/csv.php"; echo pmCsvCell("Amina Otieno");')"
+check "null becomes an empty cell" "" "$(php -r 'require "public_html/includes/csv.php"; echo pmCsvCell(null);')"
+
+echo
 printf '\n%s\npassed=%d failed=%d\n%s\n' "$(printf '=%.0s' {1..78})" "$pass" "$fail" "$(printf '=%.0s' {1..78})"
 exit $((fail > 0 ? 1 : 0))
