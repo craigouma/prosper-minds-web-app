@@ -12,11 +12,12 @@ $activePage = 'registrations';
 
 require_once '../includes/csv.php';
 require_once '../includes/webinars.php';
+require_once '../includes/formguard-safe.php';
 
-$regTab = ($_GET['tab'] ?? 'events') === 'webinars' ? 'webinars' : 'events';
+$regTab = in_array($_GET['tab'] ?? 'events', ['webinars', 'blocked'], true) ? $_GET['tab'] : 'events';
 
 // Counts for the two tab labels. A failure here costs a number, not the screen.
-$regTabCounts = ['events' => 0, 'webinars' => 0];
+$regTabCounts = ['events' => 0, 'webinars' => 0, 'blocked' => 0];
 try {
     $regTabCounts['events'] = (int) $pdo->query('SELECT COUNT(*) FROM event_registrations')->fetchColumn();
 } catch (Throwable $e) {
@@ -29,9 +30,18 @@ try {
     error_log('registrations: webinar count failed: ' . $e->getMessage());
 }
 
+try {
+    if (function_exists('pmGuardEnsureSchema')) {
+        pmGuardEnsureSchema($pdo);
+        $regTabCounts['blocked'] = (int) $pdo->query('SELECT COUNT(*) FROM form_quarantine')->fetchColumn();
+    }
+} catch (Throwable $e) {
+    error_log('registrations: blocked count failed: ' . $e->getMessage());
+}
+
 function pmRegistrationTabs(string $current, array $counts): void
 {
-    $tabs = ['events' => 'Event registrations', 'webinars' => 'Webinar registrations'];
+    $tabs = ['events' => 'Event registrations', 'webinars' => 'Webinar registrations', 'blocked' => 'Blocked by bot protection'];
     echo '<div class="pma-financetabs" role="navigation" aria-label="Registration types">' . "\n";
     foreach ($tabs as $key => $label) {
         echo '    <a class="tab-btn' . ($current === $key ? ' active' : '') . '" style="text-decoration:none"'
@@ -44,6 +54,11 @@ function pmRegistrationTabs(string $current, array $counts): void
 
 if ($regTab === 'webinars') {
     require __DIR__ . '/includes/registrations-webinars.php';
+    exit;
+}
+
+if ($regTab === 'blocked') {
+    require __DIR__ . '/includes/registrations-blocked.php';
     exit;
 }
 
