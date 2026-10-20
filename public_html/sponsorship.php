@@ -1,5 +1,6 @@
 <?php
 require_once __DIR__ . '/includes/layout/page.php';
+require_once __DIR__ . '/includes/formguard-safe.php';
 
 // ── The offer, from page_content, with the live page's own copy as the
 //    fallback so an unreachable table still renders a complete offer ─────────
@@ -451,6 +452,8 @@ pmPageBegin([
             action="/process-sponsorship.php"
             method="post"
             data-pm-sponsorship-form>
+
+        <?php echo pmGuardFields('sponsorship'); ?>
 
         <div id="pm-sponsorship-status" class="pm-notice" role="status" hidden></div>
 

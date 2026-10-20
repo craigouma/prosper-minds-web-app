@@ -149,3 +149,51 @@ function getWebinarReminderTemplate(array $registration, array $session, string 
 
     return pmWebinarEmailShell('See you soon', $title, $body, $unsubscribeUrl);
 }
+
+/**
+ * The alert the team gets when somebody registers for PFM Insight Live. Plain
+ * and short: who, for what, and a link to the filtered list in the admin panel.
+ *
+ * @param array<string, string> $who  name, email, organization, country
+ * @param array<string, mixed>|null $session The session, or null for the whole series
+ */
+function getWebinarAdminAlertTemplate(array $who, ?array $session, int $attendingCount, string $adminUrl): string
+{
+    $e = static fn (string $v): string => htmlspecialchars($v, ENT_QUOTES, 'UTF-8');
+
+    $for = $session === null
+        ? 'The whole series (all sessions)'
+        : 'Session ' . str_pad((string) $session['session_number'], 2, '0', STR_PAD_LEFT) . ': ' . (string) $session['title']
+          . ' (' . date('j F Y', strtotime((string) $session['session_date'])) . ')';
+
+    $rows = [
+        'Name'        => $who['name'] ?? '',
+        'Email'       => $who['email'] ?? '',
+        'Institution' => ($who['organization'] ?? '') !== '' ? $who['organization'] : '-',
+        'Country'     => ($who['country'] ?? '') !== '' ? $who['country'] : '-',
+        'Registered for' => $for,
+    ];
+
+    $table = '';
+    foreach ($rows as $label => $value) {
+        $table .= "<tr><td style='padding:8px 12px;color:#777;width:130px;'>" . $e($label)
+            . "</td><td style='padding:8px 12px;color:#111;font-weight:600;'>" . $e($value) . '</td></tr>';
+    }
+
+    $count = $session === null
+        ? ''
+        : "<p style='color:#555;font-size:.92rem;'>" . $attendingCount . ' now registered for this session, including whole-series sign-ups.</p>';
+
+    return "
+<div style='font-family:Inter,Arial,sans-serif;max-width:620px;margin:0 auto;'>
+    <div style='background:#111;padding:24px 30px;border-radius:8px 8px 0 0;'>
+        <h1 style='color:#fff;margin:0;font-size:1.25rem;'>New PFM Insight Live registration</h1>
+        <p style='color:#aaa;margin:6px 0 0;font-size:.85rem;'>" . date('j F Y, H:i') . "</p>
+    </div>
+    <div style='background:#fff;padding:24px 30px;border:1px solid #eee;border-radius:0 0 8px 8px;'>
+        <table style='width:100%;border-collapse:collapse;font-size:.95rem;'>$table</table>
+        $count
+        <p><a href='" . $e($adminUrl) . "' style='display:inline-block;background:#00B140;color:#111;text-decoration:none;font-weight:700;padding:12px 20px;border-radius:4px;'>See the registrations</a></p>
+    </div>
+</div>";
+}

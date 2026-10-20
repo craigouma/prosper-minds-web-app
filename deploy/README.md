@@ -31,6 +31,33 @@ one setting filled in, and those are listed against the change that introduced t
 
 Newest first. Anything marked **outstanding** still needs doing.
 
+### 20 October 2026, bot protection, registration alerts, and Event and Webinar tabs
+
+- **Outstanding: deploy.** Merge and deploy as above. No SQL: the two small tables the bot protection uses
+  (`form_throttle` and `form_quarantine`) create themselves on the first form visit.
+- **Outstanding: Settings.** Admin, Settings, **Registration alerts and bot protection**: enter the addresses to tell
+  about every event and webinar registration (Lydia and Shillah), separated by commas. With nothing entered, no alert is
+  sent. The shared inbox already receives the event registration notice and still does; it is not told twice.
+- **Registrations** now has three tabs. **Event registrations** and **Webinar registrations** each search, filter and
+  **Export CSV** exactly what the filters show. The Webinars tab filters by session (a session means everyone who will be
+  at it, including whole-series sign-ups), by whole series only, and by status. Deleting a webinar registration is audited.
+  The Webinars screen's Registered counts now link to each session's list.
+- **Bot protection** is on for the event registration, webinar, sponsorship, newsletter and contact forms, with no third
+  party and no captcha: a hidden field, a signed timestamp (a form posted in seconds, or with none, is refused), random
+  looking text in two or more fields, a web address typed into a name, attempts per connection per hour and day, the same
+  person sending the same thing minutes apart, and each form stamp good for one submission. The September wave (random
+  letters in every field, twice, five seconds apart) is exactly what it stops, and nothing is stored or emailed for it.
+- **Blocked** is the third Registrations tab: everything the guard stopped, for 45 days, with the reason and the email, so a
+  real person who was wrongly stopped can be found. A bot is told it worked on the webinar, sponsorship, newsletter and
+  contact forms; on the event form a refused post is told the registration could not be completed.
+- **If real people are turned away**, switch bot protection **Off** in Settings: it takes effect at once, no deploy.
+- A visitor who had a form open before the deploy will see "this form has expired, please reload" once. That is expected.
+- **Not covered:** the CPD subdomain (cpd.prosper-minds.com) has its own forms and is untouched.
+- **Cleaning out the bot registrations already in the database** is the next step and needs a fresh database dump, so the
+  checks can be tuned on the real rows before anything is deleted.
+- CSV downloads write a leading apostrophe before any cell that starts with =, +, - or @, so a name typed as a spreadsheet
+  formula cannot run when the file is opened. A phone number starting with + therefore shows as plain text in Excel.
+
 ### 13 October 2026, every PFM Insight Live session has its own page
 
 - **Outstanding: deploy.** Merge and deploy as above. No SQL and no setting are needed: the pages are read from the

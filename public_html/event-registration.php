@@ -2,6 +2,7 @@
 
 require_once __DIR__ . '/includes/layout/page.php';
 require_once __DIR__ . '/includes/resume.php';
+require_once __DIR__ . '/includes/formguard-safe.php';
 
 /*
  * FIELD NAMES ARE FIXED BY process-registration.php AND MUST NOT BE RENAMED.
@@ -259,6 +260,7 @@ pmPageBegin([
             data-pm-max="<?php echo PM_REG_MAX; ?>">
 
         <?php echo formCsrfField(); ?>
+        <?php echo pmGuardFields('event'); ?>
         <input type="hidden" name="event_id" value="<?php echo (int) $pmEvent['id']; ?>">
         <?php // The raw title, not the display copy, so the handler's fallback
               // lookup by event_name still matches the row. ?>

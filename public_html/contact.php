@@ -108,6 +108,7 @@ pmPageBegin([
 
       <form class="pm-mt-lg" action="/contact-submit.php" method="post" novalidate>
         <?php echo formCsrfField(); ?>
+        <?php echo pmGuardFields('contact'); ?>
 
         <?php // Honeypot. Out of the tab order and out of the accessibility
               // tree, so a person never meets it; a bot that fills every input

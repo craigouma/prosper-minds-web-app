@@ -7,6 +7,8 @@ require_once 'includes/invoice.php';
 require_once 'includes/mail-template-user.php';
 require_once 'includes/mail-template-admin.php';
 require_once 'includes/resume.php';
+require_once 'includes/formguard-safe.php';
+require_once 'includes/notify.php';
 
 header('Content-Type: application/json');
 
@@ -26,6 +28,36 @@ if (!formCsrfValidate($_POST['csrf_token'] ?? null)) {
     echo json_encode([
         'success' => false,
         'message' => 'Your session has expired. Please refresh this page and submit the form again.',
+    ]);
+    exit;
+}
+
+// ── Bot protection ───────────────────────────────────────────────────────────
+// After the CSRF check and BEFORE anything is counted, stored or emailed: the
+// September wave made this handler email an invoice to strangers' addresses,
+// and counting it as funnel traffic would have skewed the analytics as well.
+// A bot is told only that the registration could not be completed; a person
+// who tripped a soft check is told what to do. See includes/formguard.php.
+$guardPost = $_POST;
+$guardPost['attendee_first_name'] = implode(' ', array_map('strval', (array) ($_POST['attendees']['first_name'] ?? [])));
+$guardPost['attendee_last_name']  = implode(' ', array_map('strval', (array) ($_POST['attendees']['last_name'] ?? [])));
+
+$guard = pmGuardCheck(
+    $pdo,
+    'event',
+    $guardPost,
+    ['first_name', 'last_name', 'organization', 'country', 'address', 'future_topics', 'attendee_first_name', 'attendee_last_name'],
+    trim((string) ($_POST['email'] ?? '')),
+    (string) (int) ($_POST['event_id'] ?? 0)
+);
+
+if (!$guard['ok']) {
+    error_log('Registration blocked by the form guard (' . implode(',', $guard['reasons']) . ')');
+    echo json_encode([
+        'success' => false,
+        'message' => $guard['message'] !== ''
+            ? $guard['message']
+            : 'We could not complete the registration. Please email info@prosper-minds.com and we will register you directly.',
     ]);
     exit;
 }
@@ -387,6 +419,10 @@ try {
             'attachments' => $invoiceAttachment,
         ],
     ];
+
+    // The team's alert, to everyone listed under Settings. ADMIN_EMAIL already
+    // gets the one above, so it is not sent a second.
+    pmNotifyAdmins($pdo, 'event', 'New Event Registration - ' . $eventName, $adminBody, $registrationId, [(string) ADMIN_EMAIL]);
 
     $mailResults = sendEmailMessages($notifications);
 

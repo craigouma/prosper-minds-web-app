@@ -398,6 +398,79 @@ function pmWebinarRegistrations(PDO $pdo, int $sessionId = -1): array
     }
 }
 
+/**
+ * The registrants list the admin panel filters and exports.
+ *
+ * $session is 'all', 'series' (whole-series sign-ups only) or a session id, which
+ * means everyone who will be at that session: its own sign-ups and the series
+ * sign-ups, the same people the Registered count on the Webinars screen counts.
+ * $status is 'all', 'active' or 'unsubscribed'.
+ *
+ * @return array{0: string, 1: array<int, mixed>} A WHERE clause and its values.
+ */
+function pmWebinarRegistrationFilter(string $search, string $session, string $status): array
+{
+    $where  = '1=1';
+    $params = [];
+
+    $search = trim($search);
+    if ($search !== '') {
+        $where .= ' AND (name LIKE ? OR email LIKE ? OR organization LIKE ? OR country LIKE ?)';
+        $like = '%' . $search . '%';
+        array_push($params, $like, $like, $like, $like);
+    }
+
+    if ($session === 'series') {
+        $where .= ' AND session_id = 0';
+    } elseif (ctype_digit($session) && (int) $session > 0) {
+        $where .= ' AND session_id IN (0, ?)';
+        $params[] = (int) $session;
+    }
+
+    if ($status === 'active') {
+        $where .= ' AND unsubscribed_at IS NULL';
+    } elseif ($status === 'unsubscribed') {
+        $where .= ' AND unsubscribed_at IS NOT NULL';
+    }
+
+    return [$where, $params];
+}
+
+/** @return array<int, array<string, mixed>> Empty on any failure. */
+function pmWebinarRegistrationsFiltered(PDO $pdo, string $where, array $params, ?int $limit = null, int $offset = 0): array
+{
+    try {
+        ensureWebinarSchema($pdo);
+        $sql = 'SELECT * FROM webinar_registrations WHERE ' . $where . ' ORDER BY id DESC';
+        if ($limit !== null) {
+            $sql .= ' LIMIT ' . max(1, $limit) . ' OFFSET ' . max(0, $offset);
+        }
+        $stmt = $pdo->prepare($sql);
+        $stmt->execute($params);
+
+        return $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    } catch (Throwable $e) {
+        error_log('webinars: filtered registrations failed: ' . $e->getMessage());
+
+        return [];
+    }
+}
+
+function pmWebinarRegistrationsFilteredCount(PDO $pdo, string $where, array $params): int
+{
+    try {
+        ensureWebinarSchema($pdo);
+        $stmt = $pdo->prepare('SELECT COUNT(*) FROM webinar_registrations WHERE ' . $where);
+        $stmt->execute($params);
+
+        return (int) $stmt->fetchColumn();
+    } catch (Throwable $e) {
+        error_log('webinars: filtered count failed: ' . $e->getMessage());
+
+        return 0;
+    }
+}
+
 function pmWebinarRegistrationCount(PDO $pdo, int $sessionId): int
 {
     try {

@@ -12,6 +12,8 @@ require_once __DIR__ . '/includes/config.php';
 require_once __DIR__ . '/includes/csrf.php';
 require_once __DIR__ . '/includes/webinars.php';
 require_once __DIR__ . '/includes/mail-template-webinar.php';
+require_once __DIR__ . '/includes/formguard-safe.php';
+require_once __DIR__ . '/includes/notify.php';
 
 formCsrfEnsureSession();
 
@@ -89,6 +91,23 @@ $consent      = isset($_POST['consent']);
 if ($name === '' || $email === '') {
     webinarRespond('invalid', false, 'Please enter your name and email.', $returnPath);
 }
+
+// Bot protection. See includes/formguard.php. Run after the cheap checks above
+// so an honest typing mistake is not counted against the visitor's address,
+// and before anything is stored or emailed. A bot is told it worked; a repeat
+// within minutes is told it worked too, because the first one did.
+$guard = pmGuardCheck($pdo, 'webinar', $_POST, ['name', 'organization', 'country'], $email, (string) $sessionId);
+
+if (!$guard['ok']) {
+    error_log('Webinar registration blocked by the form guard (' . implode(',', $guard['reasons']) . ')');
+
+    if ($guard['severity'] === 'bot' || in_array('repeat', $guard['reasons'], true)) {
+        webinarRespond('ok', true, 'Registered. Check your email for the join link.', $returnPath);
+    }
+
+    $status = ['too-fast' => 'fast', 'no-stamp' => 'stale', 'rate' => 'rate'][$guard['reasons'][0] ?? ''] ?? 'invalid';
+    webinarRespond($status, false, $guard['message'], $returnPath);
+}
 if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
     webinarRespond('invalid', false, 'Please enter a valid email address.', $returnPath);
 }
@@ -126,6 +145,21 @@ try {
 } catch (Throwable $e) {
     recordFailedNotification($pdo, null, $email, $subject, $e->getMessage());
 }
+
+// Tell the team. Never allowed to change the answer: it records its own
+// failures, and a saved registration is a successful registration.
+pmNotifyAdmins(
+    $pdo,
+    'webinar',
+    'New PFM Insight Live registration: ' . $name . ($isSeries ? ' (whole series)' : ' (session ' . ($session['session_number'] ?? '') . ')'),
+    getWebinarAdminAlertTemplate(
+        ['name' => $name, 'email' => $email, 'organization' => $organization, 'country' => $country],
+        $session,
+        $isSeries ? 0 : pmWebinarRegistrationCount($pdo, $sessionId),
+        $pmOrigin . '/admin/registrations.php?tab=webinars' . ($isSeries ? '&session=series' : '&session=' . $sessionId)
+    ),
+    (int) $saved['id']
+);
 
 webinarRespond(
     'ok',

@@ -1,6 +1,7 @@
 <?php
 require_once __DIR__ . '/includes/config.php';
 require_once __DIR__ . '/includes/csrf.php';
+require_once __DIR__ . '/includes/formguard-safe.php';
 
 // includes/contact.php is new, and the August 2026 outage was one new file
 // arriving incomplete. A truncated PHP file raises ParseError, which extends
@@ -110,6 +111,21 @@ if (!formCsrfValidate($_POST['csrf_token'] ?? null)) {
 if (trim((string) ($_POST['website'] ?? '')) !== '') {
     error_log('Contact enquiry ignored: honeypot field was filled');
     contactRespond('ok', true, 'Thank you. Your enquiry is with the programme office.');
+}
+
+// Bot protection. See includes/formguard.php. A bot, or a repeat within
+// minutes, is told it worked; a person who posted too fast, with an expired
+// form or too often from one connection is told what to do.
+$guard = pmGuardCheck($pdo, 'contact', $_POST, ['name', 'organisation', 'message'], trim((string) ($_POST['email'] ?? '')));
+
+if (!$guard['ok']) {
+    error_log('Contact enquiry blocked by the form guard (' . implode(',', $guard['reasons']) . ')');
+
+    if ($guard['severity'] === 'bot' || in_array('repeat', $guard['reasons'], true)) {
+        contactRespond('ok', true, 'Thank you. Your enquiry is with the programme office.');
+    }
+
+    contactRespond('invalid', false, $guard['message']);
 }
 
 $checked = pmContactValidate($_POST);

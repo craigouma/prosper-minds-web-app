@@ -10,39 +10,55 @@ ensureRegistrationInvoiceSchema($pdo);
 $pageTitle  = 'Registrations';
 $activePage = 'registrations';
 
-if (isset($_GET['export']) && $_GET['export'] === 'csv') {
-    header('Content-Type: text/csv; charset=utf-8');
-    header('Content-Disposition: attachment; filename="registrations_' . date('Ymd_His') . '.csv"');
-    $out = fopen('php://output', 'w');
-    fputs($out, "\xEF\xBB\xBF");
-    fputcsv($out, [
-        'ID', 'Date', 'First Name', 'Last Name', 'Email', 'Phone',
-        'Organization', 'Country', 'Address', 'Attendee Count', 'Invoice Number',
-        'Invoice Total', 'Gender', 'Meal Preference', 'Future Topics', 'Event', 'Consent'
-    ]);
-    $rows = $pdo->query("SELECT * FROM event_registrations ORDER BY id DESC")->fetchAll();
-    foreach ($rows as $r) {
-        fputcsv($out, [
-            $r['id'],
-            $r['created_at'],
-            $r['first_name'],
-            $r['last_name'],
-            $r['email'],
-            $r['phone'],
-            $r['organization'],
-            $r['country'] ?? '',
-            $r['address'] ?? '',
-            $r['attendee_count'] ?? 1,
-            $r['invoice_number'] ?? '',
-            trim(($r['currency_code'] ?? 'USD') . ' ' . number_format((float) ($r['total_amount'] ?? 0), 2)),
-            $r['gender'],
-            $r['meal_preference'],
-            $r['future_topics'],
-            $r['event_name'],
-            $r['consent'] ? 'Yes' : 'No',
-        ]);
+require_once '../includes/csv.php';
+require_once '../includes/webinars.php';
+require_once '../includes/formguard-safe.php';
+
+$regTab = in_array($_GET['tab'] ?? 'events', ['webinars', 'blocked'], true) ? $_GET['tab'] : 'events';
+
+// Counts for the two tab labels. A failure here costs a number, not the screen.
+$regTabCounts = ['events' => 0, 'webinars' => 0, 'blocked' => 0];
+try {
+    $regTabCounts['events'] = (int) $pdo->query('SELECT COUNT(*) FROM event_registrations')->fetchColumn();
+} catch (Throwable $e) {
+    error_log('registrations: event count failed: ' . $e->getMessage());
+}
+try {
+    ensureWebinarSchema($pdo);
+    $regTabCounts['webinars'] = (int) $pdo->query('SELECT COUNT(*) FROM webinar_registrations')->fetchColumn();
+} catch (Throwable $e) {
+    error_log('registrations: webinar count failed: ' . $e->getMessage());
+}
+
+try {
+    if (function_exists('pmGuardEnsureSchema')) {
+        pmGuardEnsureSchema($pdo);
+        $regTabCounts['blocked'] = (int) $pdo->query('SELECT COUNT(*) FROM form_quarantine')->fetchColumn();
     }
-    fclose($out);
+} catch (Throwable $e) {
+    error_log('registrations: blocked count failed: ' . $e->getMessage());
+}
+
+function pmRegistrationTabs(string $current, array $counts): void
+{
+    $tabs = ['events' => 'Event registrations', 'webinars' => 'Webinar registrations', 'blocked' => 'Blocked by bot protection'];
+    echo '<div class="pma-financetabs" role="navigation" aria-label="Registration types">' . "\n";
+    foreach ($tabs as $key => $label) {
+        echo '    <a class="tab-btn' . ($current === $key ? ' active' : '') . '" style="text-decoration:none"'
+            . ($current === $key ? ' aria-current="page"' : '')
+            . ' href="registrations.php?tab=' . $key . '">'
+            . htmlspecialchars($label) . ' (' . (int) ($counts[$key] ?? 0) . ')</a>' . "\n";
+    }
+    echo "</div>\n";
+}
+
+if ($regTab === 'webinars') {
+    require __DIR__ . '/includes/registrations-webinars.php';
+    exit;
+}
+
+if ($regTab === 'blocked') {
+    require __DIR__ . '/includes/registrations-blocked.php';
     exit;
 }
 
@@ -76,6 +92,43 @@ if ($filterEvent !== '') {
     $params[] = $filterEvent;
 }
 
+// The export is what the screen shows: the same search and event filter.
+if (isset($_GET['export']) && $_GET['export'] === 'csv') {
+    $exportStmt = $pdo->prepare("SELECT * FROM event_registrations WHERE $where ORDER BY id DESC");
+    $exportStmt->execute($params);
+
+    $exportRows = static function () use ($exportStmt): iterable {
+        foreach ($exportStmt as $r) {
+            yield [
+                $r['id'],
+                $r['created_at'],
+                $r['first_name'],
+                $r['last_name'],
+                $r['email'],
+                $r['phone'],
+                $r['organization'],
+                $r['country'] ?? '',
+                $r['address'] ?? '',
+                $r['attendee_count'] ?? 1,
+                $r['invoice_number'] ?? '',
+                trim(($r['currency_code'] ?? 'USD') . ' ' . number_format((float) ($r['total_amount'] ?? 0), 2)),
+                $r['tier'] ?? 'regular',
+                $r['gender'],
+                $r['meal_preference'],
+                $r['future_topics'],
+                $r['event_name'],
+                $r['consent'] ? 'Yes' : 'No',
+            ];
+        }
+    };
+
+    pmCsvSend('event_registrations', [
+        'ID', 'Date', 'First Name', 'Last Name', 'Email', 'Phone',
+        'Organization', 'Country', 'Address', 'Attendee Count', 'Invoice Number',
+        'Invoice Total', 'Tier', 'Gender', 'Meal Preference', 'Future Topics', 'Event', 'Consent',
+    ], $exportRows());
+}
+
 $perPage = 20;
 $page = max(1, (int) ($_GET['page'] ?? 1));
 $offset = ($page - 1) * $perPage;
@@ -96,6 +149,7 @@ $uniqueEvents = $pdo->query(
 $csrfToken = generateCsrfToken();
 
 include 'header.php';
+pmRegistrationTabs('events', $regTabCounts);
 ?>
 
 <div class="card" style="padding:16px 20px;margin-bottom:20px;">
@@ -124,7 +178,9 @@ include 'header.php';
 <?php if ($search !== '' || $filterEvent !== ''): ?>
         <a href="registrations.php" class="btn btn-outline btn-sm">Clear</a>
 <?php endif; ?>
-        <a href="registrations.php?export=csv" class="btn btn-outline btn-sm" style="margin-left:auto">Export CSV</a>
+        <a href="registrations.php?<?php echo htmlspecialchars(http_build_query(array_filter(['export' => 'csv', 'search' => $search, 'event' => $filterEvent]))); ?>"
+           class="btn btn-outline btn-sm" style="margin-left:auto"
+           title="Downloads exactly what the current filters show">Export CSV<?php echo ($search !== '' || $filterEvent !== '') ? ' (filtered)' : ''; ?></a>
     </form>
 </div>
 
