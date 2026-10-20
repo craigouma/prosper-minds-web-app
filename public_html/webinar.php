@@ -13,6 +13,7 @@
 
 require_once __DIR__ . '/includes/layout/page.php';
 require_once __DIR__ . '/includes/webinars.php';
+require_once __DIR__ . '/includes/formguard.php';
 
 $pmSession = pmWebinarSessionBySlug($pdo, (string) ($_GET['slug'] ?? ''));
 
@@ -71,6 +72,9 @@ $pmStatus = (string) ($_GET['webinar'] ?? '');
 $pmNotice = match ($pmStatus) {
     'ok'      => 'You are registered. Check your email for the join link.',
     'invalid' => 'Please check your name and email and try again.',
+    'fast'    => 'That was very quick. Please check your details and submit again.',
+    'stale'   => 'This form has expired. Please reload the page and try again.',
+    'rate'    => 'There have been a lot of submissions from your connection. Please wait a little and try again, or email info@prosper-minds.com.',
     'csrf'    => 'That form had expired. Please try once more.',
     'error'   => 'We could not save that just now. Please email info@prosper-minds.com and we will add you directly.',
     default   => '',
@@ -210,6 +214,7 @@ if ($pmTimes['start'] !== '') {
 
     <form class="pm-mt-lg" action="/process-webinar-registration.php" method="post" novalidate>
       <?php echo formCsrfField(); ?>
+      <?php echo pmGuardFields('webinar'); ?>
       <input type="hidden" name="session_id" value="<?php echo (int) $pmSession['id']; ?>">
       <input type="hidden" name="return_to" value="<?php echo pmEsc($pmUrl); ?>">
 
