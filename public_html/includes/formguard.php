@@ -18,7 +18,8 @@
  *   gibberish    random-looking text in two or more free-text fields
  *   links        a web address typed into a name
  *   rate         attempts per address, per hour and per day
- *   repeats      the same person submitting the same thing minutes apart
+ *   repeats      the same person submitting the same thing minutes apart; and a
+ *                stamp is good for one successful submission, so it cannot be replayed
  *
  * Whatever is stopped is kept in form_quarantine with the reasons, for 45 days,
  * so a person wrongly stopped can be found and let through by hand.
@@ -333,6 +334,17 @@ function pmGuardCheck(PDO $pdo, string $form, array $post, array $text = [], str
                 'That was very quick. Please check your details and submit again.');
         }
 
+        // A stamp is good for one successful submission. Without this a bot
+        // could keep one stamp and replay it for as long as it likes. A failed
+        // attempt does not use the stamp up (see the end of this function), so a
+        // person who has to fix a typo and send again is not caught by it.
+        $stampPrint = substr(hash('sha256', $stamp), 0, 16);
+        $stmt = $pdo->prepare(
+            "SELECT COUNT(*) FROM form_throttle WHERE form = 'stamp' AND fingerprint = ? AND created_at >= (NOW() - INTERVAL 2 DAY)"
+        );
+        $stmt->execute([$stampPrint]);
+        $stampUsed = (int) $stmt->fetchColumn() > 0;
+
         // 4. What was typed.
         $random = 0;
         $links  = false;
@@ -357,10 +369,12 @@ function pmGuardCheck(PDO $pdo, string $form, array $post, array $text = [], str
             return pmGuardBlock($pdo, $form, 'bot', ['link-in-name'], $summary, '');
         }
 
-        // 5. The same person, the same thing, minutes apart.
-        if ($who !== '') {
-            $print = substr(hash_hmac('sha256', strtolower($who) . '|' . $extra, pmGuardSecret($pdo)), 0, 16);
+        // 5. The same person, the same thing, minutes apart. Checked before the
+        // used-stamp rule takes effect, so a double click that registered the
+        // first time is told "we already have this", not "the form expired".
+        $print = $who === '' ? '' : substr(hash_hmac('sha256', strtolower($who) . '|' . $extra, pmGuardSecret($pdo)), 0, 16);
 
+        if ($print !== '') {
             $stmt = $pdo->prepare(
                 'SELECT COUNT(*) FROM form_throttle
                   WHERE form = ? AND fingerprint = ? AND created_at >= (NOW() - INTERVAL ' . PM_GUARD_DUPLICATE_WINDOW . ' SECOND)'
@@ -371,7 +385,18 @@ function pmGuardCheck(PDO $pdo, string $form, array $post, array $text = [], str
                 return pmGuardBlock($pdo, $form, 'soft', ['repeat'], $summary,
                     'We already have this. If you do not see a confirmation email soon, write to info@prosper-minds.com.');
             }
+        }
 
+        if ($stampUsed) {
+            return pmGuardBlock($pdo, $form, 'soft', ['no-stamp'], $summary,
+                'This form has expired. Please reload the page and try again.');
+        }
+
+        // Accepted: only now is the stamp used up and the repeat window opened.
+        $pdo->prepare("INSERT INTO form_throttle (form, ip_hash, fingerprint) VALUES ('stamp', ?, ?)")
+            ->execute([$ip, $stampPrint]);
+
+        if ($print !== '') {
             $pdo->prepare('INSERT INTO form_throttle (form, ip_hash, fingerprint) VALUES (?, ?, ?)')
                 ->execute([$form, $ip, $print]);
         }
