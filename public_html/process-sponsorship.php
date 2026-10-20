@@ -1,6 +1,7 @@
 <?php
 require_once 'includes/config.php';
 require_once 'includes/sponsorship.php';
+require_once 'includes/formguard.php';
 
 header('Content-Type: application/json');
 
@@ -30,6 +31,30 @@ if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
 }
 if (empty($events)) {
     echo json_encode(['success' => false, 'message' => 'Please select at least one event.']);
+    exit;
+}
+
+// Bot protection. See includes/formguard.php. This form has no CSRF token, so
+// the guard is what stands between it and a script: the September wave sent
+// twelve enquiries here, each with random letters for a message, and every one
+// made this handler email a confirmation to a stranger's address. A bot is told
+// it worked and nothing is stored or sent.
+$guard = pmGuardCheck(
+    $pdo,
+    'sponsorship',
+    $_POST,
+    ['first_name', 'last_name', 'organisation', 'country', 'message'],
+    $email
+);
+
+if (!$guard['ok']) {
+    error_log('Sponsorship enquiry blocked by the form guard (' . implode(',', $guard['reasons']) . ')');
+
+    if ($guard['severity'] === 'bot' || in_array('repeat', $guard['reasons'], true)) {
+        echo json_encode(['success' => true, 'message' => 'Thank you! We will be in touch within 48 hours.']);
+    } else {
+        echo json_encode(['success' => false, 'message' => $guard['message']]);
+    }
     exit;
 }
 
