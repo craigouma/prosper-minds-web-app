@@ -8,6 +8,7 @@
 
 require_once __DIR__ . '/includes/config.php';
 require_once __DIR__ . '/includes/csrf.php';
+require_once __DIR__ . '/includes/formguard-safe.php';
 
 // includes/newsletter.php is new, and the August 2026 outage was one new file
 // arriving incomplete. A truncated PHP file raises ParseError, which extends
@@ -124,6 +125,22 @@ if (!formCsrfValidate($_POST['csrf_token'] ?? null)) {
 if (trim((string) ($_POST['company'] ?? '')) !== '') {
     error_log('Newsletter signup ignored: honeypot field was filled');
     newsletterRespond('ok', true, 'Confirmed. A note goes out whenever new dates are published.', $returnPath);
+}
+
+// Bot protection. See includes/formguard.php. A bot, or a repeat within
+// minutes, is told it worked; a person who posted too fast or too often is
+// told what to do.
+$guard = pmGuardCheck($pdo, 'newsletter', $_POST, [], trim((string) ($_POST['email'] ?? '')));
+
+if (!$guard['ok']) {
+    error_log('Newsletter signup blocked by the form guard (' . implode(',', $guard['reasons']) . ')');
+
+    if ($guard['severity'] === 'bot' || in_array('repeat', $guard['reasons'], true)) {
+        newsletterRespond('ok', true, 'Confirmed. A note goes out whenever new dates are published.', $returnPath);
+    }
+
+    $guardStatus = ['too-fast' => 'fast', 'no-stamp' => 'stale', 'rate' => 'rate'][$guard['reasons'][0] ?? ''] ?? 'invalid';
+    newsletterRespond($guardStatus, false, $guard['message'], $returnPath);
 }
 
 $result = pmNewsletterSubscribe(

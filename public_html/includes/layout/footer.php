@@ -18,6 +18,9 @@ $pmNewsletterStatus = (string) ($_GET['newsletter'] ?? '');
 $pmNewsletterNotice = match ($pmNewsletterStatus) {
     'ok'      => 'Confirmed. A note goes out whenever new dates are published.',
     'invalid' => 'That does not look like a valid email address. Please check it and try again.',
+    'fast'    => 'That was very quick. Please check your address and subscribe again.',
+    'stale'   => 'That form had expired. Please reload the page and try again.',
+    'rate'    => 'There have been a lot of sign-ups from your connection. Please wait a little and try again.',
     'csrf'    => 'That form had expired. Please try once more.',
     'error'   => 'We could not save that just now. Please try again shortly.',
     default   => '',
@@ -36,6 +39,7 @@ $pmNewsletterFailed = $pmNewsletterStatus !== '' && $pmNewsletterStatus !== 'ok'
 
       <form class="pm-form-inline" action="/newsletter-subscribe.php" method="post">
         <?php echo formCsrfField(); ?>
+        <?php echo pmGuardFields('newsletter'); ?>
         <input type="hidden" name="return_to" value="<?php echo pmEsc($pmReturnTo); ?>">
         <input type="hidden" name="source" value="footer">
 
