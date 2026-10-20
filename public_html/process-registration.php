@@ -39,9 +39,8 @@ if (!formCsrfValidate($_POST['csrf_token'] ?? null)) {
 // A bot is told only that the registration could not be completed; a person
 // who tripped a soft check is told what to do. See includes/formguard.php.
 $guardPost = $_POST;
-foreach (['first_name', 'last_name'] as $guardKey) {
-    $guardPost['attendee_' . $guardKey] = implode(' ', array_map('strval', (array) ($_POST['attendees'][$guardKey] ?? [])));
-}
+$guardPost['attendee_first_name'] = implode(' ', array_map('strval', (array) ($_POST['attendees']['first_name'] ?? [])));
+$guardPost['attendee_last_name']  = implode(' ', array_map('strval', (array) ($_POST['attendees']['last_name'] ?? [])));
 
 $guard = pmGuardCheck(
     $pdo,
