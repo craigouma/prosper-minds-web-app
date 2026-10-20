@@ -240,3 +240,9 @@ SELECT 'header', 'Webinars', 'page', 'webinars.php', IFNULL(MAX(`sort_order`), 0
        SELECT 1 FROM `cms_menu_items` WHERE `location` = 'header' AND `target` = 'webinars.php'
    )
 HAVING COUNT(*) > 0;
+
+-- Bot protection is on for real visitors and off for the local suite, which posts
+-- directly to the handlers with no form to take a stamp from. The suite's own bot
+-- protection section turns it on, proves it, and turns it off again.
+INSERT INTO `site_settings` (`setting_key`, `setting_value`) VALUES ('form_guard_mode', 'off')
+  ON DUPLICATE KEY UPDATE `setting_value` = 'off';
