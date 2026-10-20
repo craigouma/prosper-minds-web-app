@@ -165,11 +165,15 @@ function pmGuardFields(string $form): string
             return '';
         }
 
-        $now = time();
-        $sig = substr(hash_hmac('sha256', $form . '|' . $now, pmGuardSecret($pdo)), 0, 24);
-        $id  = 'pm-hp-' . $form;
+        // The random part makes every stamp unique. Without it two visitors who
+        // load a form in the same second would share one, and a stamp is good for
+        // one successful submission, so the second would be told it had expired.
+        $now   = time();
+        $nonce = bin2hex(random_bytes(4));
+        $sig   = substr(hash_hmac('sha256', $form . '|' . $now . '|' . $nonce, pmGuardSecret($pdo)), 0, 24);
+        $id    = 'pm-hp-' . $form;
 
-        return '<input type="hidden" name="pm_t" value="' . $now . '.' . $sig . '">'
+        return '<input type="hidden" name="pm_t" value="' . $now . '.' . $nonce . '.' . $sig . '">'
             . '<div style="position:absolute;left:-9999px;width:1px;height:1px;overflow:hidden" aria-hidden="true">'
             . '<label for="' . $id . '">Leave this field empty</label>'
             . '<input type="text" id="' . $id . '" name="pm_hp" value="" tabindex="-1" autocomplete="off">'
@@ -318,9 +322,9 @@ function pmGuardCheck(PDO $pdo, string $form, array $post, array $text = [], str
         $valid = false;
         $age   = 0;
 
-        if (preg_match('/^(\d{9,11})\.([a-f0-9]{24})$/', $stamp, $m) === 1) {
-            $expected = substr(hash_hmac('sha256', $form . '|' . $m[1], pmGuardSecret($pdo)), 0, 24);
-            $valid    = hash_equals($expected, $m[2]);
+        if (preg_match('/^(\d{9,11})\.([a-f0-9]{8})\.([a-f0-9]{24})$/', $stamp, $m) === 1) {
+            $expected = substr(hash_hmac('sha256', $form . '|' . $m[1] . '|' . $m[2], pmGuardSecret($pdo)), 0, 24);
+            $valid    = hash_equals($expected, $m[3]);
             $age      = time() - (int) $m[1];
         }
 
