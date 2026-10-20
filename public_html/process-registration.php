@@ -8,6 +8,7 @@ require_once 'includes/mail-template-user.php';
 require_once 'includes/mail-template-admin.php';
 require_once 'includes/resume.php';
 require_once 'includes/formguard-safe.php';
+require_once 'includes/notify.php';
 
 header('Content-Type: application/json');
 
@@ -419,6 +420,10 @@ try {
             'attachments' => $invoiceAttachment,
         ],
     ];
+
+    // The team's alert, to everyone listed under Settings. ADMIN_EMAIL already
+    // gets the one above, so it is not sent a second.
+    pmNotifyAdmins($pdo, 'event', 'New Event Registration - ' . $eventName, $adminBody, $registrationId, [(string) ADMIN_EMAIL]);
 
     $mailResults = sendEmailMessages($notifications);
 
