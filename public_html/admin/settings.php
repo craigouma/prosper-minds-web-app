@@ -43,6 +43,42 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_settings'])) {
     }
 }
 
+// ── Registration alerts and bot protection ─────────────────
+// Its own form and its own keys, so a value posted through another form on
+// this page cannot reach them.
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_alerts'])) {
+    if (!validateCsrfToken($_POST['csrf_token'] ?? '')) {
+        $error = 'Invalid security token.';
+    } else {
+        $good = [];
+        $bad  = [];
+        foreach (preg_split('/[\s,;]+/', (string) ($_POST['notify_registration_emails'] ?? ''), -1, PREG_SPLIT_NO_EMPTY) ?: [] as $address) {
+            if (filter_var($address, FILTER_VALIDATE_EMAIL) !== false) {
+                $good[strtolower($address)] = strtolower($address);
+            } else {
+                $bad[] = $address;
+            }
+        }
+
+        if ($bad !== []) {
+            $error = 'These are not email addresses, so nothing was saved: ' . implode(', ', $bad);
+        } elseif (count($good) > 10) {
+            $error = 'Ten alert addresses at most.';
+        } else {
+            $guardMode = ($_POST['form_guard_mode'] ?? 'enforce') === 'off' ? 'off' : 'enforce';
+            $stmt = $pdo->prepare(
+                "INSERT INTO site_settings (setting_key, setting_value)
+                 VALUES (?, ?)
+                 ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value)"
+            );
+            $stmt->execute(['notify_registration_emails', implode(', ', $good)]);
+            $stmt->execute(['form_guard_mode', $guardMode]);
+            pmAudit($pdo, 'settings_alerts', count($good) . ' registration alert address(es); bot protection ' . ($guardMode === 'off' ? 'OFF' : 'on'));
+            $success = 'Registration alerts saved.';
+        }
+    }
+}
+
 // ── One click brand fill, for a host with no shell ──────────
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['seed_identity'])) {
     if (!validateCsrfToken($_POST['csrf_token'] ?? '')) {
@@ -243,6 +279,34 @@ foreach ([
       </div>
     </div>
     <button type="submit" class="btn btn-primary btn-sm">Save site details</button>
+  </form>
+</div>
+
+<div class="card" style="margin-bottom:24px;">
+  <div class="card-title" style="margin-bottom:4px;">
+    <i class="fas fa-bell" style="color:var(--primary);margin-right:6px;"></i>Registration alerts and bot protection
+  </div>
+  <div class="card-subtitle" style="margin-bottom:20px;">Who is told when somebody registers, and the checks that keep bots out of the forms</div>
+  <form method="POST" action="settings.php">
+    <?php echo csrfField(); ?>
+    <input type="hidden" name="save_alerts" value="1">
+    <div class="form-grid">
+      <div class="form-group">
+        <label for="notify_registration_emails">Tell these people about every registration</label>
+        <textarea id="notify_registration_emails" name="notify_registration_emails" class="form-control" rows="3"
+                  placeholder="lydia@prosper-minds.com, shillah@prosper-minds.com"><?php echo sv($settings, 'notify_registration_emails'); ?></textarea>
+        <small>Event and webinar registrations. Separate addresses with commas. Leave blank to send none. At most 20 alerts of each kind an hour are sent; every registration is still saved.</small>
+      </div>
+      <div class="form-group">
+        <label for="form_guard_mode">Bot protection</label>
+        <select id="form_guard_mode" name="form_guard_mode" class="form-control">
+          <option value="enforce"<?php echo sv($settings, 'form_guard_mode', 'enforce') !== 'off' ? ' selected' : ''; ?>>On (recommended)</option>
+          <option value="off"<?php echo sv($settings, 'form_guard_mode', 'enforce') === 'off' ? ' selected' : ''; ?>>Off</option>
+        </select>
+        <small>On every public form. Switch it off only if real people are being turned away; blocked submissions are kept for 45 days under Registrations.</small>
+      </div>
+    </div>
+    <button type="submit" class="btn btn-primary btn-sm">Save alerts</button>
   </form>
 </div>
 
