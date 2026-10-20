@@ -11,6 +11,41 @@ $pageTitle  = 'Registrations';
 $activePage = 'registrations';
 
 require_once '../includes/csv.php';
+require_once '../includes/webinars.php';
+
+$regTab = ($_GET['tab'] ?? 'events') === 'webinars' ? 'webinars' : 'events';
+
+// Counts for the two tab labels. A failure here costs a number, not the screen.
+$regTabCounts = ['events' => 0, 'webinars' => 0];
+try {
+    $regTabCounts['events'] = (int) $pdo->query('SELECT COUNT(*) FROM event_registrations')->fetchColumn();
+} catch (Throwable $e) {
+    error_log('registrations: event count failed: ' . $e->getMessage());
+}
+try {
+    ensureWebinarSchema($pdo);
+    $regTabCounts['webinars'] = (int) $pdo->query('SELECT COUNT(*) FROM webinar_registrations')->fetchColumn();
+} catch (Throwable $e) {
+    error_log('registrations: webinar count failed: ' . $e->getMessage());
+}
+
+function pmRegistrationTabs(string $current, array $counts): void
+{
+    $tabs = ['events' => 'Event registrations', 'webinars' => 'Webinar registrations'];
+    echo '<div class="pma-financetabs" role="navigation" aria-label="Registration types">' . "\n";
+    foreach ($tabs as $key => $label) {
+        echo '    <a class="tab-btn' . ($current === $key ? ' active' : '') . '" style="text-decoration:none"'
+            . ($current === $key ? ' aria-current="page"' : '')
+            . ' href="registrations.php?tab=' . $key . '">'
+            . htmlspecialchars($label) . ' (' . (int) ($counts[$key] ?? 0) . ')</a>' . "\n";
+    }
+    echo "</div>\n";
+}
+
+if ($regTab === 'webinars') {
+    require __DIR__ . '/includes/registrations-webinars.php';
+    exit;
+}
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_id'])) {
     if (!hasPermission('registrations', 'delete')) {
@@ -99,6 +134,7 @@ $uniqueEvents = $pdo->query(
 $csrfToken = generateCsrfToken();
 
 include 'header.php';
+pmRegistrationTabs('events', $regTabCounts);
 ?>
 
 <div class="card" style="padding:16px 20px;margin-bottom:20px;">
