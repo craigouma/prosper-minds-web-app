@@ -56,6 +56,12 @@ fq()          { "${DB_MAIN[@]}" "$1" 2>/dev/null || echo ERR; }
 funnel_rows() { fq "SELECT COUNT(*) FROM funnel_events WHERE event_type='$1' AND event_id=$2"; }
 table_exists(){ fq "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name='$1'"; }
 
+# The four seeded schools have real 2026 dates, and every one of them stops being
+# "upcoming" the day it starts, which silently turned the suite's "four scheduled
+# schools" into three. Only the column the site partitions and sorts on moves, in
+# the same order, so what is printed (date_display) is untouched.
+"${DB_MAIN[@]}" "UPDATE events SET event_start_date = DATE_ADD(CURDATE(), INTERVAL id * 30 DAY) WHERE id IN (1,2,3,5)" >/dev/null 2>&1
+
 # Pull one value out of a rendered admin/analytics.php page. The markers are
 # real attributes on the page (data-funnel-stage / data-metric / data-drop), each
 # on a single line specifically so this stays a one-liner rather than an HTML
@@ -3393,6 +3399,13 @@ WB1="pfm-insight-live-session-01-start-here-data-for-public-money"
 WB13="pfm-insight-live-session-13-show-results-citizens-can-trust"
 wb_body() { curl -s "$MAIN/webinar.php?slug=$1"; }
 wb_code() { curl -s -o /dev/null -w '%{http_code}' "$MAIN/webinar.php?slug=$1"; }
+# Session 1 is dated 29 October 2026 in the seed. Once that has passed, the page
+# rightly offers no form, so move it a week ahead and derive what the page should
+# say from the row rather than from a date typed into the suite.
+fq "UPDATE webinar_sessions SET session_date = DATE_ADD(CURDATE(), INTERVAL 7 DAY) WHERE slug='$WB1' AND session_date < CURDATE()" >/dev/null
+WB1_DATE="$(fq "SELECT session_date FROM webinar_sessions WHERE slug='$WB1'")"
+WB1_TEXT="$(php -r 'echo date("l j F Y", strtotime($argv[1]));' "$WB1_DATE")"
+WB1_ISO="${WB1_DATE}T12:00:00+03:00"
 WB_PAGE="$(wb_body "$WB1")"
 
 echo "  ---- the page itself ----"
@@ -3401,7 +3414,7 @@ check "its h1 is the session's own title"          "Start Here: Data for Public 
 check "it says which session of how many"          "yes" "$(has_text "$WB_PAGE" 'Session 01 of 13')"
 check "the canonical address is the clean one"     "yes" \
   "$(has_text "$WB_PAGE" "rel=\"canonical\" href=\"https://prosper-minds.com/webinars/$WB1\"")"
-check "the date is written out"                    "yes" "$(has_text "$WB_PAGE" 'Thursday 29 October 2026')"
+check "the date is written out"                    "yes" "$(has_text "$WB_PAGE" "$WB1_TEXT")"
 check "the time is a one hour range"               "yes" "$(has_text "$WB_PAGE" '12:00 to 13:00 EAT')"
 check "and converted for the other zones"          "yes" "$(has_text "$WB_PAGE" '11:00 CAT/SAST, 10:00 WAT, 09:00 GMT')"
 check "what it covers and who it is for are shown" "yes" \
@@ -3438,7 +3451,7 @@ fq "UPDATE webinar_sessions SET zoom_link='$WB_ZOOM' WHERE slug='$WB1'" >/dev/nu
 echo "  ---- search engines ----"
 LD="$(printf '%s' "$WB_PAGE" | grep -o '<script type="application/ld+json">.*</script>' | sed 's/<[^>]*>//g')"
 check "structured data is valid JSON"              "Event" "$(printf '%s' "$LD" | php -r '$d=json_decode(stream_get_contents(STDIN),true); echo $d["@type"] ?? "invalid";')"
-check "it carries the real start time"             "2026-10-29T12:00:00+03:00" \
+check "it carries the real start time"             "$WB1_ISO" \
   "$(printf '%s' "$LD" | php -r '$d=json_decode(stream_get_contents(STDIN),true); echo $d["startDate"] ?? "";')"
 check "and says it is online and free"             "yes" \
   "$(printf '%s' "$LD" | php -r '$d=json_decode(stream_get_contents(STDIN),true); echo (($d["isAccessibleForFree"] ?? false) === true && str_ends_with($d["eventAttendanceMode"] ?? "", "OnlineEventAttendanceMode")) ? "yes" : "no";')"
