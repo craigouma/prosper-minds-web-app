@@ -7,7 +7,7 @@ require_once 'includes/invoice.php';
 require_once 'includes/mail-template-user.php';
 require_once 'includes/mail-template-admin.php';
 require_once 'includes/resume.php';
-require_once 'includes/formguard.php';
+require_once 'includes/formguard-safe.php';
 
 header('Content-Type: application/json');
 

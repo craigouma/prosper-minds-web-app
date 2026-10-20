@@ -2,7 +2,7 @@
 
 require_once __DIR__ . '/includes/layout/page.php';
 require_once __DIR__ . '/includes/resume.php';
-require_once __DIR__ . '/includes/formguard.php';
+require_once __DIR__ . '/includes/formguard-safe.php';
 
 /*
  * FIELD NAMES ARE FIXED BY process-registration.php AND MUST NOT BE RENAMED.

@@ -12,7 +12,7 @@ require_once __DIR__ . '/includes/config.php';
 require_once __DIR__ . '/includes/csrf.php';
 require_once __DIR__ . '/includes/webinars.php';
 require_once __DIR__ . '/includes/mail-template-webinar.php';
-require_once __DIR__ . '/includes/formguard.php';
+require_once __DIR__ . '/includes/formguard-safe.php';
 
 formCsrfEnsureSession();
 

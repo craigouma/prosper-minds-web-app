@@ -12,6 +12,11 @@ require_once __DIR__ . '/../csrf.php';
 // a session cookie.
 formCsrfEnsureSession();
 
+// ── Bot protection, loaded defensively ──────────────────────────────────────
+// Every form draws its hidden fields through pmGuardFields(). See
+// includes/formguard-safe.php for what happens if the guard cannot load.
+require_once __DIR__ . '/../formguard-safe.php';
+
 // ── Content layer, loaded defensively ───────────────────────────────────────
 if (is_file(__DIR__ . '/../content.php')) {
     try {

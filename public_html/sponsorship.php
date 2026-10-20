@@ -1,6 +1,6 @@
 <?php
 require_once __DIR__ . '/includes/layout/page.php';
-require_once __DIR__ . '/includes/formguard.php';
+require_once __DIR__ . '/includes/formguard-safe.php';
 
 // ── The offer, from page_content, with the live page's own copy as the
 //    fallback so an unreachable table still renders a complete offer ─────────

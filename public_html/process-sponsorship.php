@@ -1,7 +1,7 @@
 <?php
 require_once 'includes/config.php';
 require_once 'includes/sponsorship.php';
-require_once 'includes/formguard.php';
+require_once 'includes/formguard-safe.php';
 
 header('Content-Type: application/json');
 
