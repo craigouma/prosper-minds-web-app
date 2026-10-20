@@ -10,41 +10,7 @@ ensureRegistrationInvoiceSchema($pdo);
 $pageTitle  = 'Registrations';
 $activePage = 'registrations';
 
-if (isset($_GET['export']) && $_GET['export'] === 'csv') {
-    header('Content-Type: text/csv; charset=utf-8');
-    header('Content-Disposition: attachment; filename="registrations_' . date('Ymd_His') . '.csv"');
-    $out = fopen('php://output', 'w');
-    fputs($out, "\xEF\xBB\xBF");
-    fputcsv($out, [
-        'ID', 'Date', 'First Name', 'Last Name', 'Email', 'Phone',
-        'Organization', 'Country', 'Address', 'Attendee Count', 'Invoice Number',
-        'Invoice Total', 'Gender', 'Meal Preference', 'Future Topics', 'Event', 'Consent'
-    ]);
-    $rows = $pdo->query("SELECT * FROM event_registrations ORDER BY id DESC")->fetchAll();
-    foreach ($rows as $r) {
-        fputcsv($out, [
-            $r['id'],
-            $r['created_at'],
-            $r['first_name'],
-            $r['last_name'],
-            $r['email'],
-            $r['phone'],
-            $r['organization'],
-            $r['country'] ?? '',
-            $r['address'] ?? '',
-            $r['attendee_count'] ?? 1,
-            $r['invoice_number'] ?? '',
-            trim(($r['currency_code'] ?? 'USD') . ' ' . number_format((float) ($r['total_amount'] ?? 0), 2)),
-            $r['gender'],
-            $r['meal_preference'],
-            $r['future_topics'],
-            $r['event_name'],
-            $r['consent'] ? 'Yes' : 'No',
-        ]);
-    }
-    fclose($out);
-    exit;
-}
+require_once '../includes/csv.php';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_id'])) {
     if (!hasPermission('registrations', 'delete')) {
@@ -74,6 +40,43 @@ $filterEvent = trim($_GET['event'] ?? '');
 if ($filterEvent !== '') {
     $where .= " AND event_name = ?";
     $params[] = $filterEvent;
+}
+
+// The export is what the screen shows: the same search and event filter.
+if (isset($_GET['export']) && $_GET['export'] === 'csv') {
+    $exportStmt = $pdo->prepare("SELECT * FROM event_registrations WHERE $where ORDER BY id DESC");
+    $exportStmt->execute($params);
+
+    $exportRows = static function () use ($exportStmt): iterable {
+        foreach ($exportStmt as $r) {
+            yield [
+                $r['id'],
+                $r['created_at'],
+                $r['first_name'],
+                $r['last_name'],
+                $r['email'],
+                $r['phone'],
+                $r['organization'],
+                $r['country'] ?? '',
+                $r['address'] ?? '',
+                $r['attendee_count'] ?? 1,
+                $r['invoice_number'] ?? '',
+                trim(($r['currency_code'] ?? 'USD') . ' ' . number_format((float) ($r['total_amount'] ?? 0), 2)),
+                $r['tier'] ?? 'regular',
+                $r['gender'],
+                $r['meal_preference'],
+                $r['future_topics'],
+                $r['event_name'],
+                $r['consent'] ? 'Yes' : 'No',
+            ];
+        }
+    };
+
+    pmCsvSend('event_registrations', [
+        'ID', 'Date', 'First Name', 'Last Name', 'Email', 'Phone',
+        'Organization', 'Country', 'Address', 'Attendee Count', 'Invoice Number',
+        'Invoice Total', 'Tier', 'Gender', 'Meal Preference', 'Future Topics', 'Event', 'Consent',
+    ], $exportRows());
 }
 
 $perPage = 20;
@@ -124,7 +127,9 @@ include 'header.php';
 <?php if ($search !== '' || $filterEvent !== ''): ?>
         <a href="registrations.php" class="btn btn-outline btn-sm">Clear</a>
 <?php endif; ?>
-        <a href="registrations.php?export=csv" class="btn btn-outline btn-sm" style="margin-left:auto">Export CSV</a>
+        <a href="registrations.php?<?php echo htmlspecialchars(http_build_query(array_filter(['export' => 'csv', 'search' => $search, 'event' => $filterEvent]))); ?>"
+           class="btn btn-outline btn-sm" style="margin-left:auto"
+           title="Downloads exactly what the current filters show">Export CSV<?php echo ($search !== '' || $filterEvent !== '') ? ' (filtered)' : ''; ?></a>
     </form>
 </div>
 
