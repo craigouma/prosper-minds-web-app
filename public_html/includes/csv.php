@@ -35,10 +35,12 @@ function pmCsvSend(string $baseName, array $headers, iterable $rows): never
     $out = fopen('php://output', 'w');
     // A byte order mark, so Excel reads the file as UTF-8 and keeps accents.
     fwrite($out, "\xEF\xBB\xBF");
-    fputcsv($out, $headers);
+    // The escape argument is given explicitly (empty, which is the default PHP is moving to): left
+    // out, PHP 8.4 and later print a deprecation notice into the file itself.
+    fputcsv($out, $headers, ',', '"', '');
 
     foreach ($rows as $row) {
-        fputcsv($out, array_map('pmCsvCell', $row));
+        fputcsv($out, array_map('pmCsvCell', $row), ',', '"', '');
     }
 
     fclose($out);
