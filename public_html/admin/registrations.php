@@ -33,7 +33,7 @@ try {
 try {
     if (function_exists('pmGuardEnsureSchema')) {
         pmGuardEnsureSchema($pdo);
-        $regTabCounts['blocked'] = (int) $pdo->query('SELECT COUNT(*) FROM form_quarantine')->fetchColumn();
+        $regTabCounts['blocked'] = (int) $pdo->query("SELECT COUNT(*) FROM form_quarantine WHERE status = 'blocked'")->fetchColumn();
     }
 } catch (Throwable $e) {
     error_log('registrations: blocked count failed: ' . $e->getMessage());
