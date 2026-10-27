@@ -171,6 +171,9 @@ if ($pmSocialLinks): ?>
 </footer>
 
 <script src="<?php echo pmAssetUrl('/assets/js/pm-layout.js'); ?>" defer></script>
+<?php if (function_exists('pmRecaptchaEnabled') && ($pdo ?? null) instanceof PDO && pmRecaptchaEnabled($pdo)): ?>
+<script src="<?php echo pmAssetUrl('/assets/js/pm-recaptcha.js'); ?>" data-site-key="<?php echo pmEsc(pmRecaptchaSiteKey($pdo)); ?>" defer></script>
+<?php endif; ?>
 <?php // Per-page scripts, all deferred, in the order the page listed them.
       // defer preserves execution order between external scripts, which is what
       // lets contact.php list a library and then the file that uses it.

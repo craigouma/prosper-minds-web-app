@@ -206,11 +206,23 @@ function pmGuardFields(string $form): string
         $sig   = substr(hash_hmac('sha256', $form . '|' . $now . '|' . $nonce, pmGuardSecret($pdo)), 0, 24);
         $id    = 'pm-hp-' . $form;
 
-        return '<input type="hidden" name="pm_t" value="' . $now . '.' . $nonce . '.' . $sig . '">'
+        $html = '<input type="hidden" name="pm_t" value="' . $now . '.' . $nonce . '.' . $sig . '">'
             . '<div style="position:absolute;left:-9999px;width:1px;height:1px;overflow:hidden" aria-hidden="true">'
             . '<label for="' . $id . '">Leave this field empty</label>'
             . '<input type="text" id="' . $id . '" name="pm_hp" value="" tabindex="-1" autocomplete="off">'
             . '</div>';
+
+        // reCAPTCHA's two fields, only when it is set up. pm_rc starts as
+        // "unavailable" and only the script clears it once it has a token, so a
+        // visitor whose browser never runs the script is judged by the fallback
+        // checks instead of being turned away.
+        if (pmRecaptchaEnabled($pdo)) {
+            $html .= '<input type="hidden" name="g-recaptcha-response" value="" data-pm-action="'
+                . htmlspecialchars(PM_RECAPTCHA_ACTIONS[$form] ?? 'submit', ENT_QUOTES, 'UTF-8') . '">'
+                . '<input type="hidden" name="pm_rc" value="unavailable">';
+        }
+
+        return $html;
     } catch (Throwable $e) {
         error_log('formguard: could not draw the hidden fields: ' . $e->getMessage());
 

@@ -2590,3 +2590,12 @@ body.pm {
 }
 
 .pm-footer__social a:hover { border-color: var(--pm-green); color: var(--pm-green); }
+
+
+/* reCAPTCHA v3. Google's badge floats over the bottom corner of every page; it is
+   hidden and the notice Google's terms require sits beside each form instead
+   (pm-recaptcha.js adds it). */
+.grecaptcha-badge { visibility: hidden; }
+
+.pm-recaptcha-note { margin-top: 12px; font-size: 12px; line-height: 1.5; }
+.pm-recaptcha-note a { text-decoration: underline; }
