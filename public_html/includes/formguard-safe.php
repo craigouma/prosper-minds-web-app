@@ -29,3 +29,10 @@ if (!function_exists('pmGuardFields')) {
         return '';
     }
 }
+
+if (!function_exists('pmGuardStatusFor')) {
+    function pmGuardStatusFor(array $reasons): string
+    {
+        return 'invalid';
+    }
+}

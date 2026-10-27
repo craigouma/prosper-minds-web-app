@@ -139,7 +139,7 @@ if (!$guard['ok']) {
         newsletterRespond('ok', true, 'Confirmed. A note goes out whenever new dates are published.', $returnPath);
     }
 
-    $guardStatus = ['too-fast' => 'fast', 'no-stamp' => 'stale', 'rate' => 'rate'][$guard['reasons'][0] ?? ''] ?? 'invalid';
+    $guardStatus = pmGuardStatusFor($guard['reasons']);
     newsletterRespond($guardStatus, false, $guard['message'], $returnPath);
 }
 

@@ -46,6 +46,7 @@ $pmNotice = match ($pmStatus) {
     'invalid' => 'Please check your name and email and try again.',
     'fast'    => 'That was very quick. Please check your details and submit again.',
     'stale'   => 'This form has expired. Please reload the page and try again.',
+    'verify'  => 'The security check could not finish. Please reload the page and try again, or email info@prosper-minds.com and we will register you directly.',
     'rate'    => 'There have been a lot of submissions from your connection. Please wait a little and try again, or email info@prosper-minds.com.',
     'csrf'    => 'That form had expired. Please try once more.',
     'error'   => 'We could not save that just now. Please email info@prosper-minds.com and we will add you directly.',
