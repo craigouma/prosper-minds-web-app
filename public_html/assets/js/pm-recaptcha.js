@@ -182,7 +182,10 @@
           if (flag) { flag.value = 'unavailable'; }
         }
       ).then(function () {
-        resubmit(form, submitter);
+        // Not inline: with Google's script already loaded this runs while the
+        // browser is still dispatching the original submit event, and a browser
+        // ignores a form submission requested during its own submit event.
+        setTimeout(function () { resubmit(form, submitter); }, 0);
       });
     }, true);
   } catch (error) {
