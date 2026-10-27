@@ -82,6 +82,27 @@ function pmGuardEnsureSchema(PDO $pdo): void
               KEY `idx_quarantine_when` (`created_at`)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci'
         );
+
+        // What is needed to let a stopped submission through later: the whole
+        // form as it was sent, where it stands, and what the reCAPTCHA score was.
+        // Added column by column, in one place, so an older table upgrades itself.
+        $have = $pdo->query(
+            "SELECT COLUMN_NAME FROM information_schema.COLUMNS
+              WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'form_quarantine'"
+        )->fetchAll(PDO::FETCH_COLUMN);
+
+        foreach ([
+            'status'      => "VARCHAR(12) NOT NULL DEFAULT 'blocked'",
+            'payload'     => 'MEDIUMTEXT NULL',
+            'score'       => 'DECIMAL(3,2) NULL',
+            'resolved_at' => 'TIMESTAMP NULL DEFAULT NULL',
+            'resolved_by' => 'VARCHAR(64) NULL',
+            'resolution'  => 'VARCHAR(255) NULL',
+        ] as $column => $definition) {
+            if (!in_array($column, $have, true)) {
+                $pdo->exec('ALTER TABLE `form_quarantine` ADD COLUMN `' . $column . '` ' . $definition);
+            }
+        }
     } catch (Throwable $e) {
         error_log('formguard: schema check failed: ' . $e->getMessage());
     }
@@ -230,8 +251,16 @@ function pmGuardLooksRandom(string $text): bool
  * @param array<int, string> $reasons
  * @return array{ok: false, severity: string, reasons: array<int, string>, message: string}
  */
-function pmGuardBlock(PDO $pdo, string $form, string $severity, array $reasons, array $summary, string $message): array
-{
+function pmGuardBlock(
+    PDO $pdo,
+    string $form,
+    string $severity,
+    array $reasons,
+    array $summary,
+    string $message,
+    array $payload = [],
+    ?float $score = null
+): array {
     try {
         pmGuardEnsureSchema($pdo);
 
@@ -241,13 +270,15 @@ function pmGuardBlock(PDO $pdo, string $form, string $severity, array $reasons, 
         }
 
         $pdo->prepare(
-            'INSERT INTO form_quarantine (form, severity, reasons, ip_hash, summary) VALUES (?, ?, ?, ?, ?)'
+            'INSERT INTO form_quarantine (form, severity, reasons, ip_hash, summary, payload, score) VALUES (?, ?, ?, ?, ?, ?, ?)'
         )->execute([
             $form,
             $severity,
             mb_substr(implode(', ', $reasons), 0, 255),
             pmGuardIpHash($pdo),
             json_encode($clean, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
+            $payload === [] ? null : json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
+            $score,
         ]);
 
         $pdo->exec("DELETE FROM form_quarantine WHERE created_at < (NOW() - INTERVAL 45 DAY)");
@@ -256,6 +287,78 @@ function pmGuardBlock(PDO $pdo, string $form, string $severity, array $reasons, 
     }
 
     return ['ok' => false, 'severity' => $severity, 'reasons' => $reasons, 'message' => $message];
+}
+
+/**
+ * The form as it was sent, without the fields that only exist to be checked, so
+ * an admin can later let it through. Kept as long as the rest of the record.
+ *
+ * @param array<string, mixed> $post
+ * @return array<string, mixed>
+ */
+function pmGuardPayload(array $post): array
+{
+    $drop = [
+        'csrf_token', 'pm_t', 'pm_hp', 'company', 'website', 'g-recaptcha-response', 'pm_rc',
+        'pm_release', 'pm_release_id', 'attendee_first_name', 'attendee_last_name',
+    ];
+    $payload = array_diff_key($post, array_flip($drop));
+    $json    = json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+
+    // A form is a few hundred bytes. Anything bigger is not a form.
+    return $json !== false && strlen($json) <= 30000 ? $payload : [];
+}
+
+/**
+ * The page status each guard reason maps to, for the handlers that answer with a
+ * redirect and a status in the query string (webinar and newsletter).
+ *
+ * @param array<int, string> $reasons
+ */
+function pmGuardStatusFor(array $reasons): string
+{
+    return [
+        'too-fast'         => 'fast',
+        'no-stamp'         => 'stale',
+        'rate'             => 'rate',
+        'low-score'        => 'verify',
+        'recaptcha-failed' => 'verify',
+        'no-token'         => 'verify',
+    ][$reasons[0] ?? ''] ?? 'invalid';
+}
+
+/** The token that proves a replayed submission came from an admin pressing "Let through". */
+function pmGuardReleaseToken(PDO $pdo, int $id, string $email): string
+{
+    return substr(hash_hmac('sha256', 'release|' . $id . '|' . strtolower(trim($email)), pmGuardSecret($pdo)), 0, 32);
+}
+
+/**
+ * Is this post an admin's replay of a stopped submission? Three things must all
+ * hold: the token matches (so it was made with the site's secret), the row is
+ * currently being released (not blocked, not already let through), and the
+ * email is the one the row was stopped with.
+ *
+ * @param array<string, mixed> $post
+ */
+function pmGuardReleaseValid(PDO $pdo, array $post, string $who): bool
+{
+    $id    = (int) ($post['pm_release_id'] ?? 0);
+    $token = (string) ($post['pm_release'] ?? '');
+
+    if ($id <= 0 || $token === '' || $who === '') {
+        return false;
+    }
+
+    if (!hash_equals(pmGuardReleaseToken($pdo, $id, $who), $token)) {
+        return false;
+    }
+
+    $stmt = $pdo->prepare("SELECT summary FROM form_quarantine WHERE id = ? AND status = 'releasing' LIMIT 1");
+    $stmt->execute([$id]);
+    $summary = json_decode((string) $stmt->fetchColumn(), true);
+
+    return is_array($summary) && strtolower(trim((string) ($summary['email'] ?? ''))) === strtolower(trim($who));
 }
 
 /**
@@ -286,10 +389,20 @@ function pmGuardCheck(PDO $pdo, string $form, array $post, array $text = [], str
             $summary[$field] = (string) ($post[$field] ?? '');
         }
 
+        $payload = pmGuardPayload($post);
+
+        // An admin has let this exact stopped submission through. See
+        // pmGuardRelease(): the row is in the 'releasing' state only for the
+        // few seconds the replay takes, and the token cannot be made without the
+        // site's secret.
+        if (pmGuardReleaseValid($pdo, $post, $who)) {
+            return $pass;
+        }
+
         // 1. The honeypot. No message: a bot is told nothing.
         foreach (['pm_hp', 'company'] as $trap) {
             if (trim((string) ($post[$trap] ?? '')) !== '') {
-                return pmGuardBlock($pdo, $form, 'bot', ['honeypot'], $summary, '');
+                return pmGuardBlock($pdo, $form, 'bot', ['honeypot'], $summary, '', $payload);
             }
         }
 
@@ -314,7 +427,7 @@ function pmGuardCheck(PDO $pdo, string $form, array $post, array $text = [], str
 
         if ($hour >= $rules['hour'] || $day >= $rules['day']) {
             return pmGuardBlock($pdo, $form, 'soft', ['rate'], $summary,
-                'There have been a lot of submissions from your connection. Please wait a little and try again, or email info@prosper-minds.com.');
+                'There have been a lot of submissions from your connection. Please wait a little and try again, or email info@prosper-minds.com.', $payload);
         }
 
         // 3. Timing: the render stamp has to be ours, and old enough.
@@ -330,12 +443,12 @@ function pmGuardCheck(PDO $pdo, string $form, array $post, array $text = [], str
 
         if (!$valid) {
             return pmGuardBlock($pdo, $form, 'soft', ['no-stamp'], $summary,
-                'This form has expired. Please reload the page and try again.');
+                'This form has expired. Please reload the page and try again.', $payload);
         }
 
         if ($age < $rules['min']) {
             return pmGuardBlock($pdo, $form, 'soft', ['too-fast'], $summary,
-                'That was very quick. Please check your details and submit again.');
+                'That was very quick. Please check your details and submit again.', $payload);
         }
 
         // A stamp is good for one successful submission. Without this a bot
@@ -366,11 +479,11 @@ function pmGuardCheck(PDO $pdo, string $form, array $post, array $text = [], str
         }
 
         if ($random >= 2) {
-            return pmGuardBlock($pdo, $form, 'bot', ['random-text'], $summary, '');
+            return pmGuardBlock($pdo, $form, 'bot', ['random-text'], $summary, '', $payload);
         }
 
         if ($links) {
-            return pmGuardBlock($pdo, $form, 'bot', ['link-in-name'], $summary, '');
+            return pmGuardBlock($pdo, $form, 'bot', ['link-in-name'], $summary, '', $payload);
         }
 
         // 5. The same person, the same thing, minutes apart. Checked before the
@@ -387,13 +500,13 @@ function pmGuardCheck(PDO $pdo, string $form, array $post, array $text = [], str
 
             if ((int) $stmt->fetchColumn() > 0) {
                 return pmGuardBlock($pdo, $form, 'soft', ['repeat'], $summary,
-                    'We already have this. If you do not see a confirmation email soon, write to info@prosper-minds.com.');
+                    'We already have this. If you do not see a confirmation email soon, write to info@prosper-minds.com.', $payload);
             }
         }
 
         if ($stampUsed) {
             return pmGuardBlock($pdo, $form, 'soft', ['no-stamp'], $summary,
-                'This form has expired. Please reload the page and try again.');
+                'This form has expired. Please reload the page and try again.', $payload);
         }
 
         // Accepted: only now is the stamp used up and the repeat window opened.
