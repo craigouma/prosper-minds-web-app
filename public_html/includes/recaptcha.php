@@ -198,3 +198,25 @@ function pmRecaptchaAssess(PDO $pdo, string $form, array $post, string $ip = '')
 
     return $r['score'] >= pmRecaptchaMinScore($pdo) ? $verdict('ok', $r['score']) : $verdict('low', $r['score']);
 }
+
+/**
+ * Ask Google whether it accepts the saved secret key, by sending it a token that
+ * is certain to be invalid: a good secret answers "invalid response", a wrong one
+ * answers "invalid secret". Used by Settings right after the keys are saved.
+ *
+ * @return array{ok: bool, message: string}
+ */
+function pmRecaptchaCheckKeys(PDO $pdo): array
+{
+    $r = pmRecaptchaVerify(pmRecaptchaSetting($pdo, 'recaptcha_secret_key'), 'pm-settings-check');
+
+    if (!$r['reached']) {
+        return ['ok' => false, 'message' => 'The keys are saved, but Google could not be reached to check them just now. The forms keep working either way.'];
+    }
+
+    if (array_intersect($r['errors'], ['invalid-input-secret', 'missing-input-secret'])) {
+        return ['ok' => false, 'message' => 'The keys are saved, but Google does not accept the secret key. Check it was copied whole. Until it is right the forms use the older checks and nobody is turned away.'];
+    }
+
+    return ['ok' => true, 'message' => 'Google accepted the secret key. The site key is checked in the browser the first time a form is sent; if it is wrong the forms use the older checks.'];
+}
