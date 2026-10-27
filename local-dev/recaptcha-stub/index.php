@@ -12,7 +12,7 @@
  *   wronghost               success, but minted on another site
  *   down                    an HTTP 500 that is not JSON
  *
- * The secret 'bad-secret' answers invalid-input-secret, as Google does.
+ * A secret starting 'bad-secret' answers invalid-input-secret, as Google does.
  */
 header('Content-Type: application/json');
 
@@ -21,7 +21,7 @@ $response = (string) ($_POST['response'] ?? '');
 [$kind, $a, $b] = array_pad(explode(':', $response, 3), 3, '');
 
 if ($secret === '') { echo json_encode(['success' => false, 'error-codes' => ['missing-input-secret']]); exit; }
-if ($secret === 'bad-secret') { echo json_encode(['success' => false, 'error-codes' => ['invalid-input-secret']]); exit; }
+if (str_starts_with($secret, 'bad-secret')) { echo json_encode(['success' => false, 'error-codes' => ['invalid-input-secret']]); exit; }
 
 $ok = static fn (float $score, string $action): array => [
     'success' => true, 'score' => $score, 'action' => $action,
