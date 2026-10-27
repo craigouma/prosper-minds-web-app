@@ -2,7 +2,11 @@
 # End-to-end acceptance run for the Phase 1 fixes, against the LOCAL stack only.
 #
 #   docker compose up -d
-#   php -S 127.0.0.1:8080 -t public_html      &
+#   PHP_CLI_SERVER_WORKERS=4 php -S 127.0.0.1:8080 -t public_html      &
+#   php -S 127.0.0.1:8083 -t local-dev/recaptcha-stub &   # a stand-in for Google's reCAPTCHA verifier
+#   (the workers matter: letting a blocked person through makes a request from the
+#   server to its own site, which a one-worker server cannot answer while it is
+#   busy answering the first)
 #   php -S 127.0.0.1:8081 -t cpd.prosper-minds.com &
 #   local-dev/verify.sh
 #
@@ -3619,8 +3623,9 @@ check "one odd field on its own does not stop a real person" "true" \
   "$(json_success "$(g_event 7 odd@guard.example Grace Mwende -F 'address=riIHudMjNoluVWTQdE')")"
 check "a stamp cannot be replayed for someone else" "false" "$(json_success "$(g_event 7 replay@guard.example Henry Kariuki)")"
 guard_reset
-for n in 1 2 3 4 5 6; do fq "INSERT INTO form_throttle (form, ip_hash) VALUES ('event', '$(php -r 'chdir("public_html"); require "includes/config.php"; require "includes/formguard.php"; $_SERVER["REMOTE_ADDR"]="127.0.0.1"; echo pmGuardIpHash($pdo);')')" >/dev/null; done
-check "a seventh attempt from one connection in an hour is stopped" "yes" \
+GIPH="$(php -r 'chdir("public_html"); require "includes/config.php"; require "includes/formguard.php"; $_SERVER["REMOTE_ADDR"]="127.0.0.1"; echo pmGuardIpHash($pdo);')"
+for n in $(seq 1 20); do fq "INSERT INTO form_throttle (form, ip_hash) VALUES ('event', '$GIPH')" >/dev/null; done
+check "a twenty-first attempt from one connection in an hour is stopped" "yes" \
   "$(has_text "$(g_event 8 rate@guard.example Irene Chebet)" 'lot of submissions')"
 guard_reset
 check "nothing was stored for any of the blocked ones" "0" \
