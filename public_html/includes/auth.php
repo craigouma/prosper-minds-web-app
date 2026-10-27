@@ -59,7 +59,8 @@ function isSuper(): bool {
 function getPermissionFeatures(): array {
     return [
         'dashboard'     => ['view'   => 'View Dashboard'],
-        'registrations' => ['view'   => 'View', 'delete' => 'Delete', 'export' => 'Export CSV'],
+        'registrations' => ['view'   => 'View', 'delete' => 'Delete', 'export' => 'Export CSV',
+                            'release' => 'Let blocked people through'],
         'accounting'    => ['view'   => 'View', 'edit' => 'Update Collections', 'expenses' => 'Manage Expenses'],
         'events'        => ['view'   => 'View', 'create' => 'Create', 'edit'   => 'Edit',
                             'delete' => 'Delete', 'toggle' => 'Toggle Active'],
