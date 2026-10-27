@@ -31,6 +31,34 @@ one setting filled in, and those are listed against the change that introduced t
 
 Newest first. Anything marked **outstanding** still needs doing.
 
+### 27 October 2026, Google reCAPTCHA, and letting blocked people through
+
+- **Outstanding: deploy, then Settings.** Admin, Settings, **Registration alerts and bot protection**: paste the reCAPTCHA v3
+  **site key** and **secret key** and press Save. Saving asks Google whether it accepts the secret and says so. The secret is
+  never shown again (leave it blank to keep it). Until both are saved nothing changes on the site. No SQL: the new columns
+  on `form_quarantine` add themselves.
+- **How it decides.** Every form asks Google for a score when it is sent. A score of **0.3 or more** (the same Settings card
+  can change it, 0.05 to 0.95) is a person and skips the older guesses (how fast, how many from one connection, a repeat).
+  A hidden field, random letters in two fields and a web address in a name are still refused whatever the score. A person
+  scored too low is told to try again or email info@prosper-minds.com, and what they sent is kept.
+- **Nobody is turned away for our problem.** If Google cannot be reached, the secret is wrong, or Google's script is blocked
+  in the visitor's browser, the form is judged by the older checks with their limits relaxed (up to 20 event attempts an
+  hour per connection instead of 6). Switching bot protection **Off** in Settings still takes effect at once.
+- **Blocked tab: Let through, Invite, Not a person.** A stopped form that was kept whole can be **Let through**: the server
+  replays it to the real registration handler, so the person gets the invoice, the invitation and the team alert exactly as
+  if they had registered, and appears in the Registrations list (the screen links to them). **Invite to register** emails
+  the person a link to the registration page, for rows that kept too little to replay. **Not a person** marks a bot.
+  Letting through is a new permission, **Let blocked people through** under Registrations (admins who may delete
+  registrations have it too).
+- **The people already blocked.** Rows from before this change kept only a summary. Webinar, sponsorship, newsletter and
+  contact rows can still be let through (a webinar row asks which session). **Event rows cannot**: they never kept the
+  delegates or the tier, so use Invite and let them register themselves. Nobody was banned for good: each blocked attempt
+  was refused once, and the person can simply try again once reCAPTCHA is on.
+- Letting through needs the server to reach its own address. If it cannot, the row stays waiting and the screen says why.
+- **Privacy policy** has a new paragraph on reCAPTCHA and on keeping stopped submissions for 45 days. The wording is for
+  ProsperMinds to approve.
+- Local only: `PM_RECAPTCHA_VERIFY_URL`, `PM_RECAPTCHA_ALLOW_HOST` and `PM_LOOPBACK_ORIGIN` in `.env` (see `.env.example`).
+
 ### 20 October 2026, bot protection, registration alerts, and Event and Webinar tabs
 
 - **Outstanding: deploy.** Merge and deploy as above. No SQL: the two small tables the bot protection uses
