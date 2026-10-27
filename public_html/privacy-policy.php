@@ -108,6 +108,16 @@ pmPageBegin([
       <a href="https://policies.google.com/privacy" rel="noopener noreferrer" target="_blank">Google Privacy Policy</a>.
     </p>
     <p>
+      Our forms are protected by Google reCAPTCHA, which works out whether a
+      submission comes from a person or a program. When you send a form, Google
+      receives technical information from your browser, such as your IP address,
+      to make that decision. Google's
+      <a href="https://policies.google.com/privacy" rel="noopener noreferrer" target="_blank">Privacy Policy</a> and
+      <a href="https://policies.google.com/terms" rel="noopener noreferrer" target="_blank">Terms of Service</a> apply.
+      If a submission is stopped by this check, we keep what was sent for up to
+      45 days so that a real person who was stopped by mistake can be registered.
+    </p>
+    <p>
       Most browsers let you block or delete cookies in their settings. Blocking
       the analytics cookies does not stop you registering for a course or using
       any part of this site.

@@ -66,6 +66,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_alerts'])) {
             $error = 'Ten alert addresses at most.';
         } else {
             $guardMode = ($_POST['form_guard_mode'] ?? 'enforce') === 'off' ? 'off' : 'enforce';
+            $siteKey   = trim((string) ($_POST['recaptcha_site_key'] ?? ''));
+            $secretKey = trim((string) ($_POST['recaptcha_secret_key'] ?? ''));
+            $minScore  = trim((string) ($_POST['recaptcha_min_score'] ?? ''));
+
+            // Keys are letters, digits, hyphens and underscores. Anything else is a
+            // paste that picked up a space, a quote or a line of the instructions.
+            $keyShape = '/^[A-Za-z0-9_-]{20,80}$/';
+
+            if ($siteKey !== '' && preg_match($keyShape, $siteKey) !== 1) {
+                $error = 'The reCAPTCHA site key does not look right. It is one run of letters and digits, with no spaces.';
+            } elseif ($secretKey !== '' && preg_match($keyShape, $secretKey) !== 1) {
+                $error = 'The reCAPTCHA secret key does not look right. It is one run of letters and digits, with no spaces.';
+            } elseif ($minScore !== '' && (!is_numeric($minScore) || (float) $minScore < 0.05 || (float) $minScore > 0.95)) {
+                $error = 'The minimum reCAPTCHA score is a number from 0.05 to 0.95.';
+            }
+        }
+
+        if ($error === '') {
             $stmt = $pdo->prepare(
                 "INSERT INTO site_settings (setting_key, setting_value)
                  VALUES (?, ?)
@@ -73,8 +91,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_alerts'])) {
             );
             $stmt->execute(['notify_registration_emails', implode(', ', $good)]);
             $stmt->execute(['form_guard_mode', $guardMode]);
-            pmAudit($pdo, 'settings_alerts', count($good) . ' registration alert address(es); bot protection ' . ($guardMode === 'off' ? 'OFF' : 'on'));
-            $success = 'Registration alerts saved.';
+            $stmt->execute(['recaptcha_site_key', $siteKey]);
+            // Blank means "leave the saved secret alone", the same rule as the SMTP password.
+            if ($secretKey !== '') {
+                $stmt->execute(['recaptcha_secret_key', $secretKey]);
+            }
+            $stmt->execute(['recaptcha_min_score', $minScore === '' ? '0.3' : number_format((float) $minScore, 2, '.', '')]);
+
+            pmAudit($pdo, 'settings_alerts', count($good) . ' registration alert address(es); bot protection '
+                . ($guardMode === 'off' ? 'OFF' : 'on') . '; reCAPTCHA ' . ($siteKey !== '' ? 'on' : 'off')
+                . ($secretKey !== '' ? ' (secret key changed)' : ''));
+            $success = 'Registration alerts and bot protection saved.';
+
+            require_once '../includes/recaptcha.php';
+            if (pmRecaptchaEnabled($pdo)) {
+                $check = pmRecaptchaCheckKeys($pdo);
+                if ($check['ok']) {
+                    $success .= ' ' . $check['message'];
+                } else {
+                    $error = $check['message'];
+                }
+            }
         }
     }
 }
@@ -298,10 +335,29 @@ foreach ([
         <small>Event and webinar registrations. Separate addresses with commas. Leave blank to send none. At most 20 alerts of each kind an hour are sent; every registration is still saved.</small>
       </div>
       <div class="form-group">
+        <label for="recaptcha_site_key">reCAPTCHA site key (v3)</label>
+        <input type="text" id="recaptcha_site_key" name="recaptcha_site_key" class="form-control" autocomplete="off"
+               spellcheck="false" value="<?php echo sv($settings, 'recaptcha_site_key'); ?>">
+        <small>From Google's reCAPTCHA admin, for prosper-minds.com. Public: it is sent to every visitor's browser. Leave blank to turn reCAPTCHA off.</small>
+      </div>
+      <div class="form-group">
+        <label for="recaptcha_secret_key">reCAPTCHA secret key</label>
+        <input type="password" id="recaptcha_secret_key" name="recaptcha_secret_key" class="form-control" autocomplete="new-password"
+               spellcheck="false"
+               placeholder="<?php echo sv($settings, 'recaptcha_secret_key') === '' ? 'Paste the secret key' : 'Saved. Leave blank to keep it.'; ?>">
+        <small>Never shown again once saved. Saving checks it with Google straight away.</small>
+      </div>
+      <div class="form-group">
+        <label for="recaptcha_min_score">Lowest score treated as a person</label>
+        <input type="number" id="recaptcha_min_score" name="recaptcha_min_score" class="form-control"
+               min="0.05" max="0.95" step="0.05" value="<?php echo sv($settings, 'recaptcha_min_score', '0.3'); ?>">
+        <small>0.3 is the default. Google suggests 0.5, but a higher number turns away more real people. Raise it if bots get through; lower it if real people are stopped. Each stopped submission on the Blocked tab shows its score.</small>
+      </div>
+      <div class="form-group">
         <label for="form_guard_mode">Bot protection</label>
         <select id="form_guard_mode" name="form_guard_mode" class="form-control">
           <option value="enforce"<?php echo sv($settings, 'form_guard_mode', 'enforce') !== 'off' ? ' selected' : ''; ?>>On (recommended)</option>
-          <option value="off"<?php echo sv($settings, 'form_guard_mode', 'enforce') === 'off' ? ' selected' : ''; ?>>Off</option>
+          <option value="off"<?php echo sv($settings, 'form_guard_mode', 'enforce') === 'off' ? ' selected' : ''; ?>>Off (every check, reCAPTCHA included)</option>
         </select>
         <small>On every public form. Switch it off only if real people are being turned away; blocked submissions are kept for 45 days under Registrations.</small>
       </div>

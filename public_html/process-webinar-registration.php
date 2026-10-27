@@ -105,7 +105,7 @@ if (!$guard['ok']) {
         webinarRespond('ok', true, 'Registered. Check your email for the join link.', $returnPath);
     }
 
-    $status = ['too-fast' => 'fast', 'no-stamp' => 'stale', 'rate' => 'rate'][$guard['reasons'][0] ?? ''] ?? 'invalid';
+    $status = pmGuardStatusFor($guard['reasons']);
     webinarRespond($status, false, $guard['message'], $returnPath);
 }
 if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {

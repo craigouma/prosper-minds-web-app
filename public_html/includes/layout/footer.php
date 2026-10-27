@@ -20,6 +20,7 @@ $pmNewsletterNotice = match ($pmNewsletterStatus) {
     'invalid' => 'That does not look like a valid email address. Please check it and try again.',
     'fast'    => 'That was very quick. Please check your address and subscribe again.',
     'stale'   => 'That form had expired. Please reload the page and try again.',
+    'verify'  => 'The security check could not finish. Please reload the page and try again.',
     'rate'    => 'There have been a lot of sign-ups from your connection. Please wait a little and try again.',
     'csrf'    => 'That form had expired. Please try once more.',
     'error'   => 'We could not save that just now. Please try again shortly.',
@@ -170,6 +171,9 @@ if ($pmSocialLinks): ?>
 </footer>
 
 <script src="<?php echo pmAssetUrl('/assets/js/pm-layout.js'); ?>" defer></script>
+<?php if (function_exists('pmRecaptchaEnabled') && ($pdo ?? null) instanceof PDO && pmRecaptchaEnabled($pdo)): ?>
+<script src="<?php echo pmAssetUrl('/assets/js/pm-recaptcha.js'); ?>" data-site-key="<?php echo pmEsc(pmRecaptchaSiteKey($pdo)); ?>" defer></script>
+<?php endif; ?>
 <?php // Per-page scripts, all deferred, in the order the page listed them.
       // defer preserves execution order between external scripts, which is what
       // lets contact.php list a library and then the file that uses it.

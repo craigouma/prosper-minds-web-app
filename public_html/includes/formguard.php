@@ -8,21 +8,24 @@
  * letters in every free-text field (names of twenty random letters, a country
  * called "Medguivbfe"), submitted twice about five seconds apart, to the
  * registration and sponsorship forms alike. Each one made this site email an
- * invoice or a confirmation to a stranger's address. A hidden field alone does
- * not stop that, so the checks are layered, and none of them needs a third
- * party: no captcha service, no cross-border request.
+ * invoice or a confirmation to a stranger.
  *
- *   honeypot     a field no person sees; any value is a bot
- *   timing       a signed render time; a form posted in a couple of seconds, or
- *                with no stamp at all, was not filled in by a person
- *   gibberish    random-looking text in two or more free-text fields
- *   links        a web address typed into a name
- *   rate         attempts per address, per hour and per day
- *   repeats      the same person submitting the same thing minutes apart; and a
- *                stamp is good for one successful submission, so it cannot be replayed
+ * The first version guessed from behaviour (how fast, how often from one
+ * connection, how soon again) and turned real people away: a ministry shares one
+ * connection among many registrants. So Google reCAPTCHA v3 is now the judge,
+ * and those guesses apply only to a visitor it could not judge.
  *
- * Whatever is stopped is kept in form_quarantine with the reasons, for 45 days,
- * so a person wrongly stopped can be found and let through by hand.
+ *   always       a honeypot no person sees; random-looking text in two or more
+ *                fields; a web address typed into a name
+ *   reCAPTCHA    a good score lets the visitor through, skipping everything below;
+ *                a low one is stopped with a message that says what to do
+ *   fallback     only when reCAPTCHA is not set up or the browser could not run
+ *                it: a signed render time, attempts per connection, the same
+ *                person twice within two minutes, and a stamp good for one use
+ *
+ * Whatever is stopped is kept in form_quarantine for 45 days with the whole
+ * submission, so an admin can let a real person through and have them registered
+ * exactly as if the guard had never stopped them.
  *
  * THE SAFETY CONTRACT
  * -------------------
@@ -32,16 +35,25 @@
  * with the form_guard_mode setting ('off') without a deploy.
  */
 
-/** Per form: seconds a person needs at least, and attempts allowed per address. */
+require_once __DIR__ . '/recaptcha.php';
+
+/**
+ * The limits for a visitor reCAPTCHA could not vouch for (it is not set up, or the
+ * visitor's browser could not run it). Seconds a person needs at least, and
+ * attempts allowed per connection. They are generous on purpose: a ministry or
+ * a hotel shares one connection among many real people, and these limits were
+ * the likeliest reason real registrants were being turned away.
+ */
 const PM_GUARD_FORMS = [
-    'event'       => ['min' => 8, 'hour' => 6,  'day' => 15],
-    'webinar'     => ['min' => 3, 'hour' => 10, 'day' => 40],
-    'sponsorship' => ['min' => 6, 'hour' => 3,  'day' => 8],
-    'newsletter'  => ['min' => 2, 'hour' => 6,  'day' => 20],
-    'contact'     => ['min' => 6, 'hour' => 4,  'day' => 10],
+    'event'       => ['min' => 5, 'hour' => 20, 'day' => 60],
+    'webinar'     => ['min' => 2, 'hour' => 30, 'day' => 100],
+    'sponsorship' => ['min' => 4, 'hour' => 10, 'day' => 30],
+    'newsletter'  => ['min' => 2, 'hour' => 20, 'day' => 60],
+    'contact'     => ['min' => 4, 'hour' => 10, 'day' => 30],
 ];
 
-const PM_GUARD_DUPLICATE_WINDOW = 600;
+/** Seconds within which the same person sending the same thing again is a double click, not a second registration. */
+const PM_GUARD_DUPLICATE_WINDOW = 120;
 
 function pmGuardEnsureSchema(PDO $pdo): void
 {
@@ -82,6 +94,27 @@ function pmGuardEnsureSchema(PDO $pdo): void
               KEY `idx_quarantine_when` (`created_at`)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci'
         );
+
+        // What is needed to let a stopped submission through later: the whole
+        // form as it was sent, where it stands, and what the reCAPTCHA score was.
+        // Added column by column, in one place, so an older table upgrades itself.
+        $have = $pdo->query(
+            "SELECT COLUMN_NAME FROM information_schema.COLUMNS
+              WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'form_quarantine'"
+        )->fetchAll(PDO::FETCH_COLUMN);
+
+        foreach ([
+            'status'      => "VARCHAR(12) NOT NULL DEFAULT 'blocked'",
+            'payload'     => 'MEDIUMTEXT NULL',
+            'score'       => 'DECIMAL(3,2) NULL',
+            'resolved_at' => 'TIMESTAMP NULL DEFAULT NULL',
+            'resolved_by' => 'VARCHAR(64) NULL',
+            'resolution'  => 'VARCHAR(255) NULL',
+        ] as $column => $definition) {
+            if (!in_array($column, $have, true)) {
+                $pdo->exec('ALTER TABLE `form_quarantine` ADD COLUMN `' . $column . '` ' . $definition);
+            }
+        }
     } catch (Throwable $e) {
         error_log('formguard: schema check failed: ' . $e->getMessage());
     }
@@ -173,11 +206,23 @@ function pmGuardFields(string $form): string
         $sig   = substr(hash_hmac('sha256', $form . '|' . $now . '|' . $nonce, pmGuardSecret($pdo)), 0, 24);
         $id    = 'pm-hp-' . $form;
 
-        return '<input type="hidden" name="pm_t" value="' . $now . '.' . $nonce . '.' . $sig . '">'
+        $html = '<input type="hidden" name="pm_t" value="' . $now . '.' . $nonce . '.' . $sig . '">'
             . '<div style="position:absolute;left:-9999px;width:1px;height:1px;overflow:hidden" aria-hidden="true">'
             . '<label for="' . $id . '">Leave this field empty</label>'
             . '<input type="text" id="' . $id . '" name="pm_hp" value="" tabindex="-1" autocomplete="off">'
             . '</div>';
+
+        // reCAPTCHA's two fields, only when it is set up. pm_rc starts as
+        // "unavailable" and only the script clears it once it has a token, so a
+        // visitor whose browser never runs the script is judged by the fallback
+        // checks instead of being turned away.
+        if (pmRecaptchaEnabled($pdo)) {
+            $html .= '<input type="hidden" name="g-recaptcha-response" value="" data-pm-action="'
+                . htmlspecialchars(PM_RECAPTCHA_ACTIONS[$form] ?? 'submit', ENT_QUOTES, 'UTF-8') . '">'
+                . '<input type="hidden" name="pm_rc" value="unavailable">';
+        }
+
+        return $html;
     } catch (Throwable $e) {
         error_log('formguard: could not draw the hidden fields: ' . $e->getMessage());
 
@@ -230,8 +275,16 @@ function pmGuardLooksRandom(string $text): bool
  * @param array<int, string> $reasons
  * @return array{ok: false, severity: string, reasons: array<int, string>, message: string}
  */
-function pmGuardBlock(PDO $pdo, string $form, string $severity, array $reasons, array $summary, string $message): array
-{
+function pmGuardBlock(
+    PDO $pdo,
+    string $form,
+    string $severity,
+    array $reasons,
+    array $summary,
+    string $message,
+    array $payload = [],
+    ?float $score = null
+): array {
     try {
         pmGuardEnsureSchema($pdo);
 
@@ -241,13 +294,15 @@ function pmGuardBlock(PDO $pdo, string $form, string $severity, array $reasons, 
         }
 
         $pdo->prepare(
-            'INSERT INTO form_quarantine (form, severity, reasons, ip_hash, summary) VALUES (?, ?, ?, ?, ?)'
+            'INSERT INTO form_quarantine (form, severity, reasons, ip_hash, summary, payload, score) VALUES (?, ?, ?, ?, ?, ?, ?)'
         )->execute([
             $form,
             $severity,
             mb_substr(implode(', ', $reasons), 0, 255),
             pmGuardIpHash($pdo),
             json_encode($clean, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
+            $payload === [] ? null : json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
+            $score,
         ]);
 
         $pdo->exec("DELETE FROM form_quarantine WHERE created_at < (NOW() - INTERVAL 45 DAY)");
@@ -259,7 +314,86 @@ function pmGuardBlock(PDO $pdo, string $form, string $severity, array $reasons, 
 }
 
 /**
+ * The form as it was sent, without the fields that only exist to be checked, so
+ * an admin can later let it through. Kept as long as the rest of the record.
+ *
+ * @param array<string, mixed> $post
+ * @return array<string, mixed>
+ */
+function pmGuardPayload(array $post): array
+{
+    $drop = [
+        'csrf_token', 'pm_t', 'pm_hp', 'company', 'website', 'g-recaptcha-response', 'pm_rc',
+        'pm_release', 'pm_release_id', 'attendee_first_name', 'attendee_last_name',
+    ];
+    $payload = array_diff_key($post, array_flip($drop));
+    $json    = json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+
+    // A form is a few hundred bytes. Anything bigger is not a form.
+    return $json !== false && strlen($json) <= 30000 ? $payload : [];
+}
+
+/**
+ * The page status each guard reason maps to, for the handlers that answer with a
+ * redirect and a status in the query string (webinar and newsletter).
+ *
+ * @param array<int, string> $reasons
+ */
+function pmGuardStatusFor(array $reasons): string
+{
+    return [
+        'too-fast'         => 'fast',
+        'no-stamp'         => 'stale',
+        'rate'             => 'rate',
+        'low-score'        => 'verify',
+        'recaptcha-failed' => 'verify',
+        'no-token'         => 'verify',
+    ][$reasons[0] ?? ''] ?? 'invalid';
+}
+
+/** The token that proves a replayed submission came from an admin pressing "Let through". */
+function pmGuardReleaseToken(PDO $pdo, int $id, string $email): string
+{
+    return substr(hash_hmac('sha256', 'release|' . $id . '|' . strtolower(trim($email)), pmGuardSecret($pdo)), 0, 32);
+}
+
+/**
+ * Is this post an admin's replay of a stopped submission? Three things must all
+ * hold: the token matches (so it was made with the site's secret), the row is
+ * currently being released (not blocked, not already let through), and the
+ * email is the one the row was stopped with.
+ *
+ * @param array<string, mixed> $post
+ */
+function pmGuardReleaseValid(PDO $pdo, array $post, string $who): bool
+{
+    $id    = (int) ($post['pm_release_id'] ?? 0);
+    $token = (string) ($post['pm_release'] ?? '');
+
+    if ($id <= 0 || $token === '' || $who === '') {
+        return false;
+    }
+
+    if (!hash_equals(pmGuardReleaseToken($pdo, $id, $who), $token)) {
+        return false;
+    }
+
+    $stmt = $pdo->prepare("SELECT summary FROM form_quarantine WHERE id = ? AND status = 'releasing' LIMIT 1");
+    $stmt->execute([$id]);
+    $summary = json_decode((string) $stmt->fetchColumn(), true);
+
+    return is_array($summary) && strtolower(trim((string) ($summary['email'] ?? ''))) === strtolower(trim($who));
+}
+
+/**
  * Run every check on one submission.
+ *
+ * Order matters. What is certain goes first and always applies (the honeypot,
+ * random text, a web address in a name). Then reCAPTCHA: a visitor it vouches
+ * for is let through, and skips the checks below, because those guess from
+ * behaviour what reCAPTCHA has just measured, and guess wrong for real people
+ * on shared connections. Only a visitor reCAPTCHA could not judge (not set up,
+ * or the browser could not run it) meets the timing, rate and repeat checks.
  *
  * @param string               $form   a key of PM_GUARD_FORMS
  * @param array<string, mixed> $post   the submitted fields
@@ -286,70 +420,25 @@ function pmGuardCheck(PDO $pdo, string $form, array $post, array $text = [], str
             $summary[$field] = (string) ($post[$field] ?? '');
         }
 
+        $payload = pmGuardPayload($post);
+
+        // An admin has let this exact stopped submission through. See
+        // pmGuardReleaseValid(): the row is in the 'releasing' state only for the
+        // few seconds the replay takes, and the token cannot be made without the
+        // site's secret.
+        if (pmGuardReleaseValid($pdo, $post, $who)) {
+            return $pass;
+        }
+
         // 1. The honeypot. No message: a bot is told nothing.
         foreach (['pm_hp', 'company'] as $trap) {
             if (trim((string) ($post[$trap] ?? '')) !== '') {
-                return pmGuardBlock($pdo, $form, 'bot', ['honeypot'], $summary, '');
+                return pmGuardBlock($pdo, $form, 'bot', ['honeypot'], $summary, '', $payload);
             }
         }
 
-        $ip = pmGuardIpHash($pdo);
-
-        // 2. How often this address has been here. Counted before the other
-        // checks so a bot that fails them is still counted.
-        $hour = $day = 0;
-        $stmt = $pdo->prepare(
-            'SELECT SUM(created_at >= (NOW() - INTERVAL 1 HOUR)), COUNT(*)
-               FROM form_throttle
-              WHERE form = ? AND ip_hash = ? AND fingerprint IS NULL AND created_at >= (NOW() - INTERVAL 1 DAY)'
-        );
-        $stmt->execute([$form, $ip]);
-        [$hour, $day] = array_map('intval', $stmt->fetch(PDO::FETCH_NUM) ?: [0, 0]);
-
-        $pdo->prepare('INSERT INTO form_throttle (form, ip_hash) VALUES (?, ?)')->execute([$form, $ip]);
-
-        if (random_int(1, 50) === 1) {
-            $pdo->exec('DELETE FROM form_throttle WHERE created_at < (NOW() - INTERVAL 2 DAY)');
-        }
-
-        if ($hour >= $rules['hour'] || $day >= $rules['day']) {
-            return pmGuardBlock($pdo, $form, 'soft', ['rate'], $summary,
-                'There have been a lot of submissions from your connection. Please wait a little and try again, or email info@prosper-minds.com.');
-        }
-
-        // 3. Timing: the render stamp has to be ours, and old enough.
-        $stamp = (string) ($post['pm_t'] ?? '');
-        $valid = false;
-        $age   = 0;
-
-        if (preg_match('/^(\d{9,11})\.([a-f0-9]{8})\.([a-f0-9]{24})$/', $stamp, $m) === 1) {
-            $expected = substr(hash_hmac('sha256', $form . '|' . $m[1] . '|' . $m[2], pmGuardSecret($pdo)), 0, 24);
-            $valid    = hash_equals($expected, $m[3]);
-            $age      = time() - (int) $m[1];
-        }
-
-        if (!$valid) {
-            return pmGuardBlock($pdo, $form, 'soft', ['no-stamp'], $summary,
-                'This form has expired. Please reload the page and try again.');
-        }
-
-        if ($age < $rules['min']) {
-            return pmGuardBlock($pdo, $form, 'soft', ['too-fast'], $summary,
-                'That was very quick. Please check your details and submit again.');
-        }
-
-        // A stamp is good for one successful submission. Without this a bot
-        // could keep one stamp and replay it for as long as it likes. A failed
-        // attempt does not use the stamp up (see the end of this function), so a
-        // person who has to fix a typo and send again is not caught by it.
-        $stampPrint = substr(hash('sha256', $stamp), 0, 16);
-        $stmt = $pdo->prepare(
-            "SELECT COUNT(*) FROM form_throttle WHERE form = 'stamp' AND fingerprint = ? AND created_at >= (NOW() - INTERVAL 2 DAY)"
-        );
-        $stmt->execute([$stampPrint]);
-        $stampUsed = (int) $stmt->fetchColumn() > 0;
-
-        // 4. What was typed.
+        // 2. What was typed. Random letters in two fields, or a web address in a
+        // name, is something no real registrant does.
         $random = 0;
         $links  = false;
         foreach ($text as $field) {
@@ -366,14 +455,105 @@ function pmGuardCheck(PDO $pdo, string $form, array $post, array $text = [], str
         }
 
         if ($random >= 2) {
-            return pmGuardBlock($pdo, $form, 'bot', ['random-text'], $summary, '');
+            return pmGuardBlock($pdo, $form, 'bot', ['random-text'], $summary, '', $payload);
         }
 
         if ($links) {
-            return pmGuardBlock($pdo, $form, 'bot', ['link-in-name'], $summary, '');
+            return pmGuardBlock($pdo, $form, 'bot', ['link-in-name'], $summary, '', $payload);
         }
 
-        // 5. The same person, the same thing, minutes apart. Checked before the
+        // 3. reCAPTCHA. After the free checks above, so a bot that fails them does
+        // not cost a call to Google.
+        $rc = pmRecaptchaAssess($pdo, $form, $post, (string) ($_SERVER['REMOTE_ADDR'] ?? ''));
+
+        if ($rc['state'] !== 'off') {
+            $summary['recaptcha'] = $rc['state'] . ($rc['score'] !== null ? ' ' . number_format($rc['score'], 2) : '')
+                . ($rc['detail'] !== '' ? ' (' . $rc['detail'] . ')' : '');
+        }
+
+        switch ($rc['state']) {
+            case 'ok':
+                return $pass;
+
+            case 'low':
+                return pmGuardBlock($pdo, $form, 'soft', ['low-score'], $summary,
+                    'We could not confirm that this request came from a person. Please try again in a moment. If it keeps happening, email info@prosper-minds.com and we will register you directly.',
+                    $payload, $rc['score']);
+
+            case 'invalid':
+            case 'missing':
+                return pmGuardBlock($pdo, $form, 'soft', [$rc['state'] === 'missing' ? 'no-token' : 'recaptcha-failed'], $summary,
+                    'The security check could not finish. Please reload the page and try again. If it keeps happening, email info@prosper-minds.com and we will register you directly.',
+                    $payload, $rc['score']);
+
+            case 'unreachable':
+            case 'misconfigured':
+                // Our problem or Google's, not the visitor's. Turning people away
+                // for it would take the forms down, so the content checks above
+                // stand and the submission goes through. Loud in the log.
+                error_log('formguard: reCAPTCHA ' . $rc['state'] . ($rc['detail'] !== '' ? ' (' . $rc['detail'] . ')' : '') . ', letting the submission through');
+
+                return $pass;
+        }
+
+        // 4. Not set up, or the visitor's browser could not run it: the older
+        // behavioural checks, with the generous limits above.
+        $ip = pmGuardIpHash($pdo);
+
+        // How often this connection has been here. Counted before the other
+        // checks so a bot that fails them is still counted.
+        $stmt = $pdo->prepare(
+            'SELECT SUM(created_at >= (NOW() - INTERVAL 1 HOUR)), COUNT(*)
+               FROM form_throttle
+              WHERE form = ? AND ip_hash = ? AND fingerprint IS NULL AND created_at >= (NOW() - INTERVAL 1 DAY)'
+        );
+        $stmt->execute([$form, $ip]);
+        [$hour, $day] = array_map('intval', $stmt->fetch(PDO::FETCH_NUM) ?: [0, 0]);
+
+        $pdo->prepare('INSERT INTO form_throttle (form, ip_hash) VALUES (?, ?)')->execute([$form, $ip]);
+
+        if (random_int(1, 50) === 1) {
+            $pdo->exec('DELETE FROM form_throttle WHERE created_at < (NOW() - INTERVAL 2 DAY)');
+        }
+
+        if ($hour >= $rules['hour'] || $day >= $rules['day']) {
+            return pmGuardBlock($pdo, $form, 'soft', ['rate'], $summary,
+                'There have been a lot of submissions from your connection. Please wait a little and try again, or email info@prosper-minds.com.', $payload);
+        }
+
+        // The render stamp has to be ours, and old enough.
+        $stamp = (string) ($post['pm_t'] ?? '');
+        $valid = false;
+        $age   = 0;
+
+        if (preg_match('/^(\d{9,11})\.([a-f0-9]{8})\.([a-f0-9]{24})$/', $stamp, $m) === 1) {
+            $expected = substr(hash_hmac('sha256', $form . '|' . $m[1] . '|' . $m[2], pmGuardSecret($pdo)), 0, 24);
+            $valid    = hash_equals($expected, $m[3]);
+            $age      = time() - (int) $m[1];
+        }
+
+        if (!$valid) {
+            return pmGuardBlock($pdo, $form, 'soft', ['no-stamp'], $summary,
+                'This form has expired. Please reload the page and try again.', $payload);
+        }
+
+        if ($age < $rules['min']) {
+            return pmGuardBlock($pdo, $form, 'soft', ['too-fast'], $summary,
+                'That was very quick. Please check your details and submit again.', $payload);
+        }
+
+        // A stamp is good for one successful submission. Without this a bot
+        // could keep one stamp and replay it for as long as it likes. A failed
+        // attempt does not use the stamp up, so a person who has to fix a typo
+        // and send again is not caught by it.
+        $stampPrint = substr(hash('sha256', $stamp), 0, 16);
+        $stmt = $pdo->prepare(
+            "SELECT COUNT(*) FROM form_throttle WHERE form = 'stamp' AND fingerprint = ? AND created_at >= (NOW() - INTERVAL 2 DAY)"
+        );
+        $stmt->execute([$stampPrint]);
+        $stampUsed = (int) $stmt->fetchColumn() > 0;
+
+        // The same person, the same thing, moments apart. Checked before the
         // used-stamp rule takes effect, so a double click that registered the
         // first time is told "we already have this", not "the form expired".
         $print = $who === '' ? '' : substr(hash_hmac('sha256', strtolower($who) . '|' . $extra, pmGuardSecret($pdo)), 0, 16);
@@ -387,13 +567,13 @@ function pmGuardCheck(PDO $pdo, string $form, array $post, array $text = [], str
 
             if ((int) $stmt->fetchColumn() > 0) {
                 return pmGuardBlock($pdo, $form, 'soft', ['repeat'], $summary,
-                    'We already have this. If you do not see a confirmation email soon, write to info@prosper-minds.com.');
+                    'We already have this. If you do not see a confirmation email soon, write to info@prosper-minds.com.', $payload);
             }
         }
 
         if ($stampUsed) {
             return pmGuardBlock($pdo, $form, 'soft', ['no-stamp'], $summary,
-                'This form has expired. Please reload the page and try again.');
+                'This form has expired. Please reload the page and try again.', $payload);
         }
 
         // Accepted: only now is the stamp used up and the repeat window opened.

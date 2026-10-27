@@ -2,7 +2,11 @@
 # End-to-end acceptance run for the Phase 1 fixes, against the LOCAL stack only.
 #
 #   docker compose up -d
-#   php -S 127.0.0.1:8080 -t public_html      &
+#   PHP_CLI_SERVER_WORKERS=4 php -S 127.0.0.1:8080 -t public_html      &
+#   php -S 127.0.0.1:8083 -t local-dev/recaptcha-stub &   # a stand-in for Google's reCAPTCHA verifier
+#   (the workers matter: letting a blocked person through makes a request from the
+#   server to its own site, which a one-worker server cannot answer while it is
+#   busy answering the first)
 #   php -S 127.0.0.1:8081 -t cpd.prosper-minds.com &
 #   local-dev/verify.sh
 #
@@ -3619,8 +3623,9 @@ check "one odd field on its own does not stop a real person" "true" \
   "$(json_success "$(g_event 7 odd@guard.example Grace Mwende -F 'address=riIHudMjNoluVWTQdE')")"
 check "a stamp cannot be replayed for someone else" "false" "$(json_success "$(g_event 7 replay@guard.example Henry Kariuki)")"
 guard_reset
-for n in 1 2 3 4 5 6; do fq "INSERT INTO form_throttle (form, ip_hash) VALUES ('event', '$(php -r 'chdir("public_html"); require "includes/config.php"; require "includes/formguard.php"; $_SERVER["REMOTE_ADDR"]="127.0.0.1"; echo pmGuardIpHash($pdo);')')" >/dev/null; done
-check "a seventh attempt from one connection in an hour is stopped" "yes" \
+GIPH="$(php -r 'chdir("public_html"); require "includes/config.php"; require "includes/formguard.php"; $_SERVER["REMOTE_ADDR"]="127.0.0.1"; echo pmGuardIpHash($pdo);')"
+for n in $(seq 1 20); do fq "INSERT INTO form_throttle (form, ip_hash) VALUES ('event', '$GIPH')" >/dev/null; done
+check "a twenty-first attempt from one connection in an hour is stopped" "yes" \
   "$(has_text "$(g_event 8 rate@guard.example Irene Chebet)" 'lot of submissions')"
 guard_reset
 check "nothing was stored for any of the blocked ones" "0" \
@@ -3839,8 +3844,8 @@ fq "INSERT INTO form_quarantine (form, severity, reasons, ip_hash, summary) VALU
 BLK="$(curl -s -b "$SJ" "$RB?tab=blocked")"
 check "the Blocked tab lists what was stopped" "yes" "$([ "$(has_text "$BLK" 'blocked1@tabs.example')" = yes ] && [ "$(has_text "$BLK" 'blocked2@tabs.example')" = yes ] && echo yes || echo no)"
 check "with the reason in plain English" "yes" "$(has_text "$BLK" 'A hidden field that people cannot see was filled in')"
-check "filtered by form" "1" "$(curl -s -b "$SJ" "$RB?tab=blocked&form=event" | grep -c 'blocked2@tabs.example')"
-check "filtered by verdict" "1" "$(curl -s -b "$SJ" "$RB?tab=blocked&severity=bot" | grep -c 'blocked1@tabs.example')"
+check "filtered by form" "yes" "$(F="$(curl -s -b "$SJ" "$RB?tab=blocked&form=event")"; [ "$(has_text "$F" 'blocked2@tabs.example')" = yes ] && [ "$(has_text "$F" 'blocked1@tabs.example')" = no ] && echo yes || echo no)"
+check "filtered by verdict" "yes" "$(F="$(curl -s -b "$SJ" "$RB?tab=blocked&severity=bot")"; [ "$(has_text "$F" 'blocked1@tabs.example')" = yes ] && [ "$(has_text "$F" 'blocked2@tabs.example')" = no ] && echo yes || echo no)"
 check "and exported" "2" "$(curl -s -b "$SJ" "$RB?tab=blocked&export=csv" | tail -n +2 | grep -c 'tabs.example')"
 curl -s -b "$SJ" -o /dev/null -X POST "$RB?tab=blocked" -d csrf_token=forged -d purge_blocked=1
 check "a forged token clears nothing" "2" "$(fq "SELECT COUNT(*) FROM form_quarantine")"
@@ -3863,6 +3868,221 @@ check "a formula-looking cell is written as text" "'=1+1" "$(php -r 'require "pu
 check "so are + - and @" "3" "$(php -r 'require "public_html/includes/csv.php"; echo count(array_filter(["+44","-5","@SUM(A1)"], fn($v) => pmCsvCell($v)[0] === chr(39)));')"
 check "ordinary text is untouched" "Amina Otieno" "$(php -r 'require "public_html/includes/csv.php"; echo pmCsvCell("Amina Otieno");')"
 check "null becomes an empty cell" "" "$(php -r 'require "public_html/includes/csv.php"; echo pmCsvCell(null);')"
+
+echo
+echo "=== 38. reCAPTCHA v3, letting blocked people through, and the guard's fallback ==="
+
+# The stand-in for Google's verifier, and the two local settings that point the
+# site at it and at itself. Written to the git-ignored .env, and left there: they
+# only matter locally and do nothing without the keys.
+grep -q '^PM_RECAPTCHA_VERIFY_URL=' public_html/.env 2>/dev/null || printf '\nPM_RECAPTCHA_VERIFY_URL=http://127.0.0.1:8083/siteverify\n' >> public_html/.env
+grep -q '^PM_LOOPBACK_ORIGIN=' public_html/.env 2>/dev/null || printf 'PM_LOOPBACK_ORIGIN=http://127.0.0.1:8080\n' >> public_html/.env
+STUB_UP="$(curl -s -m 3 -X POST http://127.0.0.1:8083/siteverify -d secret=s -d response=good:x | grep -c '"success":true')"
+if [ "$STUB_UP" != 1 ]; then
+  (nohup php -S 127.0.0.1:8083 -t local-dev/recaptcha-stub >/dev/null 2>&1 &)
+  sleep 1
+  STUB_UP="$(curl -s -m 3 -X POST http://127.0.0.1:8083/siteverify -d secret=s -d response=good:x | grep -c '"success":true')"
+fi
+check "the verifier stand-in is answering" "1" "$STUB_UP"
+
+fq "DELETE FROM site_settings WHERE setting_key LIKE 'recaptcha_%'" >/dev/null
+fq "REPLACE INTO site_settings (setting_key, setting_value) VALUES ('form_guard_mode','enforce')" >/dev/null
+guard_reset; clearmail
+
+echo "  ---- nothing changes on the page until both keys are saved ----"
+check "no reCAPTCHA field without keys"            "0" "$(curl -s "$MAIN/webinars.php" | grep -c 'name="g-recaptcha-response"')"
+check "no reCAPTCHA script without keys"           "0" "$(curl -s "$MAIN/webinars.php" | grep -c 'pm-recaptcha.js')"
+fq "REPLACE INTO site_settings (setting_key, setting_value) VALUES ('recaptcha_site_key','localsitekeylocalsitekey')" >/dev/null
+check "a site key alone is not enough"             "0" "$(curl -s "$MAIN/webinars.php" | grep -c 'name="g-recaptcha-response"')"
+fq "REPLACE INTO site_settings (setting_key, setting_value) VALUES ('recaptcha_secret_key','localsecretlocalsecret')" >/dev/null
+WEBP="$(curl -s "$MAIN/webinars.php")"
+check "with both keys every guarded form gets the field" "3" "$(printf '%s' "$WEBP" | grep -c 'name="g-recaptcha-response"')"
+check "each names the action Google should score" "yes" \
+  "$([ "$(has_text "$WEBP" 'data-pm-action="webinar_signup"')" = yes ] && [ "$(has_text "$(curl -s "$MAIN/sponsorship.php")" 'data-pm-action="sponsorship_enquiry"')" = yes ] && [ "$(has_text "$(curl -s "$MAIN/event-registration.php?id=5")" 'data-pm-action="event_registration"')" = yes ] && echo yes || echo no)"
+check "pm_rc starts as unavailable, so no script means the fallback" "yes" "$(has_text "$WEBP" 'name="pm_rc" value="unavailable"')"
+check "the script is loaded with the site key"     "yes" "$(has_text "$WEBP" 'data-site-key="localsitekeylocalsitekey"')"
+check "the secret key is never on a page"          "0" "$(curl -s "$MAIN/webinars.php" "$MAIN/index.php" | grep -c 'localsecretlocalsecret')"
+check "Google's badge is hidden and its notice is styled" "yes" \
+  "$([ "$(grep -c '^\.grecaptcha-badge { visibility: hidden; }' public_html/assets/css/pm-design-system.css)" = 1 ] && [ "$(grep -c '^\.pm-recaptcha-note ' public_html/assets/css/pm-design-system.css)" -ge 1 ] && echo yes || echo no)"
+check "the browser script lints"                   "0" "$(command -v node >/dev/null 2>&1 && { node --check public_html/assets/js/pm-recaptcha.js >/dev/null 2>&1; echo $?; } || echo 0)"
+check "it resubmits on the next tick, not inside the event" "1" "$(grep -c 'setTimeout(function () { resubmit(form, submitter); }, 0);' public_html/assets/js/pm-recaptcha.js)"
+check "it never stops a submission for its own failure" "1" "$(grep -c "flag.value = 'unavailable'" public_html/assets/js/pm-recaptcha.js)"
+
+echo "  ---- a visitor Google vouches for gets through, whatever the old guesses said ----"
+guard_reset
+g_open 0 "$MAIN/webinar.php?slug=$GSLUG"; GS[0]=
+check "a good score, with no stamp and no waiting"   "ok" "$(g_webinar 0 rc1@guard.example 'Verified One' -F 'g-recaptcha-response=good:webinar_signup' -F pm_rc=)"
+check "and they are on the list"                     "1" "$(fq "SELECT COUNT(*) FROM webinar_registrations WHERE email='rc1@guard.example'")"
+OKN=0; for i in $(seq 1 25); do [ "$(g_webinar 0 "rcmany$i@guard.example" "Person Number$i" -F 'g-recaptcha-response=good:webinar_signup' -F pm_rc=)" = ok ] && OKN=$((OKN+1)); done
+check "25 verified people from one connection all register" "25" "$OKN"
+check "...and are all stored"                         "25" "$(fq "SELECT COUNT(*) FROM webinar_registrations WHERE email LIKE 'rcmany%@guard.example'")"
+check "the same verified person twice in a second is not stopped as a repeat" "ok" "$(g_webinar 0 rc1@guard.example 'Verified One' -F 'g-recaptcha-response=good:webinar_signup' -F pm_rc=)"
+check "a score just above the minimum passes"        "ok" "$(g_webinar 0 rcmid@guard.example 'Middling Score' -F 'g-recaptcha-response=score:0.35:webinar_signup' -F pm_rc=)"
+check "a v2 key (success, no score) passes"          "ok" "$(g_webinar 0 rcv2@guard.example 'Version Two' -F 'g-recaptcha-response=noscore' -F pm_rc=)"
+
+echo "  ---- and what Google does not vouch for is stopped, with words, never a silent success ----"
+guard_reset
+B4="$(fq "SELECT COUNT(*) FROM webinar_registrations")"
+check "a low score is told to try again or email us"  "verify" "$(g_webinar 0 rclow@guard.example 'Low Score' -F 'g-recaptcha-response=low:webinar_signup' -F pm_rc=)"
+check "a score under the minimum is stopped"          "verify" "$(g_webinar 0 rclow2@guard.example 'Low Two' -F 'g-recaptcha-response=score:0.25:webinar_signup' -F pm_rc=)"
+check "a token that was already used is stopped"      "verify" "$(g_webinar 0 rcdup@guard.example 'Used Token' -F 'g-recaptcha-response=dup' -F pm_rc=)"
+check "a token minted for another form is stopped"    "verify" "$(g_webinar 0 rcact@guard.example 'Wrong Form' -F 'g-recaptcha-response=good:newsletter_signup' -F pm_rc=)"
+check "a token minted on another site is stopped"     "verify" "$(g_webinar 0 rchost@guard.example 'Wrong Site' -F 'g-recaptcha-response=wronghost:webinar_signup' -F pm_rc=)"
+check "a post with no token and no claim is stopped"  "verify" "$(g_webinar 0 rcnone@guard.example 'No Token')"
+check "none of them was stored"                       "$B4" "$(fq "SELECT COUNT(*) FROM webinar_registrations")"
+check "and nobody was emailed"                        "0" "$(for a in rclow rclow2 rcdup rcact rchost rcnone; do mail_count_to "$a@guard.example"; done | paste -sd+ - | bc)"
+check "the refusal says what to do"                   "yes" \
+  "$(curl -s "$MAIN/webinar.php?slug=$GSLUG&webinar=verify" | grep -c 'email info@prosper-minds.com and we will register you directly' | sed 's/^[1-9].*/yes/; s/^0$/no/')"
+check "the reCAPTCHA verdict and score are kept for the Blocked tab" "yes" \
+  "$([ "$(fq "SELECT COUNT(*) FROM form_quarantine WHERE reasons='low-score' AND score=0.10 AND JSON_UNQUOTE(JSON_EXTRACT(summary,'\$.recaptcha')) LIKE 'low 0.10%'")" = 1 ] && echo yes || echo no)"
+check "the whole form is kept, so it can be let through" "yes" \
+  "$([ "$(fq "SELECT COUNT(*) FROM form_quarantine WHERE reasons='low-score' AND JSON_UNQUOTE(JSON_EXTRACT(payload,'\$.email'))='rclow@guard.example' AND JSON_EXTRACT(payload,'\$.session_id') IS NOT NULL")" = 1 ] && echo yes || echo no)"
+check "the session token and stamp are not kept in it" "0" "$(fq "SELECT COUNT(*) FROM form_quarantine WHERE payload LIKE '%csrf_token%' OR payload LIKE '%pm_t%' OR payload LIKE '%g-recaptcha-response%'")"
+
+echo "  ---- the free checks still apply to a visitor Google likes ----"
+guard_reset
+check "a good score cannot carry gibberish past the guard" "no" "$(g_webinar 0 rcgib@guard.example riIHudMjNoluVWTQdE -F 'organization=nzcQNciGMLCzeKYxbxBaMZkb' -F 'g-recaptcha-response=good:webinar_signup' -F pm_rc= >/dev/null; [ "$(fq "SELECT COUNT(*) FROM webinar_registrations WHERE email='rcgib@guard.example'")" = 1 ] && echo yes || echo no)"
+check "nor a filled honeypot"                            "no" "$(g_webinar 0 rchp@guard.example 'Honeypot Filled' -F pm_hp=x -F 'g-recaptcha-response=good:webinar_signup' -F pm_rc= >/dev/null; [ "$(fq "SELECT COUNT(*) FROM webinar_registrations WHERE email='rchp@guard.example'")" = 1 ] && echo yes || echo no)"
+check "both were answered like a success, to tell a bot nothing" "2" "$(fq "SELECT COUNT(*) FROM form_quarantine WHERE severity='bot'")"
+
+echo "  ---- nobody is turned away for OUR problem ----"
+guard_reset
+check "Google answering with an error page lets a person through" "ok" "$(g_webinar 0 rcdown@guard.example 'Google Down' -F 'g-recaptcha-response=down' -F pm_rc=)"
+fq "REPLACE INTO site_settings (setting_key, setting_value) VALUES ('recaptcha_secret_key','bad-secret')" >/dev/null
+check "a wrong secret key locks nobody out"        "ok" "$(g_webinar 0 rcsecret@guard.example 'Wrong Secret' -F 'g-recaptcha-response=good:webinar_signup' -F pm_rc=)"
+check "...and gibberish is still caught meanwhile" "no" "$(g_webinar 0 rcsecret2@guard.example riIHudMjNoluVWTQdE -F 'organization=nzcQNciGMLCzeKYxbxBaMZkb' -F 'g-recaptcha-response=good:webinar_signup' -F pm_rc= >/dev/null; [ "$(fq "SELECT COUNT(*) FROM webinar_registrations WHERE email='rcsecret2@guard.example'")" = 1 ] && echo yes || echo no)"
+fq "REPLACE INTO site_settings (setting_key, setting_value) VALUES ('recaptcha_secret_key','localsecretlocalsecret')" >/dev/null
+guard_reset
+check "if the page says the script could not run, the fallback judges (a fine stamp passes)" "ok" \
+  "$(g_open 1 "$MAIN/webinar.php?slug=$GSLUG"; sleep 3; g_webinar 1 rcfall@guard.example 'Fallback Person' -F pm_rc=unavailable)"
+check "...and no stamp at all does not" "stale" "$(g_open 2 "$MAIN/webinar.php?slug=$GSLUG"; GS[2]=; g_webinar 2 rcfall2@guard.example 'No Stamp' -F pm_rc=unavailable)"
+fq "DELETE FROM webinar_registrations WHERE email LIKE '%@guard.example'" >/dev/null
+guard_reset
+
+echo "  ---- Settings: the keys ----"
+SJ=/tmp/verify-v38-settings.txt; rm -f "$SJ"
+STOK="$(curl -s -c "$SJ" "$MAIN/admin/login.php" | sed -n 's/.*name="csrf_token" value="\([^"]*\)".*/\1/p' | head -1)"
+curl -s -b "$SJ" -c "$SJ" -o /dev/null --data-urlencode "csrf_token=$STOK" --data-urlencode "username=Craig" --data-urlencode "password=localtest-analytics-pw" "$MAIN/admin/login.php"
+s_tok() { curl -s -b "$SJ" "$MAIN/admin/settings.php" | sed -n 's/.*name="csrf_token" value="\([^"]*\)".*/\1/p' | head -1; }
+setting() { fq "SELECT IFNULL((SELECT setting_value FROM site_settings WHERE setting_key='$1'), 'UNSET')"; }
+s_save() { curl -s -b "$SJ" -X POST "$MAIN/admin/settings.php" --data-urlencode "csrf_token=$(s_tok)" -d save_alerts=1 -d form_guard_mode=enforce "$@"; }
+check "Settings has the three reCAPTCHA fields" "3" "$(curl -s -b "$SJ" "$MAIN/admin/settings.php" | grep -c 'name="recaptcha_\(site_key\|secret_key\|min_score\)"')"
+check "the saved secret is never printed back"   "0" "$(curl -s -b "$SJ" "$MAIN/admin/settings.php" | grep -c 'localsecretlocalsecret')"
+check "it says one is saved instead"             "yes" "$(has_text "$(curl -s -b "$SJ" "$MAIN/admin/settings.php")" 'Saved. Leave blank to keep it.')"
+OUT="$(s_save --data-urlencode 'recaptcha_site_key=has a space in it so is not a key' --data-urlencode 'recaptcha_secret_key=' -d recaptcha_min_score=0.3)"
+check "a site key with a space in it is refused"  "yes" "$(has_text "$OUT" 'site key does not look right')"
+check "and nothing was saved"                     "localsitekeylocalsitekey" "$(setting recaptcha_site_key)"
+OUT="$(s_save --data-urlencode 'recaptcha_site_key=freshsitekeyfreshsitekey' --data-urlencode 'recaptcha_secret_key=' -d recaptcha_min_score=2)"
+check "a minimum score outside 0.05 to 0.95 is refused" "yes" "$(has_text "$OUT" 'from 0.05 to 0.95')"
+OUT="$(s_save --data-urlencode 'recaptcha_site_key=freshsitekeyfreshsitekey' --data-urlencode 'recaptcha_secret_key=' -d recaptcha_min_score=0.4)"
+check "a blank secret keeps the saved one"        "localsecretlocalsecret" "$(setting recaptcha_secret_key)"
+check "the new site key and score are saved"      "freshsitekeyfreshsitekey|0.40" "$(setting recaptcha_site_key)|$(setting recaptcha_min_score)"
+check "saving checks the secret with Google, and says so" "yes" "$(has_text "$OUT" 'Google accepted the secret key')"
+OUT="$(s_save --data-urlencode 'recaptcha_site_key=freshsitekeyfreshsitekey' --data-urlencode 'recaptcha_secret_key=bad-secret-bad-secret-1' -d recaptcha_min_score=0.4)"
+check "a wrong secret is reported at once"        "yes" "$(has_text "$OUT" 'does not accept the secret key')"
+check "and the forms keep working meanwhile"      "yes" "$(has_text "$OUT" 'nobody is turned away')"
+check "the save is audited without the key in it" "0" "$(fq "SELECT COUNT(*) FROM cms_audit_log WHERE action='settings_alerts' AND (summary LIKE '%bad-secret%' OR summary LIKE '%freshsitekey%')")"
+check "the audit says the secret changed"         "yes" "$([ "$(fq "SELECT COUNT(*) FROM cms_audit_log WHERE action='settings_alerts' AND summary LIKE '%secret key changed%'")" -ge 1 ] && echo yes || echo no)"
+check "a forged token saves nothing"              "freshsitekeyfreshsitekey" \
+  "$(curl -s -b "$SJ" -o /dev/null -X POST "$MAIN/admin/settings.php" -d csrf_token=forged -d save_alerts=1 -d recaptcha_site_key=forgedforgedforgedforged; setting recaptcha_site_key)"
+fq "REPLACE INTO site_settings (setting_key, setting_value) VALUES ('recaptcha_site_key','localsitekeylocalsitekey'),('recaptcha_secret_key','localsecretlocalsecret'),('recaptcha_min_score','0.3')" >/dev/null
+fq "DELETE FROM site_settings WHERE setting_key='notify_registration_emails'" >/dev/null
+
+echo "  ---- letting a blocked person through ----"
+REL="$(php local-dev/check-release.php 2>/dev/null | tail -1)"
+rv() { printf '%s' "$REL" | php -r '$d=json_decode(stream_get_contents(STDIN),true); $v=$d; foreach (explode(".", $argv[1]) as $k) { $v = is_array($v) ? ($v[$k] ?? null) : null; } echo is_bool($v) ? ($v ? "true" : "false") : (is_array($v) ? json_encode($v) : (string) $v);' "$1"; }
+check "the replay script ran"                          "true" "$([ -n "$REL" ] && printf '%s' "$REL" | php -r 'echo json_decode(stream_get_contents(STDIN)) ? "true" : "false";')"
+check "a low score refused a real registration"        "true" "$(rv stopped_refused)"
+check "nothing was registered while it was stopped"    "true" "$(rv stopped_not_stored)"
+check "the whole form, delegates included, was kept"   "1" "$(rv kept_whole_form)"
+check "letting them through registers them"            "true" "$(rv release_ok)"
+check "as the same registration anyone gets: delegates" "2" "$(rv reg.attendee_count)"
+check "the tier they chose"                            "vip" "$(rv reg.tier)"
+check "the phone number they gave"                     "+254711222333" "$(rv reg.phone)"
+check "the real total for two VIP delegates"           "3998.00" "$(rv reg.total_amount)"
+check "with an invoice number"                         "yes" "$(rv reg.invoice_number | grep -q '^INV-' && echo yes || echo no)"
+check "and the consent they ticked"                    "1" "$(rv reg.consent)"
+check "they received their invoice and invitation"     "2" "$(rv person_emails)"
+check "the team alert went to the alert list too"      "1" "$(rv team_alerts)"
+check "the screen links to them on the list"           "registrations.php?search=wanjiru%40release.example" "$(rv release_link)"
+check "the row records who let them through"           "released|Craig" "$(rv row_status)"
+check "letting the same one through again is refused"  "false" "$(rv second_release)"
+check "so there is still exactly one registration"     "1" "$(rv registrations_count)"
+check "the release is audited"                         "1" "$(rv audited)"
+check "an older webinar row can be released"           "true" "$(rv old_webinar_can_release)"
+check "an older event row cannot (it kept too little)" "false" "$(rv old_event_can_release)"
+check "the older webinar row lands on the chosen session" "3" "$(rv old_webinar_session)"
+check "the older event row is refused, not invented"   "false" "$(rv old_event_release)"
+check "...and stays waiting"                           "blocked" "$(rv old_event_still_waiting)"
+check "inviting them to register succeeds"             "true" "$(rv invite_ok)"
+check "they get one email"                             "1" "$(rv invite_emails)"
+check "and no registration is made for them"           "true" "$(rv invite_no_registration)"
+check "the row is marked invited"                      "invited" "$(rv invite_status)"
+check "a second invite is refused"                     "false" "$(rv second_invite)"
+check "an invite with no school chosen is refused"     "false" "$(rv invite_no_school)"
+check "if the server cannot reach its own site, nothing is done" "false" "$(rv unreachable_ok)"
+check "and the row goes back to waiting, not stuck"    "blocked" "$(rv unreachable_status)"
+check "with a reason the admin can read"               "yes" "$(rv unreachable_message | grep -q 'could not reach its own site' && echo yes || echo no)"
+check "a forged release token cannot get past the guard" "no" \
+  "$(fq "REPLACE INTO site_settings (setting_key,setting_value) VALUES ('form_guard_mode','enforce')" >/dev/null; g_open 3 "$MAIN/webinar.php?slug=$GSLUG"; g_webinar 3 forged-rel@guard.example 'Forged Release' -F pm_hp=x -F pm_release_id=1 -F pm_release=00000000000000000000000000000000 >/dev/null; [ "$(fq "SELECT COUNT(*) FROM webinar_registrations WHERE email='forged-rel@guard.example'")" = 1 ] && echo yes || echo no)"
+
+echo "  ---- the Blocked tab ----"
+guard_reset
+fq "INSERT INTO form_quarantine (form, severity, reasons, ip_hash, summary, payload, score) VALUES
+    ('webinar','soft','low-score','aaaaaaaaaaaaaaaa','{\"email\":\"tab-full@guard.example\",\"name\":\"Tab Full\",\"recaptcha\":\"low 0.20\"}','{\"name\":\"Tab Full\",\"email\":\"tab-full@guard.example\",\"session_id\":\"3\",\"consent\":\"yes\",\"return_to\":\"/webinars.php\"}',0.20),
+    ('webinar','soft','rate','bbbbbbbbbbbbbbbb','{\"email\":\"tab-old@guard.example\",\"name\":\"Tab Old\"}',NULL,NULL),
+    ('event','soft','rate','cccccccccccccccc','{\"email\":\"tab-event@guard.example\",\"first_name\":\"Tab\"}',NULL,NULL),
+    ('event','bot','random-text','dddddddddddddddd','{\"email\":\"tab-bot@guard.example\",\"first_name\":\"riIHudMjNoluVWTQdE\"}',NULL,NULL)" >/dev/null
+RB="$MAIN/admin/registrations.php"
+BLK="$(curl -s -b "$SJ" "$RB?tab=blocked")"
+check "the tab count is only what is waiting"          "yes" "$(has_text "$BLK" 'Blocked by bot protection (4)')"
+check "a row with the whole form offers Let through"   "yes" "$(printf '%s' "$BLK" | php -r '$h=stream_get_contents(STDIN); preg_match("~tab-full@guard.example.*?</tr>~s",$h,$m); echo str_contains($m[0] ?? "", ">Let through<") ? "yes":"no";')"
+check "an older webinar row asks which session"        "yes" "$(printf '%s' "$BLK" | php -r '$h=stream_get_contents(STDIN); preg_match("~tab-old@guard.example.*?</tr>~s",$h,$m); echo (str_contains($m[0] ?? "", "name=\"session_id\"") && str_contains($m[0] ?? "", ">Let through<")) ? "yes":"no";')"
+check "an older event row offers an invitation instead" "yes" "$(printf '%s' "$BLK" | php -r '$h=stream_get_contents(STDIN); preg_match("~tab-event@guard.example.*?</tr>~s",$h,$m); echo (str_contains($m[0] ?? "", ">Invite to register<") && !str_contains($m[0] ?? "", ">Let through<")) ? "yes":"no";')"
+check "every waiting row can be marked not a person"   "4" "$(printf '%s' "$BLK" | grep -c 'name="blocked_action" value="dismiss"')"
+check "the score shows beside what was sent"           "yes" "$(has_text "$BLK" 'recaptcha:')"
+BTOK="$(printf '%s' "$BLK" | sed -n 's/.*name="csrf_token" value="\([^"]*\)".*/\1/p' | head -1)"
+FULLID="$(fq "SELECT id FROM form_quarantine WHERE JSON_UNQUOTE(JSON_EXTRACT(summary,'\$.email'))='tab-full@guard.example'")"
+curl -s -b "$SJ" -o /dev/null -X POST "$RB?tab=blocked" -d csrf_token=forged -d blocked_action=release -d "id=$FULLID"
+check "a forged token lets nobody through"             "0" "$(fq "SELECT COUNT(*) FROM webinar_registrations WHERE email='tab-full@guard.example'")"
+curl -s -b "$SJ" -o /dev/null -X POST "$RB?tab=blocked" --data-urlencode "csrf_token=$BTOK" -d blocked_action=release -d "id=$FULLID"
+check "pressing Let through puts them on the webinar list" "3" "$(fq "SELECT session_id FROM webinar_registrations WHERE email='tab-full@guard.example'")"
+check "the row moves out of Waiting"                   "released" "$(fq "SELECT status FROM form_quarantine WHERE id=$FULLID")"
+OLDID="$(fq "SELECT id FROM form_quarantine WHERE JSON_UNQUOTE(JSON_EXTRACT(summary,'\$.email'))='tab-old@guard.example'")"
+curl -s -b "$SJ" -o /dev/null -X POST "$RB?tab=blocked" --data-urlencode "csrf_token=$BTOK" -d blocked_action=release -d "id=$OLDID" -d session_id=0
+check "an older webinar row can be put on the series list" "0" "$(fq "SELECT session_id FROM webinar_registrations WHERE email='tab-old@guard.example'")"
+EVID="$(fq "SELECT id FROM form_quarantine WHERE JSON_UNQUOTE(JSON_EXTRACT(summary,'\$.email'))='tab-event@guard.example'")"
+clearmail
+curl -s -b "$SJ" -o /dev/null -X POST "$RB?tab=blocked" --data-urlencode "csrf_token=$BTOK" -d blocked_action=invite -d "id=$EVID" -d event_id=5
+check "pressing Invite emails them a link"             "1" "$(mail_count_to tab-event@guard.example)"
+BOTID="$(fq "SELECT id FROM form_quarantine WHERE JSON_UNQUOTE(JSON_EXTRACT(summary,'\$.email'))='tab-bot@guard.example'")"
+curl -s -b "$SJ" -o /dev/null -X POST "$RB?tab=blocked" --data-urlencode "csrf_token=$BTOK" -d blocked_action=dismiss -d "id=$BOTID"
+check "Not a person moves a bot out of Waiting"        "dismissed" "$(fq "SELECT status FROM form_quarantine WHERE id=$BOTID")"
+check "the filter shows what was let through"          "yes" "$(F="$(curl -s -b "$SJ" "$RB?tab=blocked&status=released")"; [ "$(has_text "$F" 'tab-full@guard.example')" = yes ] && [ "$(has_text "$F" 'tab-old@guard.example')" = yes ] && [ "$(has_text "$F" 'tab-event@guard.example')" = no ] && echo yes || echo no)"
+check "and what was invited"                           "yes" "$(F="$(curl -s -b "$SJ" "$RB?tab=blocked&status=invited")"; [ "$(has_text "$F" 'tab-event@guard.example')" = yes ] && [ "$(has_text "$F" 'tab-full@guard.example')" = no ] && echo yes || echo no)"
+check "the export carries the status"                  "yes" "$(has_text "$(curl -s -b "$SJ" "$RB?tab=blocked&status=all&export=csv" | head -1)" 'Status')"
+check "Delete waiting keeps the record of who was let through or invited" "3" \
+  "$(TOKP="$(curl -s -b "$SJ" "$RB?tab=blocked" | sed -n 's/.*name="csrf_token" value="\([^"]*\)".*/\1/p' | head -1)"; curl -s -b "$SJ" -o /dev/null -X POST "$RB?tab=blocked" --data-urlencode "csrf_token=$TOKP" -d purge_blocked=1; fq "SELECT COUNT(*) FROM form_quarantine WHERE status IN ('released','invited')")"
+check "the permission exists in the registry"          "yes" "$(php -r 'require "public_html/includes/auth.php"; echo isset(getPermissionFeatures()["registrations"]["release"]) ? "yes" : "no";')"
+
+echo "  ---- an older table upgrades itself ----"
+fq "DROP TABLE IF EXISTS form_quarantine_oldshape" >/dev/null
+fq "RENAME TABLE form_quarantine TO form_quarantine_current" >/dev/null
+fq "CREATE TABLE form_quarantine (id INT AUTO_INCREMENT PRIMARY KEY, form VARCHAR(24) NOT NULL, severity VARCHAR(8) NOT NULL, reasons VARCHAR(255) NOT NULL, ip_hash CHAR(16) NOT NULL, summary TEXT NULL, created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP)" >/dev/null
+fq "INSERT INTO form_quarantine (form, severity, reasons, ip_hash, summary) VALUES ('webinar','bot','honeypot','eeeeeeeeeeeeeeee','{\"email\":\"upgrade@guard.example\"}')" >/dev/null
+php -r 'chdir("public_html"); require "includes/config.php"; require "includes/formguard.php"; pmGuardEnsureSchema($pdo);' >/dev/null 2>&1
+check "the six new columns are added"                  "6" "$(fq "SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='form_quarantine' AND COLUMN_NAME IN ('status','payload','score','resolved_at','resolved_by','resolution')")"
+check "an old row becomes a waiting row"               "blocked" "$(fq "SELECT status FROM form_quarantine WHERE id=1")"
+fq "DROP TABLE form_quarantine" >/dev/null
+fq "RENAME TABLE form_quarantine_current TO form_quarantine" >/dev/null
+
+echo "  ---- tidy up ----"
+fq "DELETE FROM webinar_registrations WHERE email LIKE '%@guard.example'" >/dev/null
+fq "DELETE FROM form_quarantine" >/dev/null; fq "DELETE FROM form_throttle" >/dev/null
+fq "DELETE FROM site_settings WHERE setting_key LIKE 'recaptcha_%'" >/dev/null
+fq "REPLACE INTO site_settings (setting_key, setting_value) VALUES ('form_guard_mode','off')" >/dev/null
+rm -f "$SJ"; clearmail
+check "reCAPTCHA is off again for the rest of the suite" "0" "$(curl -s "$MAIN/webinars.php" | grep -c 'name="g-recaptcha-response"')"
 
 echo
 printf '\n%s\npassed=%d failed=%d\n%s\n' "$(printf '=%.0s' {1..78})" "$pass" "$fail" "$(printf '=%.0s' {1..78})"
